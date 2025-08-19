@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Comparativa: Compra vs. Aluguel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --cor-fundo-principal: #1f303f;
+            --cor-container: #314254;
+            --cor-texto: #e0e0e0;
+            --cor-input-borda: #4a5d71;
+            --cor-input-bg: #273747;
+            --cor-sombra: rgba(0, 0, 0, 0.2);
+            --cor-destaque-compra: #00C49F;
+            --cor-destaque-aluguel: #FFC300;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--cor-fundo-principal);
+            color: var(--cor-texto);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .main-container { width: 100%; max-width: 95%; }
+        h1, h2 { text-align: center; color: #fff; text-shadow: 2px 2px 4px var(--cor-sombra); }
+        .calculator-container, .results-container, .table-container {
+            background-color: var(--cor-container);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px var(--cor-sombra);
+            margin-bottom: 30px;
+        }
+        .grid-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px 30px; }
+        .input-group { display: flex; flex-direction: column; }
+        label { margin-bottom: 8px; font-weight: 600; font-size: 14px; }
+        input[type="number"], input[type="text"] {
+            padding: 12px;
+            border: 1px solid var(--cor-input-borda);
+            border-radius: 6px;
+            font-size: 16px;
+            background-color: var(--cor-input-bg);
+            color: var(--cor-texto);
+        }
+        input[readonly] { background-color: #222d38; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .result-item { background-color: var(--cor-input-bg); padding: 20px; border-radius: 8px; text-align: center; }
+        .result-item .label { font-size: 14px; margin-bottom: 8px; }
+        .result-item .value { font-size: 22px; font-weight: 700; }
+        .result-item .value.compra { color: var(--cor-destaque-compra); }
+        .result-item .value.aluguel { color: var(--cor-destaque-aluguel); }
+        .table-wrapper { max-height: 600px; overflow: auto; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: right; border-bottom: 1px solid var(--cor-input-borda); white-space: nowrap; }
+        th { background-color: #273747; position: sticky; top: 0; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <h1>Calculadora Comparativa: Compra vs. Aluguel</h1>
+        <div class="calculator-container">
+            <h2>Parâmetros da Simulação</h2>
+            <div class="grid-inputs">
+                <div class="input-group"><label for="valorImovel">Valor do Imóvel (R$):</label><input type="number" id="valorImovel" value="2000000"></div>
+                <div class="input-group"><label for="valorEntrada">Valor da Entrada (R$):</label><input type="number" id="valorEntrada" value="200000"></div>
+                <div class="input-group"><label for="numeroMeses">Prazo do Financiamento (Meses):</label><input type="number" id="numeroMeses" value="360"></div>
+                <div class="input-group"><label for="taxaJuros">Taxa de Juros (a.a. %):</label><input type="number" id="taxaJuros" value="10"></div>
+                <div class="input-group"><label for="trAnual">Taxa Referencial (TR) (a.a. %):</label><input type="number" id="trAnual" value="2"></div>
+                <div class="input-group"><label for="itbi">ITBI (%):</label><input type="number" id="itbi" value="3"></div>
+                <div class="input-group"><label for="corretagem">Corretagem (%):</label><input type="number" id="corretagem" value="3"></div>
+                <div class="input-group"><label for="ipca">IPCA (a.a. %):</label><input type="number" id="ipca" value="5"></div>
+                <div class="input-group"><label for="depreciacao">Depreciação (a.a. %):</label><input type="number" id="depreciacao" value="1"></div>
+                <div class="input-group"><label for="taxaAluguelMensal">Taxa do Aluguel (%):</label><input type="number" id="taxaAluguelMensal" value="0.4"></div>
+                <div class="input-group"><label for="taxaRetorno">Rentabilidade (a.a. %):</label><input type="number" id="taxaRetorno" value="12.66"></div>
+                <div class="input-group"><label for="irAplicado">IR sobre Ganhos (%):</label><input type="number" id="irAplicado" value="15"></div>
+            </div>
+        </div>
+        
+        <div class="results-container">
+            <h2>Resultados Finais</h2>
+            <div class="results-grid">
+                <div class="result-item">
+                    <label>Patrimônio Final (Compra)</label>
+                    <div class="value compra" id="patrimonioCompra">R$ 0,00</div>
+                </div>
+                <div class="result-item">
+                    <label>Patrimônio Final (Aluguel)</label>
+                    <div class="value aluguel" id="patrimonioAluguel">R$ 0,00</div>
+                </div>
+                <div class="result-item">
+                    <label>Custo Total do Financiamento</label>
+                    <div class="value" id="custoTotalFinanciamento">R$ 0,00</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="table-container" id="tabela-container"></div>
+    </div>
+
+    <script>
+        const inputs = document.querySelectorAll('input[type="number"]');
+        inputs.forEach(input => input.addEventListener('input', calcular));
+
+        function round(value) { return Number(Math.round(value + 'e2') + 'e-2'); }
+        function formatarMoeda(valor) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor); }
+        
+        function calcular() {
+            const valorImovel = parseFloat(document.getElementById('valorImovel').value) || 0;
+            const valorEntrada = parseFloat(document.getElementById('valorEntrada').value) || 0;
+            const numeroMeses = parseInt(document.getElementById('numeroMeses').value) || 0;
+            const taxaJurosAnual = parseFloat(document.getElementById('taxaJuros').value) / 100 || 0;
+            const trAnual = parseFloat(document.getElementById('trAnual').value) / 100 || 0;
+            const itbiPercent = parseFloat(document.getElementById('itbi').value) / 100 || 0;
+            const corretagemPercent = parseFloat(document.getElementById('corretagem').value) / 100 || 0;
+            const ipcaAnual = parseFloat(document.getElementById('ipca').value) / 100 || 0;
+            const depreciacaoAnual = parseFloat(document.getElementById('depreciacao').value) / 100 || 0;
+            const taxaAluguelMensal = parseFloat(document.getElementById('taxaAluguelMensal').value) / 100 || 0;
+            const taxaRetornoAnual = parseFloat(document.getElementById('taxaRetorno').value) / 100 || 0;
+            const irAplicadoPercent = parseFloat(document.getElementById('irAplicado').value) / 100 || 0;
+
+            const valorFinanciado = valorImovel - valorEntrada;
+            const custosIniciais = valorImovel * (itbiPercent + corretagemPercent);
+            const taxaJurosMensal = Math.pow(1 + taxaJurosAnual, 1/12) - 1;
+            const trMensal = Math.pow(1 + trAnual, 1/12) - 1;
+            const taxaValorizacaoImovelMensal = Math.pow(1 + ipcaAnual - depreciacaoAnual, 1/12) - 1;
+            const taxaRetornoLiquidaMensal = Math.pow(1 + (taxaRetornoAnual * (1-irAplicadoPercent)), 1/12) - 1;
+            const valorAluguelInicial = valorImovel * taxaAluguelMensal;
+            
+            if (numeroMeses <= 0) return;
+
+            let saldoDevedorInicial = valorFinanciado;
+            let valorImovelAtualizado = valorImovel;
+            let valorAluguelAtualizado = valorAluguelInicial;
+            let patrimonioAluguel = valorEntrada + custosIniciais;
+            
+            // CÁLCULO DO CUSTO TOTAL: Começa com os gastos iniciais
+            let custoTotalFinanciamento = valorEntrada + custosIniciais;
+
+            const dadosTabela = [];
+
+            for (let mes = 1; mes <= numeroMeses; mes++) {
+                const divida = saldoDevedorInicial;
+                const correcao = round(divida * trMensal);
+                const dividaCorrigida = round(divida + correcao);
+
+                const prazoRestante = numeroMeses - (mes - 1);
+                const amortizacao = round(dividaCorrigida / prazoRestante);
+                
+                const juros = round(dividaCorrigida * taxaJurosMensal);
+                const prestacao = round(juros + amortizacao);
+                const saldoDevedorFinal = round(dividaCorrigida - amortizacao);
+                
+                // CÁLCULO DO CUSTO TOTAL: A cada mês, a prestação é somada
+                custoTotalFinanciamento += prestacao;
+
+                valorImovelAtualizado = round(valorImovelAtualizado * (1 + taxaValorizacaoImovelMensal));
+                const patrimonioCompra = round(valorImovelAtualizado - saldoDevedorFinal);
+                
+                if (mes > 1 && (mes - 1) % 12 === 0) {
+                    valorAluguelAtualizado = round(valorAluguelAtualizado * (1 + ipcaAnual));
+                }
+                const valorEconomizado = round(prestacao - valorAluguelAtualizado);
+                patrimonioAluguel = round((patrimonioAluguel + valorEconomizado) * (1 + taxaRetornoLiquidaMensal));
+                
+                dadosTabela.push({
+                    mes, divida, correcao, dividaCorrigida, juros, amortizacao, prestacao,
+                    saldoDevedor: saldoDevedorFinal,
+                    valorImovelCorrigido: valorImovelAtualizado,
+                    patrimonioCompra: patrimonioCompra,
+                    aluguel: valorAluguelAtualizado,
+                    valorEconomizado: valorEconomizado,
+                    patrimonioAluguel: patrimonioAluguel,
+                });
+                
+                saldoDevedorInicial = saldoDevedorFinal;
+            }
+
+            const ultimoMes = dadosTabela[dadosTabela.length - 1];
+            document.getElementById('patrimonioCompra').textContent = formatarMoeda(ultimoMes.patrimonioCompra);
+            document.getElementById('patrimonioAluguel').textContent = formatarMoeda(ultimoMes.patrimonioAluguel);
+            // EXIBIÇÃO DO CUSTO TOTAL
+            document.getElementById('custoTotalFinanciamento').textContent = formatarMoeda(custoTotalFinanciamento);
+
+            gerarTabela(dadosTabela);
+        }
+
+        function gerarTabela(dados) {
+            const container = document.getElementById('tabela-container');
+            let tableHTML = `<h2>Análise Detalhada Mês a Mês</h2>
+                             <div class="table-wrapper">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Mês</th><th>Dívida Inicial</th><th>Correção (TR)</th><th>Dívida Corrigida</th><th>Juros</th>
+                                            <th>Amortização</th><th>Prestação</th><th>Saldo Devedor Final</th><th>Valor do Imóvel</th>
+                                            <th>Patrimônio (Compra)</th><th>Aluguel</th><th>Valor Economizado</th><th>Patrimônio (Aluguel)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+            dados.forEach(d => {
+                tableHTML += `<tr>
+                                <td>${d.mes}</td><td>${formatarMoeda(d.divida)}</td><td>${formatarMoeda(d.correcao)}</td>
+                                <td>${formatarMoeda(d.dividaCorrigida)}</td><td>${formatarMoeda(d.juros)}</td>
+                                <td>${formatarMoeda(d.amortizacao)}</td><td>${formatarMoeda(d.prestacao)}</td>
+                                <td>${formatarMoeda(d.saldoDevedor)}</td><td>${formatarMoeda(d.valorImovelCorrigido)}</td>
+                                <td>${formatarMoeda(d.patrimonioCompra)}</td><td>${formatarMoeda(d.aluguel)}</td>
+                                <td>${formatarMoeda(d.valorEconomizado)}</td><td>${formatarMoeda(d.patrimonioAluguel)}</td>
+                              </tr>`;
+            });
+            tableHTML += '</tbody></table></div>';
+            container.innerHTML = tableHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', calcular);
+    </script>
+</body>
+</html>
