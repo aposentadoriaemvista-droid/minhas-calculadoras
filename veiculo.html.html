@@ -3,553 +3,359 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Planning Pro</title>
+    <title>Assistente de Custo de Veículo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
-            --bg-main: #1f303f; --card-bg: #314254; --text-color: #e0e0e0; --text-muted-color: #a0b0c0; --border-color: #4a5d71; --input-bg: #273747; --shadow-color: rgba(0, 0, 0, 0.2); --primary-color: #00aaff; --success-color: #00C49F; --warning-color: #FFC300; --danger-color: #dc3545; --text-color-dark-bg: #1f303f;
+            --bg-main: #F4F7F9; --card-bg: #FFFFFF; --text-color: #1B4043;
+            --text-muted-color: #5a7071; --border-color: #dee2e6; --input-bg: #F4F7F9;
+            --shadow-color: rgba(27, 64, 67, 0.1); --primary-color: #225458;
+            --primary-hover-color: #1B4043; --success-color: #00C49F;
+            --warning-color: #FFC300; --danger-color: #dc3545;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Poppins', sans-serif; background-color: var(--bg-main); color: var(--text-color); font-size: 16px; line-height: 1.6; }
         .main-container { max-width: 1200px; margin: 40px auto; padding: 20px; }
-        h1, h2, h3 { color: var(--text-color); }
+        h1, h2, h3, h4 { color: var(--text-color); }
         h1 { font-size: 32px; text-align: center; margin-bottom: 10px; }
         h2 { font-size: 24px; font-weight: 600; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
         h3 { font-size: 20px; font-weight: 600; margin-bottom: 15px; }
+        h4 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--primary-color); }
         p { margin-bottom: 20px; text-align: center; color: var(--text-muted-color); line-height: 1.7; }
-        .card { background-color: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 12px var(--shadow-color); padding: 40px; margin-bottom: 40px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; font-weight: 600; margin-bottom: 8px; }
-        .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 16px; background-color: var(--input-bg); color: var(--text-color); }
-        .main-button { display: inline-block; width: auto; padding: 14px 28px; background-color: var(--primary-color); color: var(--text-color-dark-bg); border: none; border-radius: 6px; font-size: 18px; font-weight: 600; cursor: pointer; transition: filter 0.3s; margin-top: 20px; }
-        .main-button:hover { filter: brightness(1.1); }
-        .secondary-button { background-color: transparent; border: 2px solid var(--primary-color); color: var(--primary-color); }
-        .remove-button { background-color: var(--danger-color); color: white; border:none; padding: 5px 10px; font-size: 14px; border-radius: 4px; cursor: pointer; }
-        .hidden { display: none; }
-        .button-group { display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
-        .financial-columns, .goal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-        .goal-item { background-color: var(--input-bg); padding: 20px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid var(--primary-color); }
-        .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 30px; }
-        @media (min-width: 1024px) { .dashboard-grid { grid-template-columns: 2fr 1fr; } }
-        #chart-container { position: relative; min-height: 450px; width: 100%; }
-        .metrics-panel { background-color: var(--bg-main); padding: 25px; border-radius: 8px; }
+        .card { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 8px 24px var(--shadow-color); padding: 40px; margin-bottom: 40px; }
+        
+        .form-group { margin-bottom: 24px; } 
+
+        .form-group label { display: block; font-weight: 600; margin-bottom: 8px; color: var(--text-color); }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; background-color: var(--input-bg); color: var(--text-color); transition: border-color 0.3s, box-shadow 0.3s; }
+        .form-group input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(34, 84, 88, 0.2); outline: none; }
+        .main-button { display: inline-block; width: auto; padding: 14px 28px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; transition: background-color 0.3s, transform 0.2s; margin-top: 20px; }
+        .main-button:hover { background-color: var(--primary-hover-color); transform: translateY(-2px); }
+        .secondary-button { background-color: transparent; color: var(--primary-color); border: 2px solid var(--primary-color); }
+        .secondary-button:hover { background-color: var(--primary-color); color: white; }
+        .hidden { display: none !important; }
+        #mode-selector { text-align: center; }
+        .mode-selection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; margin-top: 40px; }
+        .mode-card { background-color: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px var(--shadow-color); border: 2px solid transparent; cursor: pointer; transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
+        .mode-card:hover { transform: translateY(-5px); border-color: var(--primary-color); box-shadow: 0 12px 30px rgba(34, 84, 88, 0.2); }
+        .mode-card h3 { margin-top: 15px; color: var(--primary-color); }
+        .form-module { border-top: 2px solid var(--border-color); margin-top: 30px; padding-top: 30px; }
+        .financial-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; }
+        .dashboard-grid, .comparison-results-grid { display: grid; grid-template-columns: 1fr; gap: 30px; }
+        @media (min-width: 1024px) { .dashboard-grid { grid-template-columns: 2fr 1fr; } .comparison-results-grid { grid-template-columns: 1fr 1fr; } }
+        .metrics-panel { background-color: #f8f9fa; padding: 25px; border-radius: 8px; border: 1px solid var(--border-color); }
         .metric-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
         .metric-item:last-child { border-bottom: none; }
-        .metric-item .label, .metric-item .value { font-size: 15px; }
-        .metric-item .label { font-weight: 600; display: flex; align-items: center; gap: 10px; }
-        .metric-item .value { font-weight: 700; text-align: right; }
-        .color-dot { width: 12px; height: 12px; border-radius: 50%; }
-        .dot-white { background-color: #f0f0f0; }
-        .dot-yellow { background-color: var(--warning-color); }
-        .dot-green { background-color: var(--success-color); }
-        .info-icon { cursor: pointer; color: #aaa; border: 1px solid #aaa; border-radius: 50%; width: 16px; height: 16px; font-size: 12px; text-align: center; line-height: 16px; position: relative; }
-        .info-icon .tooltip { visibility: hidden; width: 220px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -110px; opacity: 0; transition: opacity 0.3s; }
-        .info-icon:hover .tooltip { visibility: visible; opacity: 1; }
-        .chart-legend { text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .legend-item { display: flex; align-items: center; font-size: 14px; }
-        .projection-table { width: 100%; margin-top: 20px; border-collapse: collapse; text-align: center; }
-        .projection-table th, .projection-table td { padding: 12px; border: 1px solid var(--border-color); }
-        .projection-table th { background-color: var(--text-color); color: var(--card-bg); }
-        .projection-table tbody tr:nth-child(even) { background-color: var(--bg-main); }
-        .report-page { display: none; }
-        @media print { body * { visibility: hidden; } #report-page, #report-page * { visibility: visible; } #report-page { position: absolute; left: 0; top: 0; width: 100%; } }
-
-        /* ========== ESTILOS ADICIONAIS PARA A CALCULADORA DE VEÍCULO ========== */
-        .form-group label + input {
-            margin-top: 0;
-        }
-        .form-group input + label {
-            margin-top: 15px;
-        }
-        #tco-results .metrics-panel {
-            background-color: var(--card-bg); 
-            padding: 25px; 
-            border-radius: 8px;
-        }
+        .verdict-section { background-color: #f8f9fa; border: 2px solid var(--primary-color); border-radius: 8px; padding: 30px; margin-top: 0; margin-bottom: 40px; text-align: center; }
+        .verdict-comparison { display: flex; justify-content: space-around; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+        .verdict-box p { font-size: 1.5em; font-weight: 700; margin: 0; }
+        #verdict-final { margin-top: 20px; font-size: 1.2em; font-weight: 600; }
+        #advanced-options { background-color: var(--input-bg); padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .info-icon { cursor: help; color: #aaa; border: 1px solid #aaa; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; text-align: center; line-height: 16px; font-weight: 700; flex-shrink: 0; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
+        .checkbox-group input { width: auto; }
+        .toggle-group { display: flex; gap: 10px; margin-bottom: 25px; }
+        .toggle-group button { flex-grow: 1; padding: 12px; font-size: 16px; cursor: pointer; border: 2px solid var(--border-color); background-color: transparent; color: var(--text-muted-color); border-radius: 8px; transition: background-color 0.3s, color 0.3s, border-color 0.3s; }
+        .toggle-group button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); font-weight: 600; }
+        .comparison-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
+        @media (min-width: 1024px) { .comparison-grid { grid-template-columns: 1fr 1fr; } }
+        .vehicle-column { border-left: 2px solid var(--border-color); padding-left: 30px; }
+        .vehicle-column:first-child { border-left: none; padding-left: 0; }
     </style>
 </head>
 <body>
+    <div id="app" class="main-container">
 
-    <div id="app-container" class="main-container">
-        <section id="profile" class="card">
-            <h1>Bem-vindo(a) ao seu Planejador Financeiro</h1><p>Vamos começar com algumas informações básicas para criar um plano personalizado.</p>
-            <div class="financial-columns">
-                <div class="form-group"><label for="user-name">Seu Nome</label><input type="text" id="user-name" value="Bruno"></div>
-                <div class="form-group"><label for="idade-atual">Sua Idade Atual</label><input type="number" id="idade-atual" value="22"></div>
-            </div>
-            <div class="button-group" style="justify-content: flex-end;"><button class="main-button" data-nav="risk">Começar Planejamento</button></div>
-        </section>
-
-        <section id="risk" class="card hidden">
-            <h2>Etapa 1: Gestão de Risco (Reserva de Emergência)</h2><p>Uma base financeira sólida começa com segurança. Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
-            <div class="financial-columns"><div class="form-group"><label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label><input type="number" id="despesas-essenciais" value="3000"></div><div class="form-group"><label for="reserva-meses">Meses de Cobertura Desejados</label><input type="number" id="reserva-meses" value="6"></div></div>
-            <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success-color);"></h3>
-            <div class="button-group"><button class="main-button secondary-button" data-nav="profile">Voltar</button><button class="main-button" data-nav="financials">Próxima Etapa</button></div>
-        </section>
-
-        <section id="financials" class="card hidden">
-            <h2>Etapa 2: Renda e Despesas</h2><p>Agora, vamos entender seu fluxo de caixa e potencial de crescimento.</p>
-            <div class="financial-columns"><div class="form-group"><label for="salario">Renda Mensal Líquida</label><input type="number" id="salario" value="5000"></div><div class="form-group"><label for="despesas-gerais">Despesas Gerais Mensais</label><input type="number" id="despesas-gerais" value="3000"></div><div class="form-group" style="grid-column: 1 / -1;"><label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label><input type="number" id="aporte-growth" value="5"></div></div>
-            <div id="resumo-mensal"></div>
-            <div class="button-group"><button class="main-button secondary-button" data-nav="risk">Voltar</button><button class="main-button" data-nav="goals">Próxima Etapa</button></div>
-        </section>
-
-        <section id="goals" class="card hidden">
-            <h2>Etapa 3: Objetivos e Eventos Pontuais</h2><p>Adicione sua meta de aposentadoria e outros objetivos ou eventos financeiros importantes.</p>
-            <div id="goals-list"></div>
-            <button id="add-goal-btn" class="secondary-button" style="width:100%;">+ Adicionar Objetivo de Meio de Caminho ou Evento Pontual</button>
-            <div class="button-group"><button class="main-button secondary-button" data-nav="financials">Voltar</button><button class="main-button" data-nav="patrimony">Próxima Etapa</button></div>
-        </section>
-
-        <section id="patrimony" class="card hidden">
-            <h2>Etapa 4: Seu Ponto de Partida</h2><p>Para finalizar, informe seu patrimônio atual e perfil de risco.</p>
-            <div class="financial-columns"><div class="form-group"><label for="patrimonio">Patrimônio Atual (Total investido)</label><input type="number" id="patrimonio" value="50000"></div><div class="form-group"><label for="risk-profile">Perfil de Risco (Rentabilidade Real Esperada)</label><select id="risk-profile"><option value="conservador">Conservador (4% a.a.)</option><option value="moderado" selected>Moderado (6% a.a.)</option><option value="arrojado">Arrojado (8% a.a.)</option></select></div></div>
-            <div class="button-group"><button class="main-button secondary-button" data-nav="goals">Voltar</button><button class="main-button" id="generate-dashboard-btn" data-nav="dashboard">Gerar Meu Planejamento</button></div>
-        </section>
-        
-        <section id="dashboard" class="card hidden">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
-                <div><h1>Seu Mapa para a Conquista</h1><p id="dashboard-subtitle" style="text-align:left;"></p></div>
-                <button id="generate-report-btn" class="main-button secondary-button">Gerar Relatório</button>
-            </div>
-            <div class="dashboard-grid"><div class="chart-area"><h3>Projeção de Patrimônio</h3><div id="chart-container"><canvas id="projectionChart"></canvas></div><div class="chart-legend" id="chart-legend"></div></div><div class="metrics-panel"><h3>Resumo do Plano de Aposentadoria</h3><div id="metrics-container"></div></div></div>
-            <div style="margin-top: 40px;"><h2>Evolução Detalhada (Sua Projeção Atual)</h2><table class="projection-table"><thead><tr><th>Idade</th><th>Total Aportado por Você</th><th>Juros Ganhos</th><th>Saldo Final</th></tr></thead><tbody id="projection-table-body"></tbody></table></div>
-        </section>
-        
-        <section id="car-tco-calculator" class="card">
-            <h2>Calculadora de Custo Total de Propriedade de Veículo</h2>
-            <p>Descubra o custo real de um carro para além do preço de compra. Preencha os campos abaixo para obter uma estimativa completa.</p>
-
-            <div class="financial-columns">
-                <div class="form-group">
-                    <h3>Dados da Compra</h3>
-                    <label for="car-price">Preço do Veículo (R$)</label>
-                    <input type="number" id="car-price" placeholder="70000">
-
-                    <label for="car-downpayment">Valor da Entrada (R$)</label>
-                    <input type="number" id="car-downpayment" placeholder="20000">
-
-                    <label for="car-interest-rate">Taxa de Juros do Financiamento (% a.a.)</label>
-                    <input type="number" id="car-interest-rate" placeholder="18">
-
-                    <label for="car-loan-term">Prazo do Financiamento (Meses)</label>
-                    <input type="number" id="car-loan-term" placeholder="48">
-                </div>
-
-                <div class="form-group">
-                    <h3>Custos Anuais e de Uso</h3>
-                    <label for="car-insurance">Seguro Anual (R$)</label>
-                    <input type="number" id="car-insurance" placeholder="3000">
-
-                    <label for="car-tax">Imposto Anual (IPVA) (R$)</label>
-                    <input type="number" id="car-tax" placeholder="2800">
-
-                    <label for="car-maintenance">Manutenção Anual Estimada (R$)</label>
-                    <input type="number" id="car-maintenance" placeholder="1200">
-
-                    <label for="car-depreciation">Desvalorização Média (% a.a.)</label>
-                    <input type="number" id="car-depreciation" placeholder="10">
-                </div>
-
-                <div class="form-group">
-                    <h3>Projeção e Uso do Veículo</h3>
-                    <label for="car-km-per-month">KMs Rodados por Mês</label>
-                    <input type="number" id="car-km-per-month" placeholder="1000">
-                    
-                    <label for="car-fuel-consumption">Consumo do Carro (KM/L)</label>
-                    <input type="number" id="car-fuel-consumption" placeholder="12">
-
-                    <label for="car-fuel-price">Preço do Combustível (R$/L)</label>
-                    <input type="number" id="car-fuel-price" placeholder="5.80">
-
-                    <label for="car-ownership-years">Anos que Planeia Ficar com o Carro</label>
-                    <input type="number" id="car-ownership-years" placeholder="5">
-                </div>
-            </div>
-
-            <div class="button-group" style="justify-content: center;">
-                <button id="calculate-tco-btn" class="main-button">Calcular Custo Total</button>
-            </div>
-
-            <div id="tco-results" class="hidden" style="margin-top: 40px;">
-                <h3>Análise do Custo Real do Veículo</h3>
-                <div class="dashboard-grid">
-                    <div id="tco-chart-container" style="position: relative; min-height: 400px; width: 100%;">
-                        <canvas id="tcoChart"></canvas>
-                    </div>
-                    <div class="metrics-panel">
-                        <div id="tco-metrics-container">
-                            </div>
-                    </div>
-                </div>
+        <section id="mode-selector">
+            <h1>Assistente de Custo de Veículos</h1>
+            <p>Comece escolhendo o tipo de análise que você deseja realizar.</p>
+            <div class="mode-selection-grid">
+                <div class="mode-card" data-mode="single_analysis"><h3>Analisar um Veículo</h3><p>Calcule o custo total de propriedade de um único carro.</p></div>
+                <div class="mode-card" data-mode="trade_in_analysis"><h3>Avaliar Troca do Meu Carro</h3><p>Compare os custos de manter seu carro atual versus comprar um novo.</p></div>
+                <div class="mode-card" data-mode="comparison_analysis"><h3>Comparar Dois Veículos</h3><p>Coloque dois modelos lado a lado para ver a melhor opção.</p></div>
             </div>
         </section>
-        </div>
 
-    <div id="report-page" class="report-page"></div>
+        <section id="calculator-section" class="card hidden">
+            <form id="calculator-form">
+                <h2 id="calculator-title">Preencha os Dados</h2>
+                <div id="form-modules-container"></div>
+                <div class="button-group"><button type="button" id="calculate-btn" class="main-button">Calcular Custos</button></div>
+            </form>
+        </section>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    // --- CÓDIGO ORIGINAL DO PLANEJADOR FINANCEIRO ---
-    let goalCounter = 0;
-    let projectionChartInstance = null;
-    
-    document.querySelectorAll('.main-button[data-nav]').forEach(button => {
-        button.addEventListener('click', () => {
-            const currentSectionId = button.closest('section').id;
-            const targetSectionId = button.dataset.nav;
-            document.getElementById(currentSectionId).classList.add('hidden');
-            document.getElementById(targetSectionId)?.classList.remove('hidden');
-            window.scrollTo(0, 0);
-        });
-    });
+        <section id="results-section" class="card hidden">
+             <div id="results-content"></div>
+            <div class="button-group"><button type="button" id="reset-btn" class="main-button secondary-button">Fazer Nova Análise</button></div>
+        </section>
+    </div>
 
-    const essentialExpensesInput = document.getElementById('despesas-essenciais');
-    const monthsInput = document.getElementById('reserva-meses');
-    [essentialExpensesInput, monthsInput].forEach(input => input.addEventListener('input', updateEmergencyFund));
-    function updateEmergencyFund() {
-        const ideal = (parseFloat(essentialExpensesInput.value) || 0) * (parseFloat(monthsInput.value) || 0);
-        document.getElementById('reserva-ideal-result').textContent = `Sua reserva ideal é de: ${formatCurrency(ideal)}`;
-    }
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const modeSelector = document.getElementById('mode-selector');
+        const calculatorSection = document.getElementById('calculator-section');
+        const resultsSection = document.getElementById('results-section');
+        const modeCards = document.querySelectorAll('.mode-card');
+        const resetBtn = document.getElementById('reset-btn');
+        const calculatorForm = document.getElementById('calculator-form');
+        const formModulesContainer = document.getElementById('form-modules-container');
+        const resultsContent = document.getElementById('results-content');
+        let currentMode = '';
+        let chartInstances = {};
 
-    const incomeInput = document.getElementById('salario');
-    const expenseInput = document.getElementById('despesas-gerais');
-    [incomeInput, expenseInput].forEach(input => input.addEventListener('input', updateAporte));
-    function updateAporte() {
-        const aporte = (parseFloat(incomeInput.value) || 0) - (parseFloat(expenseInput.value) || 0);
-        document.getElementById('resumo-mensal').innerHTML = `<div class="summary-highlight">Seu potencial de aporte mensal inicial é de: <strong>${formatCurrency(aporte)}</strong></div>`;
-        return aporte;
-    }
-
-    const addGoalBtn = document.getElementById('add-goal-btn');
-    addGoalBtn.addEventListener('click', () => {
-        goalCounter++;
-        const list = document.getElementById('goals-list');
-        const newItem = document.createElement('div');
-        newItem.classList.add('goal-item');
-        newItem.dataset.goalId = goalCounter;
-        newItem.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h4>Novo Objetivo/Evento</h4>
-                <button class="remove-button" onclick="this.closest('.goal-item').remove()">×</button>
-            </div>
-            <div class="goal-grid">
-                <div class="form-group"><label>Tipo</label><select class="goal-type"><option value="objetivo">Objetivo (Saída)</option><option value="evento">Evento (Entrada)</option></select></div>
-                <div class="form-group"><label>Descrição</label><input type="text" class="goal-description" placeholder="Ex: Comprar Carro"></div>
-                <div class="form-group"><label>Valor (R$)</label><input type="number" class="goal-value" placeholder="80000"></div>
-                <div class="form-group"><label>Com que idade?</label><input type="number" class="goal-age" placeholder="30"></div>
-            </div>`;
-        list.appendChild(newItem);
-    });
-    addGoalBtn.click();
-    const firstGoal = document.querySelector('.goal-item');
-    firstGoal.querySelector('.goal-type').innerHTML = '<option value="aposentadoria">Aposentadoria (Objetivo Principal)</option>';
-    firstGoal.querySelector('.goal-description').value = 'Aposentadoria';
-    firstGoal.querySelector('.goal-value').value = '10000';
-    firstGoal.querySelector('.goal-value').previousElementSibling.textContent = 'Renda Mensal Desejada (R$)';
-    firstGoal.querySelector('.goal-age').value = '60';
-    firstGoal.querySelector('.goal-age').previousElementSibling.textContent = 'Idade de Aposentadoria';
-
-    document.getElementById('generate-dashboard-btn').addEventListener('click', runFinancialPlan);
-    
-    function runFinancialPlan() {
-        const inputs = {
-            userName: document.getElementById('user-name').value,
-            idadeAtual: parseInt(document.getElementById('idade-atual').value),
-            patrimonioInicial: parseFloat(document.getElementById('patrimonio').value),
-            aporteMensal: updateAporte(),
-            perfilRisco: document.getElementById('risk-profile').value,
-            aporteGrowth: (parseFloat(document.getElementById('aporte-growth').value) || 0) / 100
-        };
-        
-        let userGoals = [];
-        document.querySelectorAll('.goal-item').forEach(item => {
-            userGoals.push({
-                type: item.querySelector('.goal-type').value,
-                description: item.querySelector('.goal-description').value,
-                value: parseFloat(item.querySelector('.goal-value').value) || 0,
-                age: parseInt(item.querySelector('.goal-age').value) || 0
+        modeCards.forEach(card => {
+            card.addEventListener('click', () => {
+                currentMode = card.dataset.mode;
+                setupCalculatorForMode(currentMode);
+                modeSelector.classList.add('hidden');
+                calculatorSection.classList.remove('hidden');
             });
         });
-        
-        const retirementGoal = userGoals.find(g => g.type === 'aposentadoria');
-        if (!retirementGoal) { alert('Por favor, adicione um objetivo de Aposentadoria.'); return; }
-        
-        const premissas = { taxasJurosReais: { conservador: 0.04, moderado: 0.06, arrojado: 0.08 }, expectativaVida: 100 };
-        const taxaJurosAtual = premissas.taxasJurosReais[inputs.perfilRisco];
-        const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
-        const anosDeAposentadoria = premissas.expectativaVida - retirementGoal.age;
-        
-        const metaIdeal = (retirementGoal.value * 12) / taxaJurosAtual;
-        const aporteIdeal = calculateRequiredPMT(inputs.patrimonioInicial, metaIdeal, taxaJurosAtual, anosParaAposentar, inputs.aporteGrowth);
-        
-        const metaMinima = calculatePresentValue(retirementGoal.value * 12, taxaJurosAtual, anosDeAposentadoria);
-        const aporteMinimo = calculateRequiredPMT(inputs.patrimonioInicial, metaMinima, taxaJurosAtual, anosParaAposentar, inputs.aporteGrowth);
-        
-        const projecaoAtualData = generateProjectionSeries(inputs, userGoals, taxaJurosAtual, anosParaAposentar);
-        const projecaoAtualFinal = projecaoAtualData.slice(-1)[0];
-        const probabilidadeSucesso = Math.min((projecaoAtualFinal / metaMinima) * 100, 100);
-        
-        const results = { projecaoAtual: projecaoAtualFinal, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, taxaJurosAtual, anosParaAposentar, projecaoAtualData };
-        
-        updateDashboardUI(results);
-    }
-    
-    function updateDashboardUI(results) {
-        const { projecaoAtual, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, projecaoAtualData, anosParaAposentar, taxaJurosAtual } = results;
-        document.getElementById('dashboard-subtitle').textContent = `Olá, ${inputs.userName}! Este é o seu plano financeiro projetado.`;
 
-        document.getElementById('metrics-container').innerHTML = `
-            <h3>Metas de Patrimônio (Aposentadoria)</h3>
-            <div class="metric-item"><div class="label"><span class="color-dot dot-green"></span>Meta Ideal <div class="info-icon">?<span class="tooltip">Valor para viver de juros sem consumir o principal.</span></div></div><div class="value">${formatCurrency(metaIdeal)}</div></div>
-            <div class="metric-item"><div class="label"><span class="color-dot dot-yellow"></span>Meta Mínima <div class="info-icon">?<span class="tooltip">Valor para bancar a renda desejada, consumindo o patrimônio até o fim da vida.</span></div></div><div class="value">${formatCurrency(metaMinima)}</div></div>
-            <div class="metric-item"><div class="label"><span class="color-dot dot-white"></span>Sua Projeção</div><div class="value">${formatCurrency(projecaoAtual)}</div></div>
-            <h3 style="margin-top:20px;">Aportes Mensais (Iniciais)</h3>
-            <div class="metric-item"><div class="label">Seu Aporte</div><div class="value">${formatCurrency(inputs.aporteMensal)}</div></div>
-            <div class="metric-item"><div class="label">Necessário p/ Meta Mín.</div><div class="value">${formatCurrency(aporteMinimo)}</div></div>
-            <div class="metric-item"><div class="label">Necessário p/ Meta Ideal</div><div class="value">${formatCurrency(aporteIdeal)}</div></div>
-            <h3 style="margin-top:20px;">Diagnóstico</h3>
-            <div class="metric-item"><div class="label">Probabilidade de Sucesso</div><div class="value" style="color: ${probabilidadeSucesso >= 100 ? 'var(--success-color)' : 'var(--warning-color)'}">${probabilidadeSucesso.toFixed(0)}%</div></div>`;
-
-        document.getElementById('chart-legend').innerHTML = `<div class="legend-item"><span class="color-dot dot-white"></span>Sua Projeção</div><div class="legend-item"><span class="color-dot dot-yellow"></span>Meta Mínima</div><div class="legend-item"><span class="color-dot dot-green"></span>Meta Ideal</div>`;
-        
-        const dataMinima = generateProjectionSeries({ ...inputs, aporteMensal: aporteMinimo }, [], taxaJurosAtual, anosParaAposentar);
-        const dataIdeal = generateProjectionSeries({ ...inputs, aporteMensal: aporteIdeal }, [], taxaJurosAtual, anosParaAposentar);
-        renderChart(projecaoAtualData, dataMinima, dataIdeal, inputs.idadeAtual, anosParaAposentar);
-        
-        populateProjectionTable(projecaoAtualData, inputs.idadeAtual, inputs.patrimonioInicial, inputs.aporteMensal, inputs.aporteGrowth);
-    }
-
-    function renderChart(dataAtual, dataMinima, dataIdeal, idadeInicial, anos) {
-        const ctx = document.getElementById('projectionChart').getContext('2d');
-        const labels = Array.from({ length: anos + 1 }, (_, i) => idadeInicial + i);
-        if (projectionChartInstance) { projectionChartInstance.destroy(); }
-
-        projectionChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'Sua Projeção', data: dataAtual, borderColor: '#e0e0e0', backgroundColor: 'rgba(224, 224, 224, 0.15)', fill: true, tension: 0.1, borderWidth: 4, pointRadius: 2 },
-                    { label: 'Meta Mínima', data: dataMinima, borderColor: 'var(--warning-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false },
-                    { label: 'Meta Ideal', data: dataIdeal, borderColor: 'var(--success-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: { 
-                    y: { ticks: { color: 'var(--text-muted-color)', callback: value => `R$${(value / 1000000).toFixed(1)}M` }, grid: { color: 'rgba(224, 224, 224, 0.1)' } },
-                    x: { ticks: { color: 'var(--text-muted-color)' }, grid: { display: false } }
-                },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatCurrency(c.raw)}` }, backgroundColor: '#FFF', titleColor: '#333', bodyColor: '#333', borderColor: '#DDD', borderWidth: 1 },
-                    annotation: { annotations: { line1: { type: 'line', xMin: anos, xMax: anos, borderColor: 'var(--primary-color)', borderWidth: 2, borderDash: [6, 6], label: { content: 'Aposentadoria', enabled: true, position: 'start', yAdjust: -15, backgroundColor: 'rgba(31, 48, 63, 0.7)', color: 'var(--primary-color)', font: { weight: 'bold' } } } } }
-                },
-                interaction: { intersect: false, mode: 'index' }
-            }
+        resetBtn.addEventListener('click', () => {
+            resultsSection.classList.add('hidden');
+            modeSelector.classList.remove('hidden');
+            calculatorForm.reset();
+            Object.values(chartInstances).forEach(instance => instance.destroy());
+            chartInstances = {};
         });
-    }
 
-    function populateProjectionTable(projectionData, idadeInicial, patrimonioInicial, pmtInicial, pmtGrowth) {
-        const tableBody = document.getElementById('projection-table-body');
-        tableBody.innerHTML = '';
-        const milestones = [1, 5, 10, 20, 30, projectionData.length - 1];
-        const uniqueMilestones = [...new Set(milestones)].filter(ano => ano > 0 && ano < projectionData.length);
-        let totalAportadoAcumulado = patrimonioInicial;
-        let pmtCorrenteAnual = pmtInicial * 12;
-        for (let ano = 1; ano < projectionData.length; ano++) {
-            totalAportadoAcumulado += pmtCorrenteAnual;
-            pmtCorrenteAnual *= (1 + pmtGrowth);
-            if (uniqueMilestones.includes(ano)) {
-                const saldoFinal = projectionData[ano];
-                const jurosGanhos = saldoFinal - totalAportadoAcumulado;
-                tableBody.innerHTML += `<tr><td>${idadeInicial + ano} anos</td><td>${formatCurrency(totalAportadoAcumulado)}</td><td>${formatCurrency(jurosGanhos)}</td><td class="final-balance">${formatCurrency(saldoFinal)}</td></tr>`;
+        function setupCalculatorForMode(mode) {
+            const calculatorTitle = document.getElementById('calculator-title');
+            let formHTML = '';
+
+            if (mode === 'single_analysis') {
+                calculatorTitle.textContent = 'Análise de Custo de Veículo';
+                formHTML = generateGeneralParamsHTML() + generateVehicleHTML('A', 'Dados do Veículo');
+            } else if (mode === 'trade_in_analysis') {
+                calculatorTitle.textContent = 'Análise de Troca de Veículo';
+                formHTML = generateCurrentCarHTML() + generateGeneralParamsHTML() + generateVehicleHTML('A', 'Dados do Carro Novo');
+            } else if (mode === 'comparison_analysis') {
+                calculatorTitle.textContent = 'Comparador de Veículos';
+                formHTML = generateGeneralParamsHTML() + '<div class="comparison-grid">' + generateVehicleHTML('A', 'Veículo A') + generateVehicleHTML('B', 'Veículo B') + '</div>';
+            }
+            formModulesContainer.innerHTML = formHTML;
+            attachEventListeners();
+        }
+
+        function generateCurrentCarHTML() {
+            return `<div id="current-car-module" class="form-module"><h3>Dados do Seu Carro Atual</h3><div class="financial-columns"><div class="form-group"><label for="current-car-value">Valor de Mercado Atual (R$)</label><input type="text" id="current-car-value" placeholder="45.000"></div><div class="form-group"><label for="current-car-costs">Custos Anuais Atuais (R$)</label><input type="text" id="current-car-costs" placeholder="4.000"></div><div class="form-group"><label for="current-car-consumption">Consumo Atual (KM/L)</label><input type="number" id="current-car-consumption" placeholder="10"></div></div><div class="checkbox-group"><input type="checkbox" id="use-current-car-as-downpayment"><label for="use-current-car-as-downpayment">Usar o valor deste carro como entrada no Veículo A.</label></div></div>`;
+        }
+        function generateGeneralParamsHTML() {
+            return `<div class="form-module" style="border:none; margin:0; padding:0;"><h3>Parâmetros da Simulação</h3><div class="financial-columns"><div class="form-group"><label for="car-ownership-years">Anos com o Carro</label><input type="number" id="car-ownership-years" placeholder="5"></div><div class="form-group"><label for="car-km-per-month">KMs Rodados por Mês</label><input type="text" id="car-km-per-month" placeholder="1.000"></div><div class="form-group"><label for="car-fuel-price">Preço Combustível (R$/L)</label><input type="text" id="car-fuel-price" placeholder="5,80"></div><div class="form-group"><label for="opportunity-cost-rate" style="display:flex;align-items:center;gap:8px;">Taxa de Rendimento Anual (%)<div class="info-icon" title="Rendimento estimado se o dinheiro da entrada fosse investido.">?</div></label><input type="number" id="opportunity-cost-rate" value="8"></div></div><div class="form-group"><label>Tipo de Análise</label><div class="toggle-group"><button type="button" id="toggle-simple" class="active">Simplificada</button><button type="button" id="toggle-advanced">Avançada</button></div></div><div id="advanced-options" class="hidden"><h4>Opções Avançadas</h4><div class="financial-columns"><div class="form-group"><label for="depreciation-first-year">Desvalorização do 1º Ano (%)</label><input type="number" id="depreciation-first-year" placeholder="20"></div><div class="form-group"><label for="costs-increase-rate">Aumento Anual de Custos (%)</label><input type="number" id="costs-increase-rate" placeholder="5"></div></div></div></div>`;
+        }
+        function generateVehicleHTML(id, title) {
+            return `<div class="vehicle-column"><h4>${title}</h4><div class="form-group"><label for="car-price-${id}">Preço (R$)</label><input type="text" id="car-price-${id}" placeholder="70.000"></div><div class="form-group"><label for="car-downpayment-${id}">Entrada (R$)</label><input type="text" id="car-downpayment-${id}" placeholder="20.000"></div><div class="form-group"><label for="car-interest-rate-${id}">Juros (% a.a.)</label><input type="number" id="car-interest-rate-${id}" placeholder="18"></div><div class="form-group"><label for="car-loan-term-${id}">Prazo (Meses)</label><input type="number" id="car-loan-term-${id}" placeholder="48"></div><div class="form-group"><label for="car-insurance-${id}">Seguro Anual (R$)</label><input type="text" id="car-insurance-${id}" placeholder="3.000"></div><div class="form-group"><label for="car-tax-${id}">IPVA Anual (R$)</label><input type="text" id="car-tax-${id}" placeholder="2.800"></div><div class="form-group"><label for="car-maintenance-${id}">Manutenção Anual (R$)</label><input type="text" id="car-maintenance-${id}" placeholder="1.200"></div><div class="form-group"><label for="car-depreciation-${id}">Desv. Média (% a.a.)</label><input type="number" id="car-depreciation-${id}" placeholder="10"></div><div class="form-group"><label for="car-fuel-consumption-${id}">Consumo (KM/L)</label><input type="number" id="car-fuel-consumption-${id}" placeholder="12"></div></div>`;
+        }
+
+        function attachEventListeners() {
+            const textInputs = document.querySelectorAll('input[type="text"]');
+            textInputs.forEach(input => input.addEventListener('input', formatNumberInput));
+            
+            const toggleSimple = document.getElementById('toggle-simple');
+            if(toggleSimple) {
+                const toggleAdvanced = document.getElementById('toggle-advanced');
+                const advancedOptions = document.getElementById('advanced-options');
+                toggleSimple.addEventListener('click', () => { toggleSimple.classList.add('active'); toggleAdvanced.classList.remove('active'); advancedOptions.classList.add('hidden'); });
+                toggleAdvanced.addEventListener('click', () => { toggleAdvanced.classList.add('active'); toggleSimple.classList.remove('active'); advancedOptions.classList.remove('hidden'); });
+            }
+
+            if (currentMode === 'trade_in_analysis') {
+                const useAsDownpaymentCheck = document.getElementById('use-current-car-as-downpayment'); const downpaymentInput = document.getElementById('car-downpayment-A'); const currentCarValueInput = document.getElementById('current-car-value');
+                useAsDownpaymentCheck.addEventListener('change', () => { if (useAsDownpaymentCheck.checked) { downpaymentInput.value = currentCarValueInput.value; downpaymentInput.disabled = true; } else { downpaymentInput.disabled = false; downpaymentInput.value = ''; } });
+                currentCarValueInput.addEventListener('input', () => { if (useAsDownpaymentCheck.checked) { downpaymentInput.value = currentCarValueInput.value; } });
             }
         }
-    }
 
-    const formatCurrency = (value) => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formatCurrency = (value) => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        function formatNumberInput(e) { let value = e.target.value.replace(/\D/g, ''); e.target.value = value ? new Intl.NumberFormat('pt-BR').format(value) : ''; }
+        const getCleanValue = (id) => { const el = document.getElementById(id); if (!el) return 0; const value = el.value; return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0; };
+        
+        // --- FUNÇÃO CORRIGIDA ---
+        function calculateSingleVehicleTCO(vehicleData, generalData) {
+            // --- Financiamento ---
+            const loanAmount = vehicleData.price - vehicleData.downpayment;
+            const monthlyInterestRate = vehicleData.interestRate / 12;
+            let monthlyPayment = 0;
+            let totalInterest = 0; // Juros pagos APENAS durante o período de posse
+            let totalPaidOnLoan = 0; // Total pago (principal + juros) APENAS durante o período de posse
 
-    function generateProjectionSeries(inputs, goals, taxaAnual, anos) {
-        let series = [inputs.patrimonioInicial];
-        let saldo = inputs.patrimonioInicial;
-        let currentPmtAnual = inputs.aporteMensal * 12;
-        for (let ano = 1; ano <= anos; ano++) {
-            saldo = saldo * (1 + taxaAnual) + currentPmtAnual;
-            currentPmtAnual *= (1 + inputs.aporteGrowth);
-            const currentAge = inputs.idadeAtual + ano;
-            goals.forEach(goal => {
-                if (goal.age === currentAge && goal.type !== 'aposentadoria') {
-                    saldo += (goal.type === 'evento' ? goal.value : -goal.value);
+            if (loanAmount > 0 && vehicleData.loanTerm > 0) {
+                // A fórmula do pagamento mensal continua a mesma, baseada no prazo total do financiamento
+                if (monthlyInterestRate > 0) {
+                    monthlyPayment = loanAmount * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, vehicleData.loanTerm)) / (Math.pow(1 + monthlyInterestRate, vehicleData.loanTerm) - 1);
+                } else {
+                    monthlyPayment = loanAmount / vehicleData.loanTerm; // Caso de juros zero
                 }
-            });
-            series.push(saldo < 0 ? 0 : saldo);
-        }
-        return series;
-    }
 
-    function calculatePresentValue(pmtAnual, i, n) { if (i === 0) return pmtAnual * n; return pmtAnual * ((1 - Math.pow(1 + i, -n)) / i); }
-    function calculateRequiredPMT(vp, vf, i, n, pmtGrowth) {
-        if (n <= 0) return 0;
-        let pmtAnual = 0;
-        if (i.toFixed(4) !== pmtGrowth.toFixed(4)) {
-            const term1 = vf - vp * Math.pow(1 + i, n);
-            const term2 = (Math.pow(1 + i, n) - Math.pow(1 + pmtGrowth, n)) / (i - pmtGrowth);
-            pmtAnual = term1 / term2;
-        } else {
-            pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n-1));
-        }
-        return pmtAnual > 0 ? pmtAnual / 12 : 0;
-    }
-    
-    document.getElementById('generate-report-btn').addEventListener('click', () => {
-        const reportContainer = document.getElementById('report-page');
-        const userName = document.getElementById('user-name').value;
-        const today = new Date().toLocaleDateString('pt-BR');
-        
-        html2canvas(document.getElementById('projectionChart')).then(canvas => {
-            const chartImage = canvas.toDataURL('image/png');
-            const metricsHTML = document.getElementById('metrics-container').innerHTML;
-            const tableHTML = document.querySelector('.projection-table').outerHTML;
-            
-            reportContainer.innerHTML = `
-                <style>
-                    body { background: white; color: black; font-family: sans-serif; margin: 40px; }
-                    h1, h2, h3 { color: #1f303f; border-bottom: 2px solid #eee; padding-bottom: 5px; }
-                    img { max-width: 100%; margin-top: 20px; border: 1px solid #eee; border-radius: 8px; }
-                    .metrics-panel { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px;}
-                    .metric-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #ddd; }
-                    .metric-item .label { font-weight: bold; }
-                    .info-icon, .color-dot { display: none; }
-                </style>
-                <h1>Relatório de Planejamento Financeiro</h1><p><strong>Cliente:</strong> ${userName}</p><p><strong>Data:</strong> ${today}</p>
-                <div class="metrics-panel">${metricsHTML}</div>
-                <h2>Projeção de Patrimônio</h2><img src="${chartImage}" alt="Gráfico de Projeção">
-                <h2>Evolução Detalhada</h2>${tableHTML}`;
-            
-            setTimeout(() => window.print(), 500);
-        });
-    });
+                // NOVO: Calcula o número de parcelas que serão pagas durante a posse do veículo
+                const numberOfPaymentsMade = Math.min(vehicleData.loanTerm, generalData.ownershipYears * 12);
+                totalPaidOnLoan = monthlyPayment * numberOfPaymentsMade;
 
-    // Inicializa
-    updateAporte();
-    updateEmergencyFund();
-
-    // ========== INÍCIO DA LÓGICA DA CALCULADORA DE CUSTO DE VEÍCULO (TCO) ==========
-    const calculateTcoBtn = document.getElementById('calculate-tco-btn');
-    let tcoChartInstance = null;
-    calculateTcoBtn.addEventListener('click', () => {
-        const inputs = {
-            price: parseFloat(document.getElementById('car-price').value) || 0,
-            downpayment: parseFloat(document.getElementById('car-downpayment').value) || 0,
-            interestRate: (parseFloat(document.getElementById('car-interest-rate').value) || 0) / 100,
-            loanTerm: parseInt(document.getElementById('car-loan-term').value) || 0,
-            insurance: parseFloat(document.getElementById('car-insurance').value) || 0,
-            tax: parseFloat(document.getElementById('car-tax').value) || 0,
-            maintenance: parseFloat(document.getElementById('car-maintenance').value) || 0,
-            depreciationRate: (parseFloat(document.getElementById('car-depreciation').value) || 0) / 100,
-            kmPerMonth: parseFloat(document.getElementById('car-km-per-month').value) || 0,
-            fuelConsumption: parseFloat(document.getElementById('car-fuel-consumption').value) || 1,
-            fuelPrice: parseFloat(document.getElementById('car-fuel-price').value) || 0,
-            ownershipYears: parseInt(document.getElementById('car-ownership-years').value) || 1,
-        };
-
-        const loanAmount = inputs.price - inputs.downpayment;
-        const monthlyInterestRate = inputs.interestRate / 12;
-        let monthlyPayment = 0;
-        if (loanAmount > 0 && monthlyInterestRate > 0) {
-            monthlyPayment = loanAmount * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, inputs.loanTerm)) / (Math.pow(1 + monthlyInterestRate, inputs.loanTerm) - 1);
-        }
-        const totalPaidOnLoan = monthlyPayment * inputs.loanTerm;
-        const totalInterest = totalPaidOnLoan > 0 ? totalPaidOnLoan - loanAmount : 0;
-        
-        const totalInsurance = inputs.insurance * inputs.ownershipYears;
-        const totalTax = inputs.tax * inputs.ownershipYears;
-        const totalMaintenance = inputs.maintenance * inputs.ownershipYears;
-        const totalFuelCost = (inputs.kmPerMonth * 12 * inputs.ownershipYears / inputs.fuelConsumption) * inputs.fuelPrice;
-        
-        let totalDepreciation = 0;
-        let currentValue = inputs.price;
-        for (let i = 0; i < inputs.ownershipYears; i++) {
-            const depreciationInYear = currentValue * inputs.depreciationRate;
-            totalDepreciation += depreciationInYear;
-            currentValue -= depreciationInYear;
-        }
-        const resaleValue = inputs.price - totalDepreciation;
-        const totalExpenses = inputs.downpayment + totalPaidOnLoan + totalInsurance + totalTax + totalMaintenance + totalFuelCost;
-        const totalCostOfOwnership = totalExpenses - resaleValue;
-        
-        const realMonthlyCost = totalCostOfOwnership / (inputs.ownershipYears * 12);
-        const costPerKm = totalCostOfOwnership / (inputs.kmPerMonth * 12 * inputs.ownershipYears);
-
-        displayTcoResults({
-            totalCost: totalCostOfOwnership,
-            monthlyCost: realMonthlyCost,
-            kmCost: costPerKm,
-            totalInterest: totalInterest,
-            totalDepreciation: totalDepreciation,
-            totalFuel: totalFuelCost,
-            totalAnnualCosts: totalInsurance + totalTax + totalMaintenance
-        });
-        document.getElementById('tco-results').classList.remove('hidden');
-    });
-    function displayTcoResults(results) {
-        const metricsContainer = document.getElementById('tco-metrics-container');
-        metricsContainer.innerHTML = `
-            <h3>Diagnóstico Financeiro</h3>
-            <div class="metric-item"><div class="label">Custo Mensal REAL</div><div class="value">${formatCurrency(results.monthlyCost)}</div></div>
-            <div class="metric-item"><div class="label">Custo por KM Rodado</div><div class="value">${formatCurrency(results.kmCost)}</div></div>
-            <div class="metric-item"><div class="label">Custo Total (em ${document.getElementById('car-ownership-years').value} anos)</div><div class="value" style="color: var(--primary-color);">${formatCurrency(results.totalCost)}</div></div>
-            <h3 style="margin-top:20px;">Composição do Custo Total</h3>
-            <div class="metric-item"><div class="label">Desvalorização</div><div class="value">${formatCurrency(results.totalDepreciation)}</div></div>
-            <div class="metric-item"><div class="label">Combustível</div><div class="value">${formatCurrency(results.totalFuel)}</div></div>
-            <div class="metric-item"><div class="label">Juros do Financiamento</div><div class="value">${formatCurrency(results.totalInterest)}</div></div>
-            <div class="metric-item"><div class="label">Seguro, Impostos e Manut.</div><div class="value">${formatCurrency(results.totalAnnualCosts)}</div></div>
-        `;
-        renderTcoChart(results);
-    }
-    function renderTcoChart(results) {
-        const ctx = document.getElementById('tcoChart').getContext('2d');
-        if (tcoChartInstance) { tcoChartInstance.destroy(); }
-        tcoChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Desvalorização', 'Combustível', 'Custos Anuais', 'Juros do Financiamento'],
-                datasets: [{
-                    data: [results.totalDepreciation, results.totalFuel, results.totalAnnualCosts, results.totalInterest],
-                    backgroundColor: ['var(--danger-color)', 'var(--warning-color)', 'var(--primary-color)', '#c0c0c0'],
-                    borderColor: 'var(--card-bg)',
-                    borderWidth: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: 'var(--text-color)', font: { size: 14 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.label || '';
-                                let value = context.raw || 0;
-                                let percentage = ((value / results.totalCost) * 100).toFixed(1);
-                                return `${label}: ${formatCurrency(value)} (${percentage}%)`;
-                            }
-                        }
+                // NOVO: Calcula os juros pagos apenas nesse período
+                if (monthlyInterestRate > 0 && totalPaidOnLoan > 0) {
+                    // Saldo devedor ao final do período de posse
+                    const remainingPayments = vehicleData.loanTerm - numberOfPaymentsMade;
+                    let remainingBalance = 0;
+                    if (remainingPayments > 0) {
+                        remainingBalance = monthlyPayment * (1 - Math.pow(1 + monthlyInterestRate, -remainingPayments)) / monthlyInterestRate;
                     }
+                    
+                    const principalPaid = loanAmount - remainingBalance;
+                    totalInterest = totalPaidOnLoan - principalPaid;
+                } else {
+                    // Em um financiamento sem juros, o juro pago é sempre zero.
+                    totalInterest = 0;
                 }
             }
-        });
-    }
-    // ========== FIM DA LÓGICA DA CALCULADORA DE CUSTO DE VEÍCULO (TCO) ==========
-});
-</script>
 
+            // --- Desvalorização e Custos Anuais ---
+            // Esta parte do cálculo já estava correta.
+            let totalDepreciation = 0;
+            let totalAnnualCosts = 0;
+            let currentValue = vehicleData.price;
+            let currentAnnualCost = vehicleData.insurance + vehicleData.tax + vehicleData.maintenance;
+            
+            for (let year = 1; year <= generalData.ownershipYears; year++) {
+                let depRateThisYear = vehicleData.depreciation;
+                if (generalData.isAdvancedMode && year === 1 && generalData.advanced.dep1stYear > 0) {
+                    depRateThisYear = generalData.advanced.dep1stYear;
+                }
+                
+                const depreciationAmount = currentValue * depRateThisYear;
+                totalDepreciation += depreciationAmount;
+                currentValue -= depreciationAmount; // currentValue agora é o valor de revenda
+                
+                totalAnnualCosts += currentAnnualCost;
+                if (generalData.isAdvancedMode) {
+                    currentAnnualCost *= (1 + generalData.advanced.costsIncrease);
+                }
+            }
+            
+            // --- Custo de Combustível ---
+            // Este cálculo também estava correto.
+            const totalFuelCost = (generalData.kmPerMonth * 12 * generalData.ownershipYears / vehicleData.fuelConsumption) * generalData.fuelPrice;
+            
+            // --- Custo de Oportunidade ---
+            // Este cálculo também estava correto.
+            let opportunityCost = 0;
+            if (vehicleData.downpayment > 0 && generalData.opportunityRate > 0) {
+                const fv = vehicleData.downpayment * Math.pow((1 + generalData.opportunityRate), generalData.ownershipYears);
+                opportunityCost = fv - vehicleData.downpayment;
+            }
+
+            // --- Consolidação dos Resultados ---
+            
+            // CORREÇÃO: A fórmula do TCO foi simplificada para ser a soma dos custos não recuperáveis.
+            // TCO = (Quanto o carro perdeu de valor) + (Juros pagos) + (Custos de manutenção/impostos) + (Combustível)
+            const tco = totalDepreciation + totalInterest + totalAnnualCosts + totalFuelCost;
+
+            // "Total de Despesas" representa o total de dinheiro que saiu do seu bolso no período.
+            const totalExpenses = vehicleData.downpayment + totalPaidOnLoan + totalAnnualCosts + totalFuelCost;
+            
+            return { ...vehicleData, ...generalData, totalExpenses, tco, totalInterest, totalDepreciation, totalAnnualCosts, totalFuelCost, opportunityCost };
+        }
+        
+        document.getElementById('calculate-btn').addEventListener('click', () => {
+            calculatorSection.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+
+            const generalData = {
+                ownershipYears: getCleanValue('car-ownership-years') || 1, kmPerMonth: getCleanValue('car-km-per-month'), fuelPrice: getCleanValue('car-fuel-price'),
+                opportunityRate: getCleanValue('opportunity-cost-rate') / 100, isAdvancedMode: document.getElementById('toggle-advanced')?.classList.contains('active'),
+                advanced: { dep1stYear: getCleanValue('depreciation-first-year') / 100, costsIncrease: getCleanValue('costs-increase-rate') / 100 }
+            };
+
+            const vehicleFields = ['price', 'downpayment', 'interest-rate', 'loan-term', 'insurance', 'tax', 'maintenance', 'depreciation', 'fuel-consumption'];
+
+            function getVehicleData(idSuffix) {
+                const data = {};
+                vehicleFields.forEach(field => {
+                    const propName = field.replace(/-(\w)/g, (_, letter) => letter.toUpperCase());
+                    let value = getCleanValue(`car-${field}-${idSuffix}`);
+                    if (field.includes('rate') || field.includes('depreciation')) value /= 100;
+                    if (field === 'fuel-consumption' && value === 0) value = 1;
+                    data[propName] = value;
+                });
+                return data;
+            }
+
+            if (currentMode === 'single_analysis' || currentMode === 'trade_in_analysis') {
+                const vehicleAData = getVehicleData('A');
+                const resultsA = calculateSingleVehicleTCO(vehicleAData, generalData);
+                
+                if (currentMode === 'trade_in_analysis') {
+                    const currentCar = { value: getCleanValue('current-car-value'), annualCosts: getCleanValue('current-car-costs'), consumption: getCleanValue('current-car-consumption') || 1, };
+                    let futureDepreciation = 0, tempValue = currentCar.value, futureAnnualCosts = 0, tempAnnualCost = currentCar.annualCosts;
+                    for (let year = 1; year <= generalData.ownershipYears; year++) {
+                        let depRateThisYear = resultsA.depreciation; if (generalData.isAdvancedMode && year === 1 && generalData.advanced.dep1stYear > 0) { depRateThisYear = generalData.advanced.dep1stYear; }
+                        futureDepreciation += tempValue * depRateThisYear; tempValue *= (1 - depRateThisYear);
+                        futureAnnualCosts += tempAnnualCost; if (generalData.isAdvancedMode) { tempAnnualCost *= (1 + generalData.advanced.costsIncrease); }
+                    }
+                    const futureFuelCost = (generalData.kmPerMonth * 12 * generalData.ownershipYears / currentCar.consumption) * generalData.fuelPrice;
+                    const tcoCurrentCar = futureAnnualCosts + futureFuelCost + futureDepreciation;
+                    displayTradeInResults(resultsA, tcoCurrentCar);
+                } else {
+                    displaySingleResults(resultsA);
+                }
+            } else if (currentMode === 'comparison_analysis') {
+                const vehicleAData = getVehicleData('A');
+                const vehicleBData = getVehicleData('B');
+                const resultsA = calculateSingleVehicleTCO(vehicleAData, generalData);
+                const resultsB = calculateSingleVehicleTCO(vehicleBData, generalData);
+                displayComparisonResults(resultsA, resultsB);
+            }
+        });
+
+        function displaySingleResults(r) {
+            resultsContent.innerHTML = `<h2 id="results-title">Análise do Custo do Veículo</h2><div class="dashboard-grid"><div style="position:relative;min-height:400px;width:100%;"><canvas id="tcoChartA"></canvas></div><div class="metrics-panel"><div id="metrics-container-A"></div></div></div>`;
+            document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(r);
+            renderTcoChart('A', r);
+        }
+        function displayTradeInResults(newCarResults, tcoCurrent) {
+            resultsContent.innerHTML = `<div id="verdict-section" class="verdict-section"></div><h2 id="results-title">Análise do Custo do Carro Novo</h2><div class="dashboard-grid"><div style="position:relative;min-height:400px;width:100%;"><canvas id="tcoChartA"></canvas></div><div class="metrics-panel"><div id="metrics-container-A"></div></div></div>`;
+            document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(newCarResults);
+            renderTcoChart('A', newCarResults);
+            displayVerdict(newCarResults.tco, tcoCurrent);
+        }
+        function displayComparisonResults(rA, rB) {
+            const difference = Math.abs(rA.tco - rB.tco);
+            const winner = rA.tco < rB.tco ? 'Veículo A' : 'Veículo B';
+            const conclusion = `O <strong>${winner}</strong> é a opção <strong style="color: var(--success-color);">${formatCurrency(difference)} mais econômica</strong>.`;
+            resultsContent.innerHTML = `<div class="verdict-section"><h2>Resultado da Comparação</h2><p id="verdict-final">${conclusion}</p></div><div class="comparison-results-grid"><div class="result-column"><h4>Veículo A</h4><div class="metrics-panel" id="metrics-container-A"></div><div style="position:relative;min-height:300px;width:100%;margin-top:20px;"><canvas id="tcoChartA"></canvas></div></div><div class="result-column"><h4>Veículo B</h4><div class="metrics-panel" id="metrics-container-B"></div><div style="position:relative;min-height:300px;width:100%;margin-top:20px;"><canvas id="tcoChartB"></canvas></div></div></div>`;
+            document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(rA);
+            document.getElementById('metrics-container-B').innerHTML = generateMetricsHTML(rB);
+            renderTcoChart('A', rA);
+            renderTcoChart('B', rB);
+        }
+        function generateMetricsHTML(r) {
+            return `<h3>Visão Geral</h3> <div class="metric-item"><div class="label">Custo Líquido (TCO)</div><div class="value" style="color:var(--primary-color);font-weight:700;">${formatCurrency(r.tco)}</div></div><div class="metric-item"><div class="label">Total de Despesas</div><div class="value">${formatCurrency(r.totalExpenses)}</div></div><div class="metric-item"><div class="label">Custo Mensal</div><div class="value">${formatCurrency(r.tco > 0 ? r.tco / (r.ownershipYears * 12) : 0)}</div></div><div class="metric-item"><div class="label" style="display:flex;align-items:center;gap:8px;">Custo de Oportunidade<div class="info-icon" title="Ganho perdido ao investir o dinheiro da entrada.">?</div></div><div class="value" style="color: var(--warning-color);">${formatCurrency(r.opportunityCost)}</div></div>`;
+        }
+        function displayVerdict(tcoNew, tcoCurrent) {
+            const container = document.getElementById('verdict-section');
+            const difference = Math.abs(tcoNew - tcoCurrent);
+            let conclusion = ''; if (tcoNew < tcoCurrent) { conclusion = `Trocar de carro é a opção <strong style="color: var(--success-color);">${formatCurrency(difference)} mais econômica</strong> para os próximos anos.`; } else { conclusion = `Manter seu carro atual pode te <strong style="color: var(--success-color);">${formatCurrency(difference)} economizar</strong> nos próximos anos.`; }
+            container.innerHTML = `<h2>Análise de Troca: Vale a Pena?</h2><div class="verdict-comparison"><div class="verdict-box"><h4>Custo para TROCAR</h4><p>${formatCurrency(tcoNew)}</p></div><div class="verdict-box"><h4>Custo para MANTER</h4><p>${formatCurrency(tcoCurrent)}</p></div></div><p id="verdict-final">${conclusion}</p>`;
+        }
+        function renderTcoChart(id, results) {
+            const canvasId = `tcoChart${id}`;
+            const el = document.getElementById(canvasId);
+            if (!el) return;
+            const ctx = el.getContext('2d');
+            if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+            chartInstances[canvasId] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Desvalorização', 'Combustível', 'Custos Anuais', 'Juros'],
+                    datasets: [{ data: [results.totalDepreciation, results.totalFuelCost, results.totalAnnualCosts, results.totalInterest], backgroundColor: ['#FF6384', '#FF9F40', '#4BC0C0', '#225458'], borderColor: 'var(--card-bg)', borderWidth: 4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: 'var(--text-color)' } }, tooltip: { callbacks: { label: (c) => { const total = c.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); const p = total > 0 ? ((c.raw / total) * 100).toFixed(1) : 0; return `${c.label}: ${formatCurrency(c.raw)} (${p}%)`; } } } } }
+            });
+        }
+    });
+    </script>
 </body>
 </html>

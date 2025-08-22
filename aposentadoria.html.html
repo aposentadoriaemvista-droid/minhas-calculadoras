@@ -12,7 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
-            --bg-main: #1f303f; --card-bg: #314254; --text-color: #e0e0e0; --text-muted-color: #a0b0c0; --border-color: #4a5d71; --input-bg: #273747; --shadow-color: rgba(0, 0, 0, 0.2); --primary-color: #00aaff; --success-color: #00C49F; --warning-color: #FFC300; --danger-color: #dc3545; --text-color-dark-bg: #1f303f;
+            --bg-main: #1B4043; --card-bg: #225458; --text-color: #e0e0e0; --text-muted-color: #a0b0c0; --border-color: #336F74; --input-bg: #1E4A4E; --shadow-color: rgba(0, 0, 0, 0.2); --primary-color: #66F6F1; --success-color: #00C49F; --warning-color: #FFC300; --danger-color: #dc3545; --text-color-dark-bg: #1B4043;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Poppins', sans-serif; background-color: var(--bg-main); color: var(--text-color); font-size: 16px; line-height: 1.6; }
@@ -23,9 +23,9 @@
         h3 { font-size: 20px; font-weight: 600; margin-bottom: 15px; }
         p { margin-bottom: 20px; text-align: center; color: var(--text-muted-color); line-height: 1.7; }
         .card { background-color: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 12px var(--shadow-color); padding: 40px; margin-bottom: 40px; }
-        .form-group { margin-bottom: 20px; }
         .form-group label { display: block; font-weight: 600; margin-bottom: 8px; }
         .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 16px; background-color: var(--input-bg); color: var(--text-color); }
+        .form-group input:disabled { background-color: #333; opacity: 0.5; }
         .main-button { display: inline-block; width: auto; padding: 14px 28px; background-color: var(--primary-color); color: var(--text-color-dark-bg); border: none; border-radius: 6px; font-size: 18px; font-weight: 600; cursor: pointer; transition: filter 0.3s; margin-top: 20px; }
         .main-button:hover { filter: brightness(1.1); }
         .secondary-button { background-color: transparent; border: 2px solid var(--primary-color); color: var(--primary-color); }
@@ -44,7 +44,7 @@
         .metric-item .label { font-weight: 600; display: flex; align-items: center; gap: 10px; }
         .metric-item .value { font-weight: 700; text-align: right; }
         .color-dot { width: 12px; height: 12px; border-radius: 50%; }
-        .dot-white { background-color: #f0f0f0; }
+        .dot-primary { background-color: var(--primary-color); }
         .dot-yellow { background-color: var(--warning-color); }
         .dot-green { background-color: var(--success-color); }
         .info-icon { cursor: pointer; color: #aaa; border: 1px solid #aaa; border-radius: 50%; width: 16px; height: 16px; font-size: 12px; text-align: center; line-height: 16px; position: relative; }
@@ -58,6 +58,16 @@
         .projection-table tbody tr:nth-child(even) { background-color: var(--bg-main); }
         .report-page { display: none; }
         @media print { body * { visibility: hidden; } #report-page, #report-page * { visibility: visible; } #report-page { position: absolute; left: 0; top: 0; width: 100%; } }
+        .toggle-switch { position: relative; display: flex; align-items: center; cursor: pointer; font-weight: normal; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-switch .label-text { margin-left: 50px; }
+        .slider { position: absolute; top: 4px; left: 0; height: 24px; width: 44px; background-color: #4A5D71; border-radius: 24px; transition: .4s; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .4s; }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .impact-analysis { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 40px; }
+        .impact-item { background-color: var(--input-bg); border-radius: 6px; padding: 20px; flex: 1; min-width: 320px; border-left: 4px solid var(--primary-color); }
+        .impact-item h4 { color: var(--primary-color); }
     </style>
 </head>
 <body>
@@ -66,22 +76,25 @@
         <section id="profile" class="card">
             <h1>Bem-vindo(a) ao seu Planejador Financeiro</h1><p>Vamos começar com algumas informações básicas para criar um plano personalizado.</p>
             <div class="financial-columns">
-                <div class="form-group"><label for="user-name">Seu Nome</label><input type="text" id="user-name" value="Bruno"></div>
-                <div class="form-group"><label for="idade-atual">Sua Idade Atual</label><input type="number" id="idade-atual" value="22"></div>
+                <div class="form-group"><label for="user-name">Seu Nome</label><input type="text" id="user-name" placeholder="Ex: Bruno" required></div>
+                <div class="form-group"><label for="user-email">Seu Email Principal</label><input type="email" id="user-email" placeholder="Ex: bruno@email.com" required></div>
+                <div class="form-group"><label for="idade-atual">Sua Idade Atual</label><input type="text" class="formatted-number" id="idade-atual" placeholder="Ex: 22" required></div>
             </div>
             <div class="button-group" style="justify-content: flex-end;"><button class="main-button" data-nav="risk">Começar Planejamento</button></div>
         </section>
 
         <section id="risk" class="card hidden">
-            <h2>Etapa 1: Gestão de Risco (Reserva de Emergência)</h2><p>Uma base financeira sólida começa com segurança. Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
-            <div class="financial-columns"><div class="form-group"><label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label><input type="number" id="despesas-essenciais" value="3000"></div><div class="form-group"><label for="reserva-meses">Meses de Cobertura Desejados</label><input type="number" id="reserva-meses" value="6"></div></div>
-            <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success-color);"></h3>
+            <h2>Etapa 1: Gestão de Risco</h2><p>Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
+            <div class="form-group"><label class="toggle-switch"><input type="checkbox" id="skip-emergency-fund"><span class="slider"></span><span class="label-text">Não desejo planejar uma reserva de emergência agora</span></label></div>
+            <div id="emergency-fund-inputs"><div class="financial-columns"><div class="form-group"><label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label><input type="text" class="formatted-number" id="despesas-essenciais" placeholder="R$ 3.000"></div><div class="form-group"><label for="reserva-meses">Meses de Cobertura Desejados</label><input type="text" class="formatted-number" id="reserva-meses" placeholder="6"></div></div><h3 id="reserva-ideal-result" style="text-align:center; color: var(--success-color);"></h3></div>
             <div class="button-group"><button class="main-button secondary-button" data-nav="profile">Voltar</button><button class="main-button" data-nav="financials">Próxima Etapa</button></div>
         </section>
-
+        
         <section id="financials" class="card hidden">
             <h2>Etapa 2: Renda e Despesas</h2><p>Agora, vamos entender seu fluxo de caixa e potencial de crescimento.</p>
-            <div class="financial-columns"><div class="form-group"><label for="salario">Renda Mensal Líquida</label><input type="number" id="salario" value="5000"></div><div class="form-group"><label for="despesas-gerais">Despesas Gerais Mensais</label><input type="number" id="despesas-gerais" value="3000"></div><div class="form-group" style="grid-column: 1 / -1;"><label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label><input type="number" id="aporte-growth" value="5"></div></div>
+            <div class="financial-columns"><div class="form-group"><label for="salario">Renda Mensal Líquida</label><input type="text" class="formatted-number" id="salario" placeholder="R$ 5.000"></div><div class="form-group"><label for="despesas-gerais">Despesas Gerais Mensais</label><input type="text" class="formatted-number" id="despesas-gerais" placeholder="R$ 3.000"></div></div>
+            <div class="form-group"><label class="toggle-switch"><input type="checkbox" id="include-aporte-growth"><span class="slider"></span><span class="label-text">Incluir crescimento anual dos aportes</span></label></div>
+            <div class="form-group hidden" id="aporte-growth-group"><label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label><input type="text" class="formatted-number" id="aporte-growth" placeholder="Ex: 5"></div>
             <div id="resumo-mensal"></div>
             <div class="button-group"><button class="main-button secondary-button" data-nav="risk">Voltar</button><button class="main-button" data-nav="goals">Próxima Etapa</button></div>
         </section>
@@ -95,7 +108,19 @@
 
         <section id="patrimony" class="card hidden">
             <h2>Etapa 4: Seu Ponto de Partida</h2><p>Para finalizar, informe seu patrimônio atual e perfil de risco.</p>
-            <div class="financial-columns"><div class="form-group"><label for="patrimonio">Patrimônio Atual (Total investido)</label><input type="number" id="patrimonio" value="50000"></div><div class="form-group"><label for="risk-profile">Perfil de Risco (Rentabilidade Real Esperada)</label><select id="risk-profile"><option value="conservador">Conservador (4% a.a.)</option><option value="moderado" selected>Moderado (6% a.a.)</option><option value="arrojado">Arrojado (8% a.a.)</option></select></div></div>
+            <div class="financial-columns">
+                <div class="form-group"><label for="patrimonio">Patrimônio Atual (Total investido)</label><input type="text" class="formatted-number" id="patrimonio" placeholder="R$ 50.000"></div>
+                <div class="form-group">
+                    <label for="risk-profile">Perfil de Risco (Rentabilidade Real Esperada)</label>
+                    <select id="risk-profile">
+                        <option value="muitoConservador">Muito Conservador (2% a.a.)</option>
+                        <option value="conservador">Conservador (4% a.a.)</option>
+                        <option value="moderado" selected>Moderado (6% a.a.)</option>
+                        <option value="arrojado">Arrojado (8% a.a.)</option>
+                        <option value="muitoArrojado">Muito Arrojado (10% a.a.)</option>
+                    </select>
+                </div>
+            </div>
             <div class="button-group"><button class="main-button secondary-button" data-nav="goals">Voltar</button><button class="main-button" id="generate-dashboard-btn" data-nav="dashboard">Gerar Meu Planejamento</button></div>
         </section>
         
@@ -104,243 +129,368 @@
                 <div><h1>Seu Mapa para a Conquista</h1><p id="dashboard-subtitle" style="text-align:left;"></p></div>
                 <button id="generate-report-btn" class="main-button secondary-button">Gerar Relatório</button>
             </div>
-            <div class="dashboard-grid"><div class="chart-area"><h3>Projeção de Patrimônio</h3><div id="chart-container"><canvas id="projectionChart"></canvas></div><div class="chart-legend" id="chart-legend"></div></div><div class="metrics-panel"><h3>Resumo do Plano de Aposentadoria</h3><div id="metrics-container"></div></div></div>
+            <div class="dashboard-grid">
+                <div class="chart-area"><h3>Projeção de Patrimônio</h3><div id="chart-container"><canvas id="projectionChart"></canvas></div><div class="chart-legend" id="chart-legend"></div></div>
+                <div class="metrics-panel"><h3>Resumo do Plano de Aposentadoria</h3><div id="metrics-container"></div></div>
+            </div>
+            <div id="impact-analysis-container"></div> 
             <div style="margin-top: 40px;"><h2>Evolução Detalhada (Sua Projeção Atual)</h2><table class="projection-table"><thead><tr><th>Idade</th><th>Total Aportado por Você</th><th>Juros Ganhos</th><th>Saldo Final</th></tr></thead><tbody id="projection-table-body"></tbody></table></div>
         </section>
     </div>
-
     <div id="report-page" class="report-page"></div>
 
 <script>
+Chart.register(window['chartjs-plugin-annotation']);
+
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. GERENCIAMENTO DE FLUXO E ESTADO ---
-    let goalCounter = 0;
     let projectionChartInstance = null;
+    let lastResults = {}; // Armazena os últimos resultados para o relatório
     
     document.querySelectorAll('.main-button[data-nav]').forEach(button => {
         button.addEventListener('click', () => {
-            const currentSectionId = button.closest('section').id;
-            const targetSectionId = button.dataset.nav;
-            document.getElementById(currentSectionId).classList.add('hidden');
-            document.getElementById(targetSectionId)?.classList.remove('hidden');
+            document.getElementById(button.closest('section').id).classList.add('hidden');
+            document.getElementById(button.dataset.nav)?.classList.remove('hidden');
             window.scrollTo(0, 0);
         });
     });
 
-    // --- 2. LÓGICA DAS SEÇÕES ---
-    // Risco
     const essentialExpensesInput = document.getElementById('despesas-essenciais');
     const monthsInput = document.getElementById('reserva-meses');
+    document.getElementById('skip-emergency-fund').addEventListener('change', (e) => {
+        const disabled = e.target.checked;
+        document.getElementById('emergency-fund-inputs').style.display = disabled ? 'none' : 'block';
+        if (disabled) { essentialExpensesInput.value = ''; monthsInput.value = ''; }
+        updateEmergencyFund();
+    });
     [essentialExpensesInput, monthsInput].forEach(input => input.addEventListener('input', updateEmergencyFund));
     function updateEmergencyFund() {
-        const ideal = (parseFloat(essentialExpensesInput.value) || 0) * (parseFloat(monthsInput.value) || 0);
-        document.getElementById('reserva-ideal-result').textContent = `Sua reserva ideal é de: ${formatCurrency(ideal)}`;
+        const ideal = unformatNumber(essentialExpensesInput.value) * unformatNumber(monthsInput.value);
+        document.getElementById('reserva-ideal-result').textContent = ideal > 0 ? `Sua reserva ideal é de: ${formatCurrency(ideal)}` : '';
     }
 
-    // Finanças
+    document.getElementById('include-aporte-growth').addEventListener('change', (e) => {
+        document.getElementById('aporte-growth-group').classList.toggle('hidden', !e.target.checked);
+    });
     const incomeInput = document.getElementById('salario');
     const expenseInput = document.getElementById('despesas-gerais');
     [incomeInput, expenseInput].forEach(input => input.addEventListener('input', updateAporte));
     function updateAporte() {
-        const aporte = (parseFloat(incomeInput.value) || 0) - (parseFloat(expenseInput.value) || 0);
+        const aporte = unformatNumber(incomeInput.value) - unformatNumber(expenseInput.value);
         document.getElementById('resumo-mensal').innerHTML = `<div class="summary-highlight">Seu potencial de aporte mensal inicial é de: <strong>${formatCurrency(aporte)}</strong></div>`;
         return aporte;
     }
 
-    // Objetivos
     const addGoalBtn = document.getElementById('add-goal-btn');
     addGoalBtn.addEventListener('click', () => {
-        goalCounter++;
         const list = document.getElementById('goals-list');
         const newItem = document.createElement('div');
         newItem.classList.add('goal-item');
-        newItem.dataset.goalId = goalCounter;
         newItem.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h4>Novo Objetivo/Evento</h4>
-                <button class="remove-button" onclick="this.closest('.goal-item').remove()">×</button>
-            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><h4>Novo Objetivo/Evento</h4><button class="remove-button" onclick="this.closest('.goal-item').remove()">×</button></div>
             <div class="goal-grid">
                 <div class="form-group"><label>Tipo</label><select class="goal-type"><option value="objetivo">Objetivo (Saída)</option><option value="evento">Evento (Entrada)</option></select></div>
                 <div class="form-group"><label>Descrição</label><input type="text" class="goal-description" placeholder="Ex: Comprar Carro"></div>
-                <div class="form-group"><label>Valor (R$)</label><input type="number" class="goal-value" placeholder="80000"></div>
-                <div class="form-group"><label>Com que idade?</label><input type="number" class="goal-age" placeholder="30"></div>
+                <div class="form-group"><label>Valor (R$)</label><input type="text" class="formatted-number goal-value" placeholder="80.000"></div>
+                <div class="form-group"><label>Com que idade?</label><input type="text" class="formatted-number goal-age" placeholder="30"></div>
             </div>`;
         list.appendChild(newItem);
+        newItem.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
     });
-    // Adiciona o objetivo de aposentadoria por padrão
-    addGoalBtn.click();
-    const firstGoal = document.querySelector('.goal-item');
-    firstGoal.querySelector('.goal-type').innerHTML = '<option value="aposentadoria">Aposentadoria (Objetivo Principal)</option>';
-    firstGoal.querySelector('.goal-description').value = 'Aposentadoria';
-    firstGoal.querySelector('.goal-value').value = '10000';
-    firstGoal.querySelector('.goal-value').previousElementSibling.textContent = 'Renda Mensal Desejada (R$)';
-    firstGoal.querySelector('.goal-age').value = '60';
-    firstGoal.querySelector('.goal-age').previousElementSibling.textContent = 'Idade de Aposentadoria';
+    function addDefaultRetirementGoal() {
+        addGoalBtn.click();
+        const firstGoal = document.querySelector('.goal-item');
+        firstGoal.querySelector('.goal-type').innerHTML = '<option value="aposentadoria">Aposentadoria (Principal)</option>';
+        firstGoal.querySelector('.goal-description').value = 'Aposentadoria';
+        firstGoal.querySelector('.goal-description').readOnly = true;
+        firstGoal.querySelector('.goal-value').placeholder = '10.000';
+        firstGoal.querySelector('.goal-value').previousElementSibling.textContent = 'Renda Mensal Desejada (R$)';
+        firstGoal.querySelector('.goal-age').placeholder = '60';
+        firstGoal.querySelector('.goal-age').previousElementSibling.textContent = 'Idade de Aposentadoria';
+        const lifeExpectancyField = document.createElement('div');
+        lifeExpectancyField.classList.add('form-group');
+        lifeExpectancyField.innerHTML = `<label>Expectativa de Vida</label><input type="text" class="formatted-number goal-life-expectancy" placeholder="100">`;
+        firstGoal.querySelector('.goal-grid').appendChild(lifeExpectancyField);
+        firstGoal.querySelector('.remove-button').remove();
+        firstGoal.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
+    }
+    addDefaultRetirementGoal();
 
-
-    // --- 3. MOTOR DE CÁLCULO E DASHBOARD ---
-    document.getElementById('generate-dashboard-btn').addEventListener('click', runFinancialPlan);
+    document.getElementById('generate-dashboard-btn').addEventListener('click', () => {
+        captureLead();
+        runFinancialPlan();
+    });
     
-    function runFinancialPlan() {
-        // Coleta de Dados
-        const inputs = {
-            userName: document.getElementById('user-name').value,
-            idadeAtual: parseInt(document.getElementById('idade-atual').value),
-            patrimonioInicial: parseFloat(document.getElementById('patrimonio').value),
+    function captureLead() {
+        const API_ENDPOINT = "https://sheetdb.io/api/v1/kqxmth5zljkyi";
+        const leadData = {
+            data: new Date().toLocaleString("pt-BR"),
+            nome: document.getElementById('user-name').value,
+            email: document.getElementById('user-email').value,
+            idade: unformatNumber(document.getElementById('idade-atual').value),
+            patrimonio: unformatNumber(document.getElementById('patrimonio').value),
+            rendaMensal: unformatNumber(document.getElementById('salario').value),
             aporteMensal: updateAporte(),
-            perfilRisco: document.getElementById('risk-profile').value,
-            aporteGrowth: (parseFloat(document.getElementById('aporte-growth').value) || 0) / 100
+            perfilRisco: document.getElementById('risk-profile').value
         };
-        
-        let userGoals = [];
-        document.querySelectorAll('.goal-item').forEach(item => {
-            userGoals.push({
-                type: item.querySelector('.goal-type').value,
-                description: item.querySelector('.goal-description').value,
-                value: parseFloat(item.querySelector('.goal-value').value) || 0,
-                age: parseInt(item.querySelector('.goal-age').value) || 0
+        fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: [leadData] }) })
+        .then(response => response.json()).then(data => console.log("Lead capturado:", data)).catch(error => console.error("Erro ao capturar lead:", error));
+    }
+
+    function runFinancialPlan() {
+        try {
+            const inputs = {
+                userName: document.getElementById('user-name').value,
+                idadeAtual: unformatNumber(document.getElementById('idade-atual').value),
+                patrimonioInicial: unformatNumber(document.getElementById('patrimonio').value),
+                aporteMensal: updateAporte(),
+                perfilRisco: document.getElementById('risk-profile').value,
+                aporteGrowth: document.getElementById('include-aporte-growth').checked ? (unformatNumber(document.getElementById('aporte-growth').value) / 100) : 0
+            };
+            let userGoals = [];
+            document.querySelectorAll('.goal-item').forEach(item => {
+                const goal = { type: item.querySelector('.goal-type').value, description: item.querySelector('.goal-description').value, value: unformatNumber(item.querySelector('.goal-value').value), age: unformatNumber(item.querySelector('.goal-age').value) };
+                if (goal.type === 'aposentadoria') { goal.lifeExpectancy = unformatNumber(item.querySelector('.goal-life-expectancy')?.value) || 100; }
+                userGoals.push(goal);
             });
-        });
-        
-        const retirementGoal = userGoals.find(g => g.type === 'aposentadoria');
-        if (!retirementGoal) { alert('Por favor, adicione um objetivo de Aposentadoria.'); return; }
-        
-        const premissas = { taxasJurosReais: { conservador: 0.04, moderado: 0.06, arrojado: 0.08 }, expectativaVida: 100 };
-        const taxaJurosAtual = premissas.taxasJurosReais[inputs.perfilRisco];
-        const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
-        const anosDeAposentadoria = premissas.expectativaVida - retirementGoal.age;
-        
-        const metaIdeal = (retirementGoal.value * 12) / taxaJurosAtual;
-        const aporteIdeal = calculateRequiredPMT(inputs.patrimonioInicial, metaIdeal, taxaJurosAtual, anosParaAposentar, inputs.aporteGrowth);
-        
-        const metaMinima = calculatePresentValue(retirementGoal.value * 12, taxaJurosAtual, anosDeAposentadoria);
-        const aporteMinimo = calculateRequiredPMT(inputs.patrimonioInicial, metaMinima, taxaJurosAtual, anosParaAposentar, inputs.aporteGrowth);
-        
-        const projecaoAtualData = generateProjectionSeries(inputs, userGoals, taxaJurosAtual, anosParaAposentar);
-        const projecaoAtualFinal = projecaoAtualData.slice(-1)[0];
-        const probabilidadeSucesso = Math.min((projecaoAtualFinal / metaMinima) * 100, 100);
-        
-        const results = { projecaoAtual: projecaoAtualFinal, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, taxaJurosAtual, anosParaAposentar, projecaoAtualData };
-        
-        updateDashboardUI(results);
+            
+            const retirementGoal = userGoals.find(g => g.type === 'aposentadoria');
+            if (!retirementGoal || !retirementGoal.age || inputs.idadeAtual >= retirementGoal.age) {
+                alert('Por favor, preencha os dados do objetivo de Aposentadoria com uma idade futura à sua idade atual.'); return;
+            }
+            
+            const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+            const taxaJurosAtual = premissas.taxasJurosReais[inputs.perfilRisco];
+            const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
+            
+            const metaIdeal = (retirementGoal.value * 12) / taxaJurosAtual;
+            const anosDeAposentadoria = retirementGoal.lifeExpectancy - retirementGoal.age;
+            const metaMinima = calculatePresentValue(retirementGoal.value * 12, taxaJurosAtual, anosDeAposentadoria);
+            
+            const aporteIdeal = calculateRequiredPMT(inputs.patrimonioInicial, metaIdeal, taxaJurosAtual, anosParaAposentar, inputs.aporteGrowth);
+            const aporteMinimo = calculateRequiredPMT(inputs.patrimonioInicial, metaMinima, taxaJurosAtual, anosParaAposentar, inputs.aporteGrowth);
+            
+            const fullProjection = generateFullProjection(inputs, userGoals, taxaJurosAtual);
+            const patrimonioNaAposentadoria = anosParaAposentar > 0 ? fullProjection.accumulation.slice(-1)[0].saldoFinal : inputs.patrimonioInicial;
+            const probabilidadeSucesso = metaMinima > 0 ? Math.min((patrimonioNaAposentadoria / metaMinima) * 100, 100) : 100;
+            
+            const resultsForImpact = { ...inputs, userGoals, retirementGoal, taxaJurosAtual, metaIdeal, metaMinima };
+            const impactAnalysis = calculateImpactAnalysis(fullProjection, resultsForImpact);
+            
+            lastResults = { projecaoAtual: patrimonioNaAposentadoria, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, retirementGoal, fullProjection, taxaJurosAtual, impactAnalysis };
+            
+            updateDashboardUI(lastResults);
+        } catch (error) {
+            console.error("Erro ao gerar o dashboard:", error);
+            alert("Ocorreu um erro ao gerar seu planejamento. Verifique se todos os campos foram preenchidos corretamente.");
+        }
     }
     
     function updateDashboardUI(results) {
-        const { projecaoAtual, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, taxaJurosAtual, anosParaAposentar, projecaoAtualData } = results;
+        const { projecaoAtual, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, retirementGoal, fullProjection, impactAnalysis } = results;
         document.getElementById('dashboard-subtitle').textContent = `Olá, ${inputs.userName}! Este é o seu plano financeiro projetado.`;
 
         document.getElementById('metrics-container').innerHTML = `
             <h3>Metas de Patrimônio (Aposentadoria)</h3>
-            <div class="metric-item"><div class="label"><span class="color-dot dot-green"></span>Meta Ideal <div class="info-icon">?<span class="tooltip">Valor para viver de juros sem consumir o principal.</span></div></div><div class="value">${formatCurrency(metaIdeal)}</div></div>
-            <div class="metric-item"><div class="label"><span class="color-dot dot-yellow"></span>Meta Mínima <div class="info-icon">?<span class="tooltip">Valor para bancar a renda desejada, consumindo o patrimônio até o fim da vida.</span></div></div><div class="value">${formatCurrency(metaMinima)}</div></div>
-            <div class="metric-item"><div class="label"><span class="color-dot dot-white"></span>Sua Projeção</div><div class="value">${formatCurrency(projecaoAtual)}</div></div>
+            <div class="metric-item"><div class="label"><span class="color-dot dot-green"></span>Meta Ideal <div class="info-icon">?<span class="tooltip">Valor para viver de juros sem consumir o principal.</span></div></div><div class="value">${isFinite(metaIdeal) ? formatCurrency(metaIdeal) : 'N/A'}</div></div>
+            <div class="metric-item"><div class="label"><span class="color-dot dot-yellow"></span>Meta Mínima <div class="info-icon">?<span class="tooltip">Valor para bancar a renda desejada, consumindo o patrimônio até a expectativa de vida.</span></div></div><div class="value">${isFinite(metaMinima) ? formatCurrency(metaMinima) : 'N/A'}</div></div>
+            <div class="metric-item"><div class="label"><span class="color-dot dot-primary"></span>Sua Projeção</div><div class="value">${isFinite(projecaoAtual) ? formatCurrency(projecaoAtual) : 'N/A'}</div></div>
             <h3 style="margin-top:20px;">Aportes Mensais (Iniciais)</h3>
             <div class="metric-item"><div class="label">Seu Aporte</div><div class="value">${formatCurrency(inputs.aporteMensal)}</div></div>
-            <div class="metric-item"><div class="label">Necessário p/ Meta Mín.</div><div class="value">${formatCurrency(aporteMinimo)}</div></div>
-            <div class="metric-item"><div class="label">Necessário p/ Meta Ideal</div><div class="value">${formatCurrency(aporteIdeal)}</div></div>
+            <div class="metric-item"><div class="label">Necessário p/ Meta Mín.</div><div class="value">${isFinite(aporteMinimo) ? formatCurrency(aporteMinimo) : 'Inatingível'}</div></div>
+            <div class="metric-item"><div class="label">Necessário p/ Meta Ideal</div><div class="value">${isFinite(aporteIdeal) ? formatCurrency(aporteIdeal) : 'Inatingível'}</div></div>
             <h3 style="margin-top:20px;">Diagnóstico</h3>
-            <div class="metric-item"><div class="label">Probabilidade de Sucesso</div><div class="value" style="color: ${probabilidadeSucesso >= 100 ? 'var(--success-color)' : 'var(--warning-color)'}">${probabilidadeSucesso.toFixed(0)}%</div></div>`;
+            <div class="metric-item"><div class="label">Probabilidade de Sucesso</div><div class="value" style="color: ${probabilidadeSucesso >= 99.9 ? 'var(--success-color)' : 'var(--warning-color)'}">${probabilidadeSucesso.toFixed(0)}%</div></div>`;
 
-        document.getElementById('chart-legend').innerHTML = `<div class="legend-item"><span class="color-dot dot-white"></span>Sua Projeção</div><div class="legend-item"><span class="color-dot dot-yellow"></span>Meta Mínima</div><div class="legend-item"><span class="color-dot dot-green"></span>Meta Ideal</div>`;
+        document.getElementById('chart-legend').innerHTML = `<div class="legend-item"><span class="color-dot dot-primary"></span>Sua Projeção</div><div class="legend-item"><span class="color-dot dot-yellow"></span>Meta Mínima</div><div class="legend-item"><span class="color-dot dot-green"></span>Meta Ideal</div>`;
         
-        const dataMinima = generateProjectionSeries({ ...inputs, aporteMensal: aporteMinimo }, [], taxaJurosAtual, anosParaAposentar);
-        const dataIdeal = generateProjectionSeries({ ...inputs, aporteMensal: aporteIdeal }, [], taxaJurosAtual, anosParaAposentar);
-        renderChart(projecaoAtualData, dataMinima, dataIdeal, inputs.idadeAtual, anosParaAposentar);
+        const idealPlanInputs = {...inputs, aporteMensal: isFinite(aporteIdeal) ? aporteIdeal : 0, aporteGrowth: inputs.aporteGrowth};
+        const minimalPlanInputs = {...inputs, aporteMensal: isFinite(aporteMinimo) ? aporteMinimo : 0, aporteGrowth: inputs.aporteGrowth};
         
-        populateProjectionTable(projecaoAtualData, inputs.idadeAtual, inputs.patrimonioInicial, inputs.aporteMensal, inputs.aporteGrowth);
+        const idealProjection = generateFullProjection(idealPlanInputs, [retirementGoal], results.taxaJurosAtual);
+        const minimalProjection = generateFullProjection(minimalPlanInputs, [retirementGoal], results.taxaJurosAtual);
+        
+        renderChart(fullProjection, minimalProjection, idealProjection, inputs.idadeAtual);
+        populateProjectionTable(fullProjection.accumulation);
+        updateImpactAnalysisPanel(impactAnalysis);
     }
 
-    function renderChart(dataAtual, dataMinima, dataIdeal, idadeInicial, anos) {
+    function renderChart(dataAtual, dataMinima, dataIdeal, idadeInicial) {
+        const anosAteAposentar = dataAtual.accumulation.length - 1;
+        const anosTotais = anosAteAposentar + dataAtual.decumulation.length;
+        const labels = Array.from({ length: anosTotais }, (_, i) => idadeInicial + i);
         const ctx = document.getElementById('projectionChart').getContext('2d');
-        const labels = Array.from({ length: anos + 1 }, (_, i) => idadeInicial + i);
         if (projectionChartInstance) { projectionChartInstance.destroy(); }
+        const grad = ctx.createLinearGradient(0, 0, 0, 450);
+        grad.addColorStop(0, 'rgba(102, 246, 241, 0.3)');
+        grad.addColorStop(1, 'rgba(102, 246, 241, 0)');
 
         projectionChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Sua Projeção', data: dataAtual, borderColor: '#e0e0e0', backgroundColor: 'rgba(224, 224, 224, 0.15)', fill: true, tension: 0.1, borderWidth: 4, pointRadius: 2 },
-                    { label: 'Meta Mínima', data: dataMinima, borderColor: 'var(--warning-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false },
-                    { label: 'Meta Ideal', data: dataIdeal, borderColor: 'var(--success-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false }
+                    { label: 'Sua Projeção', data: [...dataAtual.accumulation.map(d => d.saldoFinal), ...dataAtual.decumulation.map(d => d.saldoFinal)], borderColor: 'var(--primary-color)', backgroundColor: grad, fill: true, tension: 0.1, borderWidth: 4, pointRadius: 0 },
+                    { label: 'Meta Mínima', data: [...dataMinima.accumulation.map(d => d.saldoFinal), ...dataMinima.decumulation.map(d => d.saldoFinal)], borderColor: 'var(--warning-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false },
+                    { label: 'Meta Ideal', data: [...dataIdeal.accumulation.map(d => d.saldoFinal), ...dataIdeal.decumulation.map(d => d.saldoFinal)], borderColor: 'var(--success-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: { 
-                    y: { ticks: { color: 'var(--text-muted-color)', callback: value => `R$${(value / 1000000).toFixed(1)}M` }, grid: { color: 'rgba(224, 224, 224, 0.1)' } },
+                    y: { ticks: { color: 'var(--text-muted-color)', callback: value => `R$${(value / 1000000).toFixed(1)}M` }, grid: { color: 'rgba(224, 224, 241, 0.1)' } },
                     x: { ticks: { color: 'var(--text-muted-color)' }, grid: { display: false } }
                 },
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatCurrency(c.raw)}` }, backgroundColor: '#FFF', titleColor: '#333', bodyColor: '#333', borderColor: '#DDD', borderWidth: 1 },
-                    annotation: { annotations: { line1: { type: 'line', xMin: anos, xMax: anos, borderColor: 'var(--primary-color)', borderWidth: 2, borderDash: [6, 6], label: { content: 'Aposentadoria', enabled: true, position: 'start', yAdjust: -15, backgroundColor: 'rgba(31, 48, 63, 0.7)', color: 'var(--primary-color)', font: { weight: 'bold' } } } } }
+                    annotation: { annotations: { line1: { type: 'line', xMin: anosAteAposentar, xMax: anosAteAposentar, borderColor: 'var(--primary-color)', borderWidth: 2, borderDash: [6, 6], label: { content: 'Aposentadoria', enabled: true, position: 'start', yAdjust: -15, backgroundColor: 'rgba(34, 84, 88, 0.8)', color: 'var(--primary-color)', font: { weight: 'bold' } } } } }
                 },
                 interaction: { intersect: false, mode: 'index' }
             }
         });
     }
 
-    function populateProjectionTable(projectionData, idadeInicial, patrimonioInicial, pmtInicial, pmtGrowth) {
+    function populateProjectionTable(projectionData) {
         const tableBody = document.getElementById('projection-table-body');
         tableBody.innerHTML = '';
-        const milestones = [1, 5, 10, 20, 30, projectionData.length - 1];
-        const uniqueMilestones = [...new Set(milestones)].filter(ano => ano > 0 && ano < projectionData.length);
-
-        let totalAportadoAcumulado = patrimonioInicial;
-        let pmtCorrenteAnual = pmtInicial * 12;
-
-        for (let ano = 1; ano < projectionData.length; ano++) {
-            totalAportadoAcumulado += pmtCorrenteAnual;
-            pmtCorrenteAnual *= (1 + pmtGrowth);
-            
-            if (uniqueMilestones.includes(ano)) {
-                const saldoFinal = projectionData[ano];
-                const jurosGanhos = saldoFinal - totalAportadoAcumulado;
-                tableBody.innerHTML += `<tr><td>${idadeInicial + ano} anos</td><td>${formatCurrency(totalAportadoAcumulado)}</td><td>${formatCurrency(jurosGanhos)}</td><td class="final-balance">${formatCurrency(saldoFinal)}</td></tr>`;
-            }
+        for (let i = 1; i < projectionData.length; i++) {
+            const data = projectionData[i];
+            tableBody.innerHTML += `<tr><td>${data.idade} anos</td><td>${formatCurrency(data.totalAportado)}</td><td>${formatCurrency(data.jurosGanhos)}</td><td class="final-balance">${formatCurrency(data.saldoFinal)}</td></tr>`;
         }
     }
+    
+    function updateImpactAnalysisPanel(analysis) {
+        const container = document.getElementById('impact-analysis-container');
+        const existingTitle = document.getElementById('impact-analysis-title');
+        if(existingTitle) existingTitle.remove();
+        
+        const panel = document.createElement('div');
+        panel.id = 'impact-analysis-panel';
+        panel.classList.add('impact-analysis');
 
-    // --- 4. FUNÇÕES DE CÁLCULO ATUALIZADAS ---
+        if (!analysis || analysis.length === 0) {
+            container.innerHTML = ''; return;
+        }
+        
+        const title = document.createElement('h2');
+        title.id = 'impact-analysis-title';
+        title.textContent = 'Análise de Impacto dos Objetivos';
+        container.innerHTML = '';
+        container.appendChild(title);
+        container.appendChild(panel);
+
+        analysis.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.classList.add('impact-item');
+            const isSaida = item.type === 'objetivo';
+            const label = isSaida ? 'Custo do Objetivo' : 'Entrada de Capital';
+            const valueColor = isSaida ? 'var(--warning-color)' : 'var(--success-color)';
+            const signal = isSaida ? '-' : '+';
+
+            itemDiv.innerHTML = `
+                <h4>${item.description} (aos ${item.age} anos)</h4>
+                <div class="metric-item"><span class="label">Patrimônio Antes</span><span class="value">${formatCurrency(item.patrimonioAntes)}</span></div>
+                <div class="metric-item"><span class="label">${label}</span><span class="value" style="color: ${valueColor};">${signal} ${formatCurrency(item.value)}</span></div>
+                <div class="metric-item"><span class="label">Patrimônio Pós-Evento</span><span class="value">${formatCurrency(item.patrimonioDepois)}</span></div>
+                <div class="metric-item"><span class="label">Novo Aporte Mínimo (Pós)</span><span class="value" style="color: var(--warning-color);">${isFinite(item.novoAporteMinimo) ? formatCurrency(item.novoAporteMinimo) : 'Inatingível'}</span></div>
+                <div class="metric-item"><span class="label">Novo Aporte Ideal (Pós)</span><span class="value" style="color: var(--primary-color);">${isFinite(item.novoAporteIdeal) ? formatCurrency(item.novoAporteIdeal) : 'Inatingível'}</span></div>`;
+            panel.appendChild(itemDiv);
+        });
+    }
+
     const formatCurrency = (value) => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    
+    function formatNumberInput(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value) { e.target.value = new Intl.NumberFormat('pt-BR').format(value); } 
+        else { e.target.value = ''; }
+    }
+    function unformatNumber(value) {
+        return parseFloat(String(value).replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    document.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
 
-    function generateProjectionSeries(inputs, goals, taxaAnual, anos) {
-        let series = [inputs.patrimonioInicial];
+    function generateFullProjection(inputs, goals, taxaAnual) {
+        const retirementGoal = goals.find(g => g.type === 'aposentadoria');
+        if (!retirementGoal) return { accumulation: [], decumulation: [] };
+        const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
+        const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age;
+        
+        let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }];
         let saldo = inputs.patrimonioInicial;
-        let currentPmtAnual = inputs.aporteMensal * 12;
+        let pmtAnual = inputs.aporteMensal * 12;
+        let totalAportado = inputs.patrimonioInicial;
 
-        for (let ano = 1; ano <= anos; ano++) {
-            saldo = saldo * (1 + taxaAnual) + currentPmtAnual;
-            currentPmtAnual *= (1 + inputs.aporteGrowth);
-
+        for (let ano = 1; ano <= anosParaAposentar; ano++) {
+            const jurosDoAno = saldo * taxaAnual;
+            let resgatesDoAno = 0;
             const currentAge = inputs.idadeAtual + ano;
+            
             goals.forEach(goal => {
                 if (goal.age === currentAge && goal.type !== 'aposentadoria') {
-                    saldo += (goal.type === 'evento' ? goal.value : -goal.value);
+                    resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value);
                 }
             });
-            series.push(saldo < 0 ? 0 : saldo);
+
+            saldo += jurosDoAno + pmtAnual + resgatesDoAno;
+            totalAportado += pmtAnual;
+            saldo = saldo < 0 ? 0 : saldo;
+            
+            accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno });
+            pmtAnual *= (1 + inputs.aporteGrowth);
         }
-        return series;
+
+        let decumulation = [];
+        const saqueAnual = (retirementGoal.value || 0) * 12;
+        for (let ano = 1; ano <= anosDeAposentadoria; ano++) {
+            const juros = saldo * taxaAnual;
+            saldo += juros - saqueAnual;
+            saldo = saldo < 0 ? 0 : saldo;
+            decumulation.push({ ano, idade: retirementGoal.age + ano, saldoFinal: saldo });
+        }
+        
+        return { accumulation, decumulation };
     }
 
-    function calculatePresentValue(pmtAnual, i, n) { if (i === 0) return pmtAnual * n; return pmtAnual * ((1 - Math.pow(1 + i, -n)) / i); }
+    function calculateImpactAnalysis(fullProjection, analysisInputs) {
+        const { idadeAtual, userGoals, retirementGoal, taxaJurosAtual, metaIdeal, metaMinima, aporteGrowth } = analysisInputs;
+        const analysis = [];
+        const intermediateEvents = userGoals.filter(g => g.type !== 'aposentadoria' && g.age < retirementGoal.age).sort((a,b) => a.age - b.age);
+        
+        intermediateEvents.forEach(goal => {
+            const anoDoObjetivo = goal.age - idadeAtual;
+            const projectionPoint = fullProjection.accumulation[anoDoObjetivo];
+            if (!projectionPoint) return;
+            
+            const eventValue = goal.type === 'evento' ? goal.value : -goal.value;
+            const patrimonioDepois = projectionPoint.saldoFinal;
+            const patrimonioAntes = patrimonioDepois - eventValue;
+
+            const anosRestantesParaAposentar = retirementGoal.age - goal.age;
+            const novoAporteIdeal = calculateRequiredPMT(patrimonioDepois, metaIdeal, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth);
+            const novoAporteMinimo = calculateRequiredPMT(patrimonioDepois, metaMinima, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth);
+            
+            analysis.push({ type: goal.type, description: goal.description, age: goal.age, patrimonioAntes, value: goal.value, patrimonioDepois, novoAporteIdeal, novoAporteMinimo });
+        });
+        return analysis;
+    }
+
+    function calculatePresentValue(pmtAnual, i, n) { if (n <= 0) return 0; if (i === 0) return pmtAnual * n; return pmtAnual * ((1 - Math.pow(1 + i, -n)) / i); }
     function calculateRequiredPMT(vp, vf, i, n, pmtGrowth) {
-        if (n <= 0) return 0;
+        if (n <= 0) return vf > vp ? Infinity : 0;
         let pmtAnual = 0;
-        if (i.toFixed(4) !== pmtGrowth.toFixed(4)) {
+        if (Math.abs(i - pmtGrowth) > 1e-9) {
             const term1 = vf - vp * Math.pow(1 + i, n);
             const term2 = (Math.pow(1 + i, n) - Math.pow(1 + pmtGrowth, n)) / (i - pmtGrowth);
+            if (term2 === 0) return Infinity;
             pmtAnual = term1 / term2;
         } else {
-            pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n-1));
+            if (n === 0) return Infinity;
+            pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n - 1));
         }
         return pmtAnual > 0 ? pmtAnual / 12 : 0;
     }
     
-    // --- 5. GERADOR DE RELATÓRIO ---
     document.getElementById('generate-report-btn').addEventListener('click', () => {
         const reportContainer = document.getElementById('report-page');
         const userName = document.getElementById('user-name').value;
@@ -349,29 +499,34 @@ document.addEventListener('DOMContentLoaded', () => {
         html2canvas(document.getElementById('projectionChart')).then(canvas => {
             const chartImage = canvas.toDataURL('image/png');
             const metricsHTML = document.getElementById('metrics-container').innerHTML;
+            const impactHTML = document.getElementById('impact-analysis-container')?.innerHTML || '';
             const tableHTML = document.querySelector('.projection-table').outerHTML;
             
             reportContainer.innerHTML = `
                 <style>
-                    body { background: white; color: black; font-family: sans-serif; margin: 40px; }
+                    body { background: white; color: black; font-family: sans-serif; margin: 20px; font-size: 12px; }
                     h1, h2, h3 { color: #1f303f; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+                    h1 {font-size: 24px;} h2 {font-size: 18px;} h3 {font-size: 16px;}
+                    p { text-align: left; margin: 10px 0;}
                     img { max-width: 100%; margin-top: 20px; border: 1px solid #eee; border-radius: 8px; }
-                    .metrics-panel { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px;}
-                    .metric-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #ddd; }
+                    .metrics-panel, .impact-analysis { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px;}
+                    .metric-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }
+                    .metric-item:last-child { border-bottom: none; }
                     .metric-item .label { font-weight: bold; }
-                    .info-icon { display: none; }
-                    .color-dot { display: none; }
+                    .info-icon, .color-dot { display: none; }
+                    .projection-table { font-size: 10px; }
                 </style>
-                <h1>Relatório de Planejamento Financeiro</h1><p><strong>Cliente:</strong> ${userName}</p><p><strong>Data:</strong> ${today}</p>
+                <h1>Relatório de Planejamento Financeiro</h1>
+                <p><strong>Cliente:</strong> ${userName}</p><p><strong>Data de Geração:</strong> ${today}</p>
                 <div class="metrics-panel">${metricsHTML}</div>
                 <h2>Projeção de Patrimônio</h2><img src="${chartImage}" alt="Gráfico de Projeção">
+                ${impactHTML}
                 <h2>Evolução Detalhada</h2>${tableHTML}`;
             
-            setTimeout(() => window.print(), 500);
+            requestAnimationFrame(() => { window.print(); });
         });
     });
 
-    // Inicializa
     updateAporte();
     updateEmergencyFund();
 });
@@ -379,3 +534,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
+
