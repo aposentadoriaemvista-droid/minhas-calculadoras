@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Corrigido</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            margin: 0;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+            max-width: 1600px;
+            margin: auto;
+        }
+        .card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Layout do Grid */
+        .header-card { grid-column: 1 / -1; }
+        .form-card { grid-column: 1 / -1; }
+        .income-card { grid-column: 1 / -1; }
+        .pie-chart-card { grid-column: 1 / 5; }
+        .bar-chart-card { grid-column: 5 / 9; }
+        .percentage-chart-card { grid-column: 9 / -1; }
+        .table-card { grid-column: 1 / -1; }
+        
+        .form-container, .income-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            align-items: flex-end;
+        }
+        label {
+            font-weight: 600;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            display: block;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: #0056b3; }
+        
+        /* --- NOVO: Limite de altura para os gráficos --- */
+        .chart-container {
+            position: relative;
+            height: 350px;
+            width: 100%;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th { background-color: #f8f9fa; }
+        .currency { text-align: right; }
+
+        @media (max-width: 1200px) {
+            .pie-chart-card, .bar-chart-card, .percentage-chart-card { grid-column: 1 / -1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="grid-container">
+        <div class="card header-card">
+            <h1>Painel de Controle Financeiro</h1>
+        </div>
+
+        <div class="card form-card">
+            <h2>Adicionar Nova Transação</h2>
+            <form id="addTransactionForm" class="form-container">
+                <div>
+                    <label for="tipo">Tipo</label>
+                    <select id="tipo" name="tipo" required>
+                        <option value="Despesa">Despesa</option>
+                        <option value="Receita">Receita</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="categoria">Categoria</label>
+                    <select id="categoria" name="categoria" required>
+                        <option value="Alimentação">Alimentação</option><option value="Lazer">Lazer</option><option value="Moradia">Moradia</option><option value="Nenhum">Nenhum</option><option value="Saúde">Saúde</option><option value="Transporte">Transporte</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="valor">Valor (R$)</label>
+                    <input type="number" id="valor" name="valor" step="0.01" min="0" required placeholder="Ex: 50.99">
+                </div>
+                <div>
+                    <label for="descricao">Descrição</label>
+                    <input type="text" id="descricao" name="descricao" placeholder="Ex: Café da manhã">
+                </div>
+                <button type="submit">Adicionar</button>
+            </form>
+        </div>
+
+        <div class="card income-card">
+            <h2>Análise de Renda</h2>
+            <div class="income-container">
+                <div>
+                    <label for="rendaMensal">Sua Renda Mensal (R$)</label>
+                    <input type="number" id="rendaMensal" step="0.01" min="0" placeholder="Ex: 5000.00">
+                </div>
+            </div>
+        </div>
+
+        <div class="card pie-chart-card">
+            <h2>Despesas (R$)</h2>
+            <div class="chart-container">
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card bar-chart-card">
+            <h2>Receitas vs. Despesas</h2>
+            <div class="chart-container">
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card percentage-chart-card">
+            <h2>Gasto vs. Renda (%)</h2>
+            <div class="chart-container">
+                <canvas id="percentageChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <h2>Transações Recentes</h2>
+            <table id="transactionTable">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Categoria</th>
+                        <th>Descrição</th>
+                        <th class="currency">Valor</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let transacoes = [{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Despesa","Categoria":"Moradia","Valor (R$)":8000.0,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Despesa","Categoria":"Alimenta\u00e7\u00e3o","Valor (R$)":9000.0,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Despesa","Categoria":"Transporte","Valor (R$)":10000.0,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Despesa","Categoria":"Lazer","Valor (R$)":11000.0,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Despesa","Categoria":"Sa\u00fade","Valor (R$)":12000.0,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null},{"Data":"00\/00\/0000","Tipo (Receita\/Despesa)":"Nenhum","Categoria":"Nenhum","Valor (R$)":null,"Descri\u00e7\u00e3o":null,"M\u00eas":null}];
+        const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        const CHART_COLORS = ['#36A2EB', '#FF6384', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
+
+        const pieCtx = document.getElementById('pieChart').getContext('2d');
+        const pieChart = new Chart(pieCtx, {
+            type: 'doughnut', data: { labels: [], datasets: [{ data: [] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom' } } }
+        });
+
+        const barCtx = document.getElementById('barChart').getContext('2d');
+        const barChart = new Chart(barCtx, {
+            type: 'bar', data: { labels: ['Total'], datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        });
+
+        const percentageCtx = document.getElementById('percentageChart').getContext('2d');
+        const percentageChart = new Chart(percentageCtx, {
+            type: 'bar', data: { labels: [], datasets: [{ label: '% da Renda', data: [] }] },
+            options: { 
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                scales: { x: { ticks: { callback: value => value + '%' } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function updateDashboard() {
+            const despesas = transacoes.filter(t => t['Tipo (Receita/Despesa)'] === 'Despesa');
+            const gastoPorCategoria = despesas.reduce((acc, curr) => {
+                acc[curr.Categoria] = (acc[curr.Categoria] || 0) + curr['Valor (R$)'];
+                return acc;
+            }, {});
+            
+            const totalReceitas = transacoes.filter(t => t['Tipo (Receita/Despesa)'] === 'Receita').reduce((sum, t) => sum + t['Valor (R$)'], 0);
+            const totalDespesas = despesas.reduce((sum, t) => sum + t['Valor (R$)'], 0);
+            const rendaMensal = parseFloat(document.getElementById('rendaMensal').value) || 0;
+
+            pieChart.data.labels = Object.keys(gastoPorCategoria);
+            pieChart.data.datasets[0].data = Object.values(gastoPorCategoria);
+            pieChart.data.datasets[0].backgroundColor = CHART_COLORS;
+            pieChart.update();
+
+            barChart.data.datasets = [
+                { label: 'Receitas', data: [totalReceitas], backgroundColor: '#36A2EB' },
+                { label: 'Despesas', data: [totalDespesas], backgroundColor: '#FF6384' }
+            ];
+            barChart.update();
+
+            const sortedCategorias = Object.keys(gastoPorCategoria).sort((a,b) => gastoPorCategoria[b] - gastoPorCategoria[a]);
+            percentageChart.data.labels = sortedCategorias;
+            percentageChart.data.datasets[0].data = sortedCategorias.map(cat => {
+                return rendaMensal > 0 ? ((gastoPorCategoria[cat] / rendaMensal) * 100).toFixed(2) : 0;
+            });
+            percentageChart.data.datasets[0].backgroundColor = CHART_COLORS;
+            percentageChart.update();
+
+            const tableBody = document.querySelector("#transactionTable tbody");
+            tableBody.innerHTML = '';
+            [...transacoes].reverse().slice(0, 15).forEach(tx => {
+                let row = tableBody.insertRow();
+                row.insertCell(0).innerText = tx.Data;
+                row.insertCell(1).innerText = tx['Tipo (Receita/Despesa)'];
+                row.insertCell(2).innerText = tx.Categoria;
+                row.insertCell(3).innerText = tx.Descrição || 'N/A';
+                let cellValor = row.insertCell(4);
+                cellValor.innerText = formatCurrency(tx['Valor (R$)']);
+                cellValor.classList.add('currency');
+            });
+        }
+
+        document.getElementById('addTransactionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const novaTransacao = {
+                'Data': new Date().toLocaleDateString('pt-BR'),
+                'Tipo (Receita/Despesa)': document.getElementById('tipo').value,
+                'Categoria': document.getElementById('categoria').value,
+                'Valor (R$)': parseFloat(document.getElementById('valor').value),
+                'Descrição': document.getElementById('descricao').value
+            };
+            transacoes.push(novaTransacao);
+            this.reset();
+            updateDashboard();
+        });
+
+        document.getElementById('rendaMensal').addEventListener('keyup', updateDashboard);
+        document.addEventListener('DOMContentLoaded', updateDashboard);
+    </script>
+</body>
+</html>

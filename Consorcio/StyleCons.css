@@ -1,0 +1,221 @@
+/* Paleta de Cores */
+:root {
+    --cor-principal: #1b4043;
+    --cor-secundaria: #3a6265;
+    --cor-fundo: #f8f8f8;
+    --cor-texto: #333;
+    --cor-borda: #ddd;
+    --cor-fundo-card: #fff;
+    --cor-tabela-header: #e9ecef;
+    --cor-tabela-linha-par: #f1f3f5;
+}
+
+/* Estilos gerais do corpo da página */
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto);
+    line-height: 1.6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* Marca d'água discreta no canto */
+.logo-watermark {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 100px;
+    opacity: 0.8; /* Opacidade atualizada conforme sua sugestão */
+    z-index: 0;
+}
+
+/* Container principal para o conteúdo do site */
+.container {
+    display: flex;
+    flex-direction: column;
+    width: 90%;
+    max-width: 1200px;
+    min-height: 80vh;
+    background-color: var(--cor-fundo-card);
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    gap: 20px;
+}
+
+/* Cabeçalho */
+h1 {
+    color: var(--cor-principal);
+    text-align: center;
+    border-bottom: 2px solid var(--cor-borda);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+/* Formulário e campos de input */
+#form-simulacao {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--cor-borda);
+}
+
+.form-section {
+    flex: 1 1 300px;
+}
+
+fieldset {
+    border: 1px solid var(--cor-borda);
+    padding: 20px;
+    border-radius: 8px;
+    height: 100%;
+}
+
+legend {
+    font-weight: bold;
+    color: var(--cor-principal);
+    padding: 0 10px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--cor-principal);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid var(--cor-borda);
+    border-radius: 5px;
+    background-color: var(--cor-fundo);
+    transition: border-color 0.3s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--cor-secundaria);
+}
+
+.btn-calcular {
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px;
+    background-color: var(--cor-principal);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.btn-calcular:hover {
+    background-color: var(--cor-secundaria);
+}
+
+/* Estilização para a seção de resultados */
+/* Estilização para a seção de resultados */
+.resultados-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 30px;
+}
+
+/* Estilo para os cards de resultado */
+.resultado-card {
+    background-color: var(--cor-fundo-card);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    flex: 1 1 300px;
+}
+
+/* Estilo do card de resumo */
+.resumo-valores {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.valor-box {
+    text-align: center;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+    background-color: var(--cor-fundo);
+    flex: 1;
+}
+
+.valor-box h4 {
+    margin: 5px 0 0 0;
+    font-size: 1.5em;
+    color: var(--cor-principal);
+}
+
+.resultado-mensagem {
+    text-align: center;
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: var(--cor-secundaria);
+    color: white;
+}
+
+/* Estilo da tabela */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--cor-borda);
+}
+
+thead {
+    background-color: var(--cor-tabela-header);
+    color: var(--cor-principal);
+    position: sticky; /* Cabeçalho fixo */
+    top: 0;
+}
+
+tbody tr:nth-child(even) {
+    background-color: var(--cor-tabela-linha-par);
+}
+
+tbody tr:hover {
+    background-color: #e0f0e0;
+}
+
+/* Estilo para a rolagem horizontal da tabela */
+.tabela-container {
+    overflow-x: auto;
+    max-width: 100%;
+    max-height: 400px; /* Limite de altura para a tabela */
+    overflow-y: auto; /* Adiciona rolagem vertical se a tabela for muito grande */
+}
+
+h3 {
+    color: var(--cor-principal);
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
