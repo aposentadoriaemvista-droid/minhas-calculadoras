@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Planning Pro</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+</head>
+<body>
+
+    <main id="app-container" class="main-container">
+
+        <section id="profile" class="card">
+            <header>
+                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
+                <h1>Bem-vindo(a) ao seu Planejador Financeiro</h1>
+                <p>Vamos começar com algumas informações básicas para criar um plano personalizado.</p>
+            </header>
+            <div class="financial-columns">
+                <div class="form-group">
+                    <label for="user-name">Seu Nome</label>
+                    <input type="text" id="user-name" placeholder="Ex: Bruno" required>
+                </div>
+                <div class="form-group">
+                    <label for="user-phone">Seu Telefone</label>
+                    <input type="tel" id="user-phone" placeholder="(51) 99999-9999" required>
+                </div>
+                <div class="form-group">
+                    <label for="idade-atual">Sua Idade Atual</label>
+                    <input type="number" class="formatted-number" id="idade-atual" placeholder="Ex: 22" min="0" inputmode="numeric" required>
+                </div>
+            </div>
+            <footer class="button-group">
+                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
+                <button class="btn btn-primary" data-nav="risk">Começar Planejamento</button>
+            </footer>
+        </section>
+
+        <section id="risk" class="card hidden">
+            <header>
+                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
+                <h2>Etapa 1: Gestão de Risco</h2>
+                <p>Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
+            </header>
+            <div class="form-group">
+                <label for="skip-emergency-fund" class="toggle-switch">
+                    <input type="checkbox" id="skip-emergency-fund">
+                    <span class="slider"></span>
+                    <span class="label-text">Não desejo planejar uma reserva de emergência agora</span>
+                </label>
+            </div>
+            <div id="emergency-fund-inputs">
+                <div class="financial-columns">
+                    <div class="form-group">
+                        <label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label>
+                        <input type="number" class="formatted-number" id="despesas-essenciais" placeholder="R$ 3.000" min="0" inputmode="numeric">
+                    </div>
+                    <div class="form-group">
+                        <label for="reserva-meses">Meses de Cobertura Desejados</label>
+                        <input type="number" class="formatted-number" id="reserva-meses" placeholder="6" min="1" inputmode="numeric">
+                    </div>
+                </div>
+                <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success);"></h3>
+            </div>
+            <footer class="button-group">
+                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
+                <div>
+                    <button class="btn btn-secondary" data-nav="profile">Voltar</button>
+                    <button class="btn btn-primary" data-nav="financials">Próxima Etapa</button>
+                </div>
+            </footer>
+        </section>
+
+        <section id="financials" class="card hidden">
+            <header>
+                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
+                <h2>Etapa 2: Renda e Despesas</h2>
+                <p>Agora, vamos entender seu fluxo de caixa e potencial de crescimento.</p>
+            </header>
+            <div class="financial-columns">
+                <div class="form-group">
+                    <label for="salario">Renda Mensal Líquida</label>
+                    <input type="number" class="formatted-number" id="salario" placeholder="R$ 5.000" min="0" inputmode="numeric">
+                </div>
+                <div class="form-group">
+                    <label for="despesas-gerais">Despesas Gerais Mensais</label>
+                    <input type="number" class="formatted-number" id="despesas-gerais" placeholder="R$ 3.000" min="0" inputmode="numeric">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="include-aporte-growth" class="toggle-switch">
+                    <input type="checkbox" id="include-aporte-growth">
+                    <span class="slider"></span>
+                    <span class="label-text">Incluir crescimento anual dos aportes</span>
+                </label>
+            </div>
+            <div class="form-group hidden" id="aporte-growth-group">
+                <label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label>
+                <input type="number" class="formatted-number" id="aporte-growth" placeholder="Ex: 5" min="0" inputmode="numeric">
+            </div>
+            <div id="resumo-mensal"></div>
+            <footer class="button-group">
+                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
+                <div>
+                    <button class="btn btn-secondary" data-nav="risk">Voltar</button>
+                    <button class="btn btn-primary" data-nav="goals">Próxima Etapa</button>
+                </div>
+            </footer>
+        </section>
+
+        <section id="goals" class="card hidden">
+            <header>
+                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
+                <h2>Etapa 3: Objetivos e Eventos Pontuais</h2>
+                <p>Adicione sua meta de aposentadoria e outros objetivos ou eventos financeiros importantes.</p>
+            </header>
+            <div id="goals-list"></div>
+            <button id="add-goal-btn" class="btn btn-secondary" style="width:100%;">+ Adicionar Objetivo de Meio de Caminho ou Evento Pontual</button>
+            <footer class="button-group">
+                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
+                <div>
+                    <button class="btn btn-secondary" data-nav="financials">Voltar</button>
+                    <button class="btn btn-primary" data-nav="patrimony">Próxima Etapa</button>
+                </div>
+            </footer>
+        </section>
+
+        <section id="patrimony" class="card hidden">
+            <header>
+                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
+                <h2>Etapa 4: Seu Ponto de Partida</h2>
+                <p>Para finalizar, informe seu patrimônio atual e perfil de risco.</p>
+            </header>
+            <div class="financial-columns">
+                <div class="form-group">
+                    <label for="patrimonio">Patrimônio Atual (Total investido)</label>
+                    <input type="number" class="formatted-number" id="patrimonio" placeholder="R$ 50.000" min="0" inputmode="numeric">
+                </div>
+                <div class="form-group">
+                    <label for="risk-profile">Perfil de Risco (Rentabilidade Real Esperada)</label>
+                    <select id="risk-profile">
+                        <option value="muitoConservador">Muito Conservador (2% a.a.)</option>
+                        <option value="conservador">Conservador (4% a.a.)</option>
+                        <option value="moderado" selected>Moderado (6% a.a.)</option>
+                        <option value="arrojado">Arrojado (8% a.a.)</option>
+                        <option value="muitoArrojado">Muito Arrojado (10% a.a.)</option>
+                    </select>
+                </div>
+            </div>
+            <footer class="button-group">
+                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
+                <div>
+                    <button class="btn btn-secondary" data-nav="goals">Voltar</button>
+                    <button class="btn btn-primary" id="generate-dashboard-btn" data-nav="dashboard">Gerar Meu Planejamento</button>
+                </div>
+            </footer>
+        </section>
+        
+        <section id="dashboard" class="card hidden">
+            <header class="dashboard-header">
+                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
+                <div class="dashboard-header-content">
+                    <h1>Seu Mapa para a Conquista</h1>
+                    <p id="dashboard-subtitle" style="text-align:left;"></p>
+                </div>
+                <div class="button-group">
+                    <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
+                    <button id="share-plan-btn" class="btn btn-secondary">Compartilhar Plano</button>
+                    <button id="generate-report-btn" class="btn btn-secondary">Gerar Relatório</button>
+                </div>
+            </header>
+            
+            <div class="dashboard-grid">
+                <div class="chart-area">
+                    <h3 id="chart-title">Projeção do Seu Patrimônio Investido</h3>
+                    <div id="chart-container"><canvas id="projectionChart"></canvas></div>
+                    <div class="chart-legend" id="chart-legend"></div>
+                </div>
+                <div class="metrics-panel" id="metrics-container"></div>
+            </div>
+
+            <div id="scenario-simulator-card" class="addon-card">
+                <h3>🔬 Simulador de Cenários</h3>
+                <p>Arraste os controlos abaixo para ver o impacto de diferentes decisões no seu plano. A linha tracejada no gráfico mostrará a sua simulação.</p>
+                <div class="financial-columns">
+                    <div class="form-group">
+                        <label for="sim-aporte">Aporte Mensal Simulado<span id="sim-aporte-value" class="slider-value"></span></label>
+                        <input type="range" id="sim-aporte" class="scenario-slider">
+                    </div>
+                    <div class="form-group">
+                        <label for="sim-idade-reforma">Idade de Reforma Simulada<span id="sim-idade-reforma-value" class="slider-value"></span></label>
+                        <input type="range" id="sim-idade-reforma" class="scenario-slider">
+                    </div>
+                    <div class="form-group">
+                        <label for="sim-perfil-risco">Perfil de Risco Simulado</label>
+                        <select id="sim-perfil-risco" class="scenario-select"></select>
+                    </div>
+                </div>
+                <button id="reset-scenario-btn" class="btn btn-secondary">Restaurar Plano Original</button>
+            </div>
+
+            </section>
+    </main>
+    
+    <div id="report-page" class="report-page"></div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>

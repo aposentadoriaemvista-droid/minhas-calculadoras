@@ -144,3 +144,54 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 /* Ocultar o cartão de alocação de ativos */
 #allocation-card { display: none; }
+/* Estilos para a nova Timeline de Marcos (VERSÃO FLEXÍVEL E RESPONSIVA) */
+.timeline-container {
+    display: flex; /* Mantém o layout flexível */
+    flex-wrap: wrap; /* A MUDANÇA PRINCIPAL: Permite que os itens quebrem para a linha de baixo */
+    gap: 20px; /* Adiciona um espaço consistente entre os itens */
+    margin-top: 20px;
+    padding: 10px;
+}
+
+.timeline-item {
+    flex: 1 1 220px; /* MÁGICA: Cada item pode crescer, encolher, mas tem uma base de 220px */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative; /* Necessário para o posicionamento do ícone */
+}
+
+/* A linha conectora foi removida (o pseudo-elemento ::after foi deletado) */
+
+.timeline-icon {
+    font-size: 24px;
+    line-height: 1;
+    background-color: var(--card-bg);
+    padding: 0 10px;
+    margin-bottom: 15px;
+    z-index: 1; /* Garante que fique por cima de qualquer outro elemento */
+}
+
+.timeline-content {
+    background-color: var(--input-bg);
+    padding: 20px;
+    border-radius: 6px;
+    border-top: 4px solid var(--primary-color);
+    text-align: center;
+    width: 100%;
+    height: 100%; /* Faz com que todos os cards na mesma linha tenham a mesma altura */
+}
+
+.timeline-content h4 {
+    color: var(--primary-color);
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.timeline-content p {
+    margin-bottom: 0;
+    text-align: center;
+    color: var(--text-color);
+    font-size: 14px;
+    line-height: 1.4;
+}

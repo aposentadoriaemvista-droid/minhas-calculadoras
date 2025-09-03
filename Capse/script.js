@@ -682,11 +682,14 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
  * Função para enviar os dados do formulário para a planilha do Google Sheets via SheetDB.
  */
+/**
+ * Função para enviar os dados do formulário para a planilha do Google Sheets via SheetDB.
+ */
 function enviarDadosParaPlanilha() {
-    // 1. Coleta os dados dos campos do formulário
-    const data = new Date().toLocaleString('pt-BR'); // Pega a data e hora atuais
+    // 1. Coleta os dados dos campos do formulário (agora com telefone)
+    const data = new Date().toLocaleString('pt-BR');
     const nome = document.getElementById('user-name').value;
-    const email = document.getElementById('user-email').value;
+    const telefone = document.getElementById('user-phone').value; // MUDANÇA AQUI
     const idade = unformatNumber(document.getElementById('idade-atual').value);
     const patrimonio = unformatNumber(document.getElementById('patrimonio').value);
     const rendaMensal = unformatNumber(document.getElementById('salario').value);
@@ -697,7 +700,7 @@ function enviarDadosParaPlanilha() {
     const dadosParaEnviar = {
         data: data,
         nome: nome,
-        email: email,
+        telefone: telefone, // MUDANÇA AQUI
         idade: idade,
         patrimonio: patrimonio,
         rendaMensal: rendaMensal,
@@ -706,22 +709,20 @@ function enviarDadosParaPlanilha() {
     };
 
     // 3. Envia os dados para a API do SheetDB
-    const urlApi = 'https://sheetdb.io/api/v1/kqxmth5zljkyi'; // Sua URL da API
+    const urlApi = 'https://sheetdb.io/api/v1/kqxmth5zljkyi';
 
     fetch(urlApi, {
-        method: 'POST', // Estamos enviando/criando dados
+        method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: dadosParaEnviar }), // Formata os dados para envio
+        body: JSON.stringify({ data: dadosParaEnviar }),
     })
     .then(response => response.json())
     .then(data => {
-        // Log de sucesso no console do navegador (F12)
         console.log('Dados enviados com sucesso para a planilha:', data);
     })
     .catch((error) => {
-        // Log de erro no console do navegador (F12)
         console.error('Erro ao enviar dados para a planilha:', error);
     });
 }

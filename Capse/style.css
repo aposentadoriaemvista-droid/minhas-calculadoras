@@ -1,0 +1,364 @@
+/* =================================================================== */
+/* PARCEIRO DE PROGRAMAÇÃO - CSS APRIMORADO                            */
+/* =================================================================== */
+
+:root {
+    /* ============================================================ */
+    /* PALETA DE CORES E TOKENS DE DESIGN - TEMA VERDE PROFISSIONAL */
+    /* ============================================================ */
+
+    /* --- Cores Base --- */
+    --verde-escuro-profundo: #1b4a27;
+    --verde-escuro: #206d39;
+    --verde-medio: #4daf68;
+    --verde-claro: #a6d8b4;
+    --branco-puro: #ffffff;
+    --cinza-claro: #e0e0e0;
+
+    /* --- Cores de Feedback --- */
+    --success: #00C49F;
+    --warning: #FFC300;
+    --danger: #dc3545;
+    --danger-hover: #c82333;
+
+    /* --- Aplicação Semântica (Design Tokens) --- */
+    --bg-main: var(--verde-escuro);
+    --bg-card: var(--verde-escuro-profundo);
+    --bg-input: var(--branco-puro);
+    --bg-disabled: var(--cinza-claro);
+
+    --color-primary: var(--verde-medio);
+    --color-text: var(--branco-puro);
+    --color-text-muted: var(--verde-claro);
+    --color-text-on-light: var(--verde-escuro-profundo);
+
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-color-light: var(--verde-claro);
+    --focus-ring-color: rgba(77, 175, 104, 0.5);
+
+    /* --- Tipografia --- */
+    --font-primary: 'Poppins', sans-serif;
+    --font-size-base: 1rem; /* Equivalente a 16px por padrão */
+    --line-height-base: 1.6;
+
+    /* --- Efeitos e Transições --- */
+    --border-radius-sm: 8px;
+    --border-radius-md: 12px;
+    --shadow-color: rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 6px 15px var(--shadow-color);
+    --shadow-lg: 0 12px 25px var(--shadow-color);
+    --transition-speed: 0.25s ease-in-out;
+}
+
+/* ================================== */
+/* RESET E ESTILOS GLOBAIS            */
+/* ================================== */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-primary);
+    background-color: var(--bg-main);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+    -webkit-font-smoothing: antialiased; /* Melhora a renderização da fonte */
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Barra de Rolagem Personalizada --- */
+::-webkit-scrollbar {
+    width: 10px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-card);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--color-primary);
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--verde-claro);
+}
+
+/* ================================== */
+/* LAYOUT E CONTAINERS                */
+/* ================================== */
+
+.main-container {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 20px;
+}
+
+.card {
+    background-color: var(--bg-card);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-md);
+    padding: 40px;
+    margin-bottom: 40px;
+    border: 1px solid var(--border-color);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+.card:hover {
+    transform: translateY(-7px);
+    box-shadow: var(--shadow-lg);
+}
+
+.financial-columns,
+.goal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 25px;
+}
+.dashboard-grid {
+    display: grid;
+    gap: 30px;
+    margin-bottom: 40px;
+}
+@media (min-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 2fr 1fr;
+    }
+}
+
+/* ================================== */
+/* TIPOGRAFIA                         */
+/* ================================== */
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--color-text);
+    font-weight: 700;
+}
+h1 { font-size: 2.375rem; text-align: center; margin-bottom: 1rem; letter-spacing: -1.5px; } /* 38px */
+h2 { font-size: 1.875rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border-color-light); padding-bottom: 1rem; } /* 30px */
+h3 { font-size: 1.5rem; margin-bottom: 1.25rem; color: var(--color-primary); } /* 24px */
+p { margin-bottom: 1.25rem; text-align: center; color: var(--color-text-muted); line-height: 1.7; }
+strong { color: var(--color-primary); }
+
+/* ================================== */
+/* LOGO                             */
+/* ================================== */
+
+.logo {
+    display: block;
+    max-width: 120px;
+    margin: 0 auto 40px auto;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+}
+
+/* ================================== */
+/* FORMULÁRIOS E INPUTS               */
+/* ================================== */
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--color-text-muted);
+    font-size: 1.1rem;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    font-size: 1.0625rem; /* 17px */
+    background-color: var(--bg-input);
+    color: var(--color-text-on-light);
+    transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+.form-group input:disabled {
+    background-color: var(--bg-disabled);
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+.form-group input:focus-visible,
+.form-group select:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
+}
+
+/* ================================== */
+/* BOTÕES (REATORADO)                 */
+/* ================================== */
+
+/* --- Classe Base para todos os botões --- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 30px;
+    border-radius: var(--border-radius-sm);
+    font-size: 1.125rem; /* 18px */
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    border: 2px solid transparent;
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed);
+    margin-top: 20px;
+}
+.btn:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+.btn:active {
+    transform: translateY(-1px); /* Feedback de clique */
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+}
+.btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
+}
+
+/* --- Modificadores de Estilo --- */
+.btn-primary {
+    background-color: var(--color-primary);
+    color: var(--color-text-on-light);
+    border-color: var(--color-primary);
+}
+.btn-secondary {
+    background-color: transparent;
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.btn-secondary:hover {
+    background-color: var(--color-primary);
+    color: var(--color-text-on-light);
+}
+
+.btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: var(--branco-puro);
+    padding: 8px 15px;
+    font-size: 0.9375rem; /* 15px */
+}
+.btn-danger:hover {
+    background-color: var(--danger-hover);
+    border-color: var(--danger-hover);
+}
+
+/* --- Mapeamento para nomes antigos (se necessário para manter o HTML) --- */
+.main-button { alias: .btn.btn-primary; }
+.secondary-button, .consultant-button { alias: .btn.btn-secondary; }
+.remove-button { alias: .btn.btn-danger; }
+
+.hidden { display: none; }
+.button-group { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+#dashboard .button-group { justify-content: flex-end; gap: 25px; }
+
+
+/* ================================== */
+/* COMPONENTES ESPECÍFICOS            */
+/* ================================== */
+
+/* --- Cards de Objetivo/Cenário/Impacto --- */
+.goal-item,
+.scenario-card,
+.impact-item {
+    background-color: var(--bg-card);
+    border-radius: var(--border-radius-sm);
+    padding: 25px;
+    color: var(--color-text);
+    border-left: 4px solid var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+.goal-item:hover,
+.scenario-card:hover,
+.impact-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+}
+
+/* ... (o resto dos seus componentes específicos permanece praticamente o mesmo, mas beneficiando das novas variáveis) */
+/* --- Exemplo: Tabela de Projeção --- */
+.projection-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+    margin-top: 25px;
+}
+.projection-table th,
+.projection-table td {
+    padding: 15px;
+    border: 1px solid var(--border-color-light);
+}
+.projection-table th {
+    background-color: var(--color-primary);
+    color: var(--color-text-on-light);
+    font-weight: 700;
+}
+.projection-table tbody tr {
+    transition: background-color var(--transition-speed);
+}
+.projection-table tbody tr:nth-child(even) {
+    background-color: var(--bg-card);
+}
+.projection-table tbody tr:hover {
+    background-color: rgba(77, 175, 104, 0.2); /* Tom verde no hover */
+}
+
+/* --- Slider (Simulador de Cenário) com compatibilidade --- */
+.scenario-slider {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 10px;
+    background: var(--bg-main);
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity var(--transition-speed);
+    margin-top: 15px;
+}
+.scenario-slider:hover {
+    opacity: 1;
+}
+/* Chrome, Safari, Opera, Edge */
+.scenario-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: var(--color-primary);
+    cursor: pointer;
+    border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transition: transform var(--transition-speed);
+}
+.scenario-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+/* Firefox */
+.scenario-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: var(--color-primary);
+    cursor: pointer;
+    border-radius: 50%;
+    border: none; /* Firefox pode adicionar uma borda por padrão */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transition: transform var(--transition-speed);
+}
+.scenario-slider::-moz-range-thumb:hover {
+    transform: scale(1.1);
+}
+
+/* O restante do seu CSS pode ser inserido aqui, pois já estava bem estruturado. */
+/* Os benefícios das novas variáveis e melhorias já se aplicam a eles.      */
+/* ... */

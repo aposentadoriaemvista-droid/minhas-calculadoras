@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -400,3 +401,407 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente de Custo de Veículo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-main: #F4F7F9; --card-bg: #FFFFFF; --text-color: #1B4043;
+            --text-muted-color: #5a7071; --border-color: #dee2e6; --input-bg: #F4F7F9;
+            --shadow-color: rgba(27, 64, 67, 0.1); --primary-color: #225458;
+            --primary-hover-color: #1B4043; --success-color: #00C49F;
+            --warning-color: #FFC300; --danger-color: #dc3545;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--bg-main); color: var(--text-color); font-size: 16px; line-height: 1.6; }
+        .main-container { max-width: 1200px; margin: 40px auto; padding: 20px; }
+        h1, h2, h3, h4 { color: var(--text-color); }
+        h1 { font-size: 32px; text-align: center; margin-bottom: 10px; }
+        h2 { font-size: 24px; font-weight: 600; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+        h3 { font-size: 20px; font-weight: 600; margin-bottom: 15px; }
+        h4 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--primary-color); }
+        p { margin-bottom: 20px; text-align: center; color: var(--text-muted-color); line-height: 1.7; }
+        .card { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 8px 24px var(--shadow-color); padding: 40px; margin-bottom: 40px; }
+        
+        .form-group { margin-bottom: 24px; } 
+
+        .form-group label { display: block; font-weight: 600; margin-bottom: 8px; color: var(--text-color); }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; background-color: var(--input-bg); color: var(--text-color); transition: border-color 0.3s, box-shadow 0.3s; }
+        .form-group input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(34, 84, 88, 0.2); outline: none; }
+        .main-button { display: inline-block; width: auto; padding: 14px 28px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; transition: background-color 0.3s, transform 0.2s; margin-top: 20px; }
+        .main-button:hover { background-color: var(--primary-hover-color); transform: translateY(-2px); }
+        .secondary-button { background-color: transparent; color: var(--primary-color); border: 2px solid var(--primary-color); }
+        .secondary-button:hover { background-color: var(--primary-color); color: white; }
+        .hidden { display: none !important; }
+        #mode-selector { text-align: center; }
+        .mode-selection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; margin-top: 40px; }
+        .mode-card { background-color: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px var(--shadow-color); border: 2px solid transparent; cursor: pointer; transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
+        .mode-card:hover { transform: translateY(-5px); border-color: var(--primary-color); box-shadow: 0 12px 30px rgba(34, 84, 88, 0.2); }
+        .mode-card h3 { margin-top: 15px; color: var(--primary-color); }
+        .form-module { border-top: 2px solid var(--border-color); margin-top: 30px; padding-top: 30px; }
+        .financial-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; }
+        .dashboard-grid, .comparison-results-grid { display: grid; grid-template-columns: 1fr; gap: 30px; }
+        @media (min-width: 1024px) { .dashboard-grid { grid-template-columns: 2fr 1fr; } .comparison-results-grid { grid-template-columns: 1fr 1fr; } }
+        .metrics-panel { background-color: #f8f9fa; padding: 25px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .metric-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+        .metric-item:last-child { border-bottom: none; }
+        .verdict-section { background-color: #f8f9fa; border: 2px solid var(--primary-color); border-radius: 8px; padding: 30px; margin-top: 0; margin-bottom: 40px; text-align: center; }
+        .verdict-comparison { display: flex; justify-content: space-around; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+        .verdict-box p { font-size: 1.5em; font-weight: 700; margin: 0; }
+        #verdict-final { margin-top: 20px; font-size: 1.2em; font-weight: 600; }
+        #advanced-options { background-color: var(--input-bg); padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .info-icon { cursor: help; color: #aaa; border: 1px solid #aaa; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; text-align: center; line-height: 16px; font-weight: 700; flex-shrink: 0; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
+        .checkbox-group input { width: auto; }
+        .toggle-group { display: flex; gap: 10px; margin-bottom: 25px; }
+        .toggle-group button { flex-grow: 1; padding: 12px; font-size: 16px; cursor: pointer; border: 2px solid var(--border-color); background-color: transparent; color: var(--text-muted-color); border-radius: 8px; transition: background-color 0.3s, color 0.3s, border-color 0.3s; }
+        .toggle-group button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); font-weight: 600; }
+        .comparison-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
+        @media (min-width: 1024px) { .comparison-grid { grid-template-columns: 1fr 1fr; } }
+        .vehicle-column { border-left: 2px solid var(--border-color); padding-left: 30px; }
+        .vehicle-column:first-child { border-left: none; padding-left: 0; }
+    </style>
+</head>
+<body>
+    <div id="app" class="main-container">
+
+        <section id="mode-selector">
+            <h1>Assistente de Custo de Veículos</h1>
+            <p>Comece escolhendo o tipo de análise que você deseja realizar.</p>
+            <div class="mode-selection-grid">
+                <div class="mode-card" data-mode="single_analysis"><h3>Analisar um Veículo</h3><p>Calcule o custo total de propriedade de um único carro.</p></div>
+                <div class="mode-card" data-mode="trade_in_analysis"><h3>Avaliar Troca do Meu Carro</h3><p>Compare os custos de manter seu carro atual versus comprar um novo.</p></div>
+                <div class="mode-card" data-mode="comparison_analysis"><h3>Comparar Dois Veículos</h3><p>Coloque dois modelos lado a lado para ver a melhor opção.</p></div>
+            </div>
+        </section>
+
+        <section id="calculator-section" class="card hidden">
+            <form id="calculator-form">
+                <h2 id="calculator-title">Preencha os Dados</h2>
+                <div id="form-modules-container"></div>
+                <div class="button-group"><button type="button" id="calculate-btn" class="main-button">Calcular Custos</button></div>
+            </form>
+        </section>
+
+        <section id="results-section" class="card hidden">
+             <div id="results-content"></div>
+            <div class="button-group"><button type="button" id="reset-btn" class="main-button secondary-button">Fazer Nova Análise</button></div>
+        </section>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modeSelector = document.getElementById('mode-selector');
+    const calculatorSection = document.getElementById('calculator-section');
+    const resultsSection = document.getElementById('results-section');
+    const modeCards = document.querySelectorAll('.mode-card');
+    const resetBtn = document.getElementById('reset-btn');
+    const calculatorForm = document.getElementById('calculator-form');
+    const formModulesContainer = document.getElementById('form-modules-container');
+    const resultsContent = document.getElementById('results-content');
+    let currentMode = '';
+    let chartInstances = {};
+
+    modeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            currentMode = card.dataset.mode;
+            setupCalculatorForMode(currentMode);
+            modeSelector.classList.add('hidden');
+            calculatorSection.classList.remove('hidden');
+        });
+    });
+
+    resetBtn.addEventListener('click', () => {
+        resultsSection.classList.add('hidden');
+        modeSelector.classList.remove('hidden');
+        calculatorForm.reset();
+        Object.values(chartInstances).forEach(instance => instance.destroy());
+        chartInstances = {};
+    });
+
+    function setupCalculatorForMode(mode) {
+        const calculatorTitle = document.getElementById('calculator-title');
+        let formHTML = '';
+
+        if (mode === 'single_analysis') {
+            calculatorTitle.textContent = 'Análise de Custo de Veículo';
+            formHTML = generateGeneralParamsHTML() + generateVehicleHTML('A', 'Dados do Veículo');
+        } else if (mode === 'trade_in_analysis') {
+            calculatorTitle.textContent = 'Análise de Troca de Veículo';
+            formHTML = generateCurrentCarHTML() + generateGeneralParamsHTML() + generateVehicleHTML('A', 'Dados do Carro Novo');
+        } else if (mode === 'comparison_analysis') {
+            calculatorTitle.textContent = 'Comparador de Veículos';
+            formHTML = generateGeneralParamsHTML() + '<div class="comparison-grid">' + generateVehicleHTML('A', 'Veículo A') + generateVehicleHTML('B', 'Veículo B') + '</div>';
+        }
+        formModulesContainer.innerHTML = formHTML;
+        attachEventListeners();
+    }
+
+    function generateCurrentCarHTML() {
+        return `<div id="current-car-module" class="form-module"><h3>Dados do Seu Carro Atual</h3><div class="financial-columns"><div class="form-group"><label for="current-car-value">Valor de Mercado Atual (R$)</label><input type="text" id="current-car-value" placeholder="45.000"></div><div class="form-group"><label for="current-car-year">Ano de Fabricação</label><input type="number" id="current-car-year" placeholder="2020"></div><div class="form-group"><label for="current-car-costs">Custos Anuais Atuais (R$)</label><input type="text" id="current-car-costs" placeholder="4.000"></div><div class="form-group"><label for="current-car-consumption">Consumo Atual (KM/L)</label><input type="number" id="current-car-consumption" placeholder="10"></div></div><div class="checkbox-group"><input type="checkbox" id="use-current-car-as-downpayment"><label for="use-current-car-as-downpayment">Usar o valor deste carro como entrada no Veículo A.</label></div></div>`;
+    }
+
+    // --- ALTERADO ---: Trocado o título do campo de anos.
+    function generateGeneralParamsHTML() {
+        return `<div class="form-module" style="border:none; margin:0; padding:0;"><h3>Parâmetros da Simulação</h3><div class="financial-columns"><div class="form-group"><label for="car-ownership-years">Anos que pretende ficar com o carro</label><input type="number" id="car-ownership-years" placeholder="5"></div><div class="form-group"><label for="car-km-per-month">KMs Rodados por Mês</label><input type="text" id="car-km-per-month" placeholder="1.000"></div><div class="form-group"><label for="car-fuel-price">Preço Combustível (R$/L)</label><input type="text" id="car-fuel-price" placeholder="5,80"></div><div class="form-group"><label for="opportunity-cost-rate" style="display:flex;align-items:center;gap:8px;">Taxa de Rendimento Anual (%)<div class="info-icon" title="Rendimento estimado se o dinheiro da entrada fosse investido.">?</div></label><input type="number" id="opportunity-cost-rate" value="8"></div></div><div class="form-group"><label>Tipo de Análise</label><div class="toggle-group"><button type="button" id="toggle-simple" class="active">Simplificada</button><button type="button" id="toggle-advanced">Avançada</button></div></div><div id="advanced-options" class="hidden"><h4>Opções Avançadas</h4><div class="financial-columns"><div class="form-group"><label for="costs-increase-rate">Aumento Anual de Custos (%)</label><input type="number" id="costs-increase-rate" placeholder="5"></div></div></div></div>`;
+    }
+    
+    function generateVehicleHTML(id, title) {
+        return `<div class="vehicle-column"><h4>${title}</h4><div class="form-group"><label for="car-price-${id}">Preço (R$)</label><input type="text" id="car-price-${id}" placeholder="70.000"></div><div class="form-group"><label for="car-year-${id}">Ano de Fabricação</label><input type="number" id="car-year-${id}" placeholder="2024"></div><div class="form-group"><label for="car-downpayment-${id}">Entrada (R$)</label><input type="text" id="car-downpayment-${id}" placeholder="20.000"></div><div class="form-group"><label for="car-interest-rate-${id}">Juros (% a.a.)</label><input type="number" id="car-interest-rate-${id}" placeholder="18"></div><div class="form-group"><label for="car-loan-term-${id}">Prazo (Meses)</label><input type="number" id="car-loan-term-${id}" placeholder="48"></div><div class="form-group"><label for="car-insurance-${id}">Seguro Anual (R$)</label><input type="text" id="car-insurance-${id}" placeholder="3.000"></div><div class="form-group"><label for="car-tax-${id}">IPVA Anual (R$)</label><input type="text" id="car-tax-${id}" placeholder="2.800"></div><div class="form-group"><label for="car-maintenance-${id}">Manutenção Anual (R$)</label><input type="text" id="car-maintenance-${id}" placeholder="1.200"></div><div class="form-group"><label for="car-fuel-consumption-${id}">Consumo (KM/L)</label><input type="number" id="car-fuel-consumption-${id}" placeholder="12"></div></div>`;
+    }
+
+    // --- ALTERADO ---: Lógica para separar formatação de inteiros e decimais.
+    function attachEventListeners() {
+        const textInputs = document.querySelectorAll('input[type="text"]');
+        textInputs.forEach(input => {
+            // Aplica o listener de decimal para o campo de combustível
+            if (input.id === 'car-fuel-price') {
+                input.addEventListener('input', formatDecimalInput);
+            } else {
+                // Mantém o listener de número inteiro para os outros
+                input.addEventListener('input', formatNumberInput);
+            }
+        });
+        
+        const toggleSimple = document.getElementById('toggle-simple');
+        if(toggleSimple) {
+            const toggleAdvanced = document.getElementById('toggle-advanced');
+            const advancedOptions = document.getElementById('advanced-options');
+            toggleSimple.addEventListener('click', () => { toggleSimple.classList.add('active'); toggleAdvanced.classList.remove('active'); advancedOptions.classList.add('hidden'); });
+            toggleAdvanced.addEventListener('click', () => { toggleAdvanced.classList.add('active'); toggleSimple.classList.remove('active'); advancedOptions.classList.remove('hidden'); });
+        }
+
+        if (currentMode === 'trade_in_analysis') {
+            const useAsDownpaymentCheck = document.getElementById('use-current-car-as-downpayment'); const downpaymentInput = document.getElementById('car-downpayment-A'); const currentCarValueInput = document.getElementById('current-car-value');
+            useAsDownpaymentCheck.addEventListener('change', () => { if (useAsDownpaymentCheck.checked) { downpaymentInput.value = currentCarValueInput.value; downpaymentInput.disabled = true; } else { downpaymentInput.disabled = false; downpaymentInput.value = ''; } });
+            currentCarValueInput.addEventListener('input', () => { if (useAsDownpaymentCheck.checked) { downpaymentInput.value = currentCarValueInput.value; } });
+        }
+    }
+
+    const formatCurrency = (value) => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    
+    function formatNumberInput(e) { 
+        let value = e.target.value.replace(/\D/g, ''); 
+        e.target.value = value ? new Intl.NumberFormat('pt-BR').format(value) : ''; 
+    }
+
+    // --- NOVO ---: Função para formatar campos que aceitam decimais (com vírgula).
+    function formatDecimalInput(e) {
+        let value = e.target.value;
+        // Mantém apenas dígitos e a primeira vírgula
+        value = value.replace(/[^\d,]/g, '');
+        const commaIndex = value.indexOf(',');
+        if (commaIndex !== -1) {
+            // Se houver uma vírgula, remove todas as outras que aparecerem depois
+            value = value.substring(0, commaIndex + 1) + value.substring(commaIndex + 1).replace(/,/g, '');
+        }
+        e.target.value = value;
+    }
+
+    const getCleanValue = (id) => { 
+        const el = document.getElementById(id); 
+        if (!el) return 0; 
+        const value = el.value; 
+        // Esta função já tratava a vírgula corretamente, o problema era o input
+        return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0; 
+    };
+    
+    function getDepreciationRate(age) {
+        if (age <= 1) return 0.20;
+        if (age === 2) return 0.10;
+        if (age === 3) return 0.09;
+        if (age === 4) return 0.08;
+        if (age === 5) return 0.07;
+        if (age === 6) return 0.06;
+        if (age === 7) return 0.05;
+        if (age === 8) return 0.04;
+        if (age === 9) return 0.03;
+        if (age === 10) return 0.02;
+        return 0.01;
+    }
+    
+    function calculateSingleVehicleTCO(vehicleData, generalData) {
+        const loanAmount = vehicleData.price - vehicleData.downpayment;
+        const monthlyInterestRate = vehicleData.interestRate / 12;
+        let monthlyPayment = 0, totalInterest = 0, totalPaidOnLoan = 0;
+
+        if (loanAmount > 0 && vehicleData.loanTerm > 0) {
+            if (monthlyInterestRate > 0) {
+                monthlyPayment = loanAmount * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, vehicleData.loanTerm)) / (Math.pow(1 + monthlyInterestRate, vehicleData.loanTerm) - 1);
+            } else {
+                monthlyPayment = loanAmount / vehicleData.loanTerm;
+            }
+            const numberOfPaymentsMade = Math.min(vehicleData.loanTerm, generalData.ownershipYears * 12);
+            totalPaidOnLoan = monthlyPayment * numberOfPaymentsMade;
+            if (monthlyInterestRate > 0 && totalPaidOnLoan > 0) {
+                const remainingPayments = vehicleData.loanTerm - numberOfPaymentsMade;
+                let remainingBalance = 0;
+                if (remainingPayments > 0) {
+                    remainingBalance = monthlyPayment * (1 - Math.pow(1 + monthlyInterestRate, -remainingPayments)) / monthlyInterestRate;
+                }
+                const principalPaid = loanAmount - remainingBalance;
+                totalInterest = totalPaidOnLoan - principalPaid;
+            } else {
+                totalInterest = 0;
+            }
+        }
+
+        let totalDepreciation = 0;
+        let totalAnnualCosts = 0;
+        let currentValue = vehicleData.price;
+        let currentAnnualCost = vehicleData.insurance + vehicleData.tax + vehicleData.maintenance;
+        const currentSystemYear = new Date().getFullYear();
+        
+        for (let year = 1; year <= generalData.ownershipYears; year++) {
+            const carAge = (currentSystemYear - vehicleData.year) + year;
+            const depRateThisYear = getDepreciationRate(carAge);
+            
+            const depreciationAmount = currentValue * depRateThisYear;
+            totalDepreciation += depreciationAmount;
+            currentValue -= depreciationAmount;
+            
+            totalAnnualCosts += currentAnnualCost;
+            if (generalData.isAdvancedMode) {
+                currentAnnualCost *= (1 + generalData.advanced.costsIncrease);
+            }
+        }
+        
+        const totalFuelCost = (generalData.kmPerMonth * 12 * generalData.ownershipYears / vehicleData.fuelConsumption) * generalData.fuelPrice;
+        
+        let opportunityCost = 0;
+        if (vehicleData.downpayment > 0 && generalData.opportunityRate > 0) {
+            const fv = vehicleData.downpayment * Math.pow((1 + generalData.opportunityRate), generalData.ownershipYears);
+            opportunityCost = fv - vehicleData.downpayment;
+        }
+
+        const tco = totalDepreciation + totalInterest + totalAnnualCosts + totalFuelCost;
+        const totalExpenses = vehicleData.downpayment + totalPaidOnLoan + totalAnnualCosts + totalFuelCost;
+        
+        return { ...vehicleData, ...generalData, totalExpenses, tco, totalInterest, totalDepreciation, totalAnnualCosts, totalFuelCost, opportunityCost };
+    }
+    
+    document.getElementById('calculate-btn').addEventListener('click', () => {
+        calculatorSection.classList.add('hidden');
+        resultsSection.classList.remove('hidden');
+
+        const generalData = {
+            ownershipYears: getCleanValue('car-ownership-years') || 1, kmPerMonth: getCleanValue('car-km-per-month'), fuelPrice: getCleanValue('car-fuel-price'),
+            opportunityRate: getCleanValue('opportunity-cost-rate') / 100, isAdvancedMode: document.getElementById('toggle-advanced')?.classList.contains('active'),
+            advanced: { costsIncrease: getCleanValue('costs-increase-rate') / 100 }
+        };
+        
+        const vehicleFields = ['price', 'year', 'downpayment', 'interest-rate', 'loan-term', 'insurance', 'tax', 'maintenance', 'fuel-consumption'];
+
+        function getVehicleData(idSuffix) {
+            const data = {};
+            vehicleFields.forEach(field => {
+                const propName = field.replace(/-(\w)/g, (_, letter) => letter.toUpperCase());
+                let value = getCleanValue(`car-${field}-${idSuffix}`);
+                if (field.includes('rate')) value /= 100;
+                if (field === 'fuel-consumption' && value === 0) value = 1;
+                if (field === 'year' && (value <= 1950 || value > new Date().getFullYear() + 1) ) {
+                    value = new Date().getFullYear();
+                }
+                data[propName] = value;
+            });
+            return data;
+        }
+
+        if (currentMode === 'single_analysis' || currentMode === 'trade_in_analysis') {
+            const vehicleAData = getVehicleData('A');
+            const resultsA = calculateSingleVehicleTCO(vehicleAData, generalData);
+            
+            if (currentMode === 'trade_in_analysis') {
+                const currentCar = { 
+                    value: getCleanValue('current-car-value'), 
+                    year: getCleanValue('current-car-year') || new Date().getFullYear(),
+                    annualCosts: getCleanValue('current-car-costs'), 
+                    consumption: getCleanValue('current-car-consumption') || 1, 
+                };
+                
+                let futureDepreciation = 0, tempValue = currentCar.value, futureAnnualCosts = 0, tempAnnualCost = currentCar.annualCosts;
+                const currentSystemYear = new Date().getFullYear();
+
+                for (let year = 1; year <= generalData.ownershipYears; year++) {
+                    const carAge = (currentSystemYear - currentCar.year) + year;
+                    const depRateThisYear = getDepreciationRate(carAge);
+                    
+                    futureDepreciation += tempValue * depRateThisYear; 
+                    tempValue *= (1 - depRateThisYear);
+                    
+                    futureAnnualCosts += tempAnnualCost; 
+                    if (generalData.isAdvancedMode) { tempAnnualCost *= (1 + generalData.advanced.costsIncrease); }
+                }
+                const futureFuelCost = (generalData.kmPerMonth * 12 * generalData.ownershipYears / currentCar.consumption) * generalData.fuelPrice;
+                const tcoCurrentCar = futureAnnualCosts + futureFuelCost + futureDepreciation;
+                displayTradeInResults(resultsA, tcoCurrentCar);
+            } else {
+                displaySingleResults(resultsA);
+            }
+        } else if (currentMode === 'comparison_analysis') {
+            const vehicleAData = getVehicleData('A');
+            const vehicleBData = getVehicleData('B');
+            const resultsA = calculateSingleVehicleTCO(vehicleAData, generalData);
+            const resultsB = calculateSingleVehicleTCO(vehicleBData, generalData);
+            displayComparisonResults(resultsA, resultsB);
+        }
+    });
+
+    function displaySingleResults(r) {
+        resultsContent.innerHTML = `<h2 id="results-title">Análise do Custo do Veículo</h2><div class="dashboard-grid"><div style="position:relative;min-height:400px;width:100%;"><canvas id="tcoChartA"></canvas></div><div class="metrics-panel"><div id="metrics-container-A"></div></div></div>`;
+        document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(r);
+        renderTcoChart('A', r);
+    }
+    function displayTradeInResults(newCarResults, tcoCurrent) {
+        resultsContent.innerHTML = `<div id="verdict-section" class="verdict-section"></div><h2 id="results-title">Análise do Custo do Carro Novo</h2><div class="dashboard-grid"><div style="position:relative;min-height:400px;width:100%;"><canvas id="tcoChartA"></canvas></div><div class="metrics-panel"><div id="metrics-container-A"></div></div></div>`;
+        document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(newCarResults);
+        renderTcoChart('A', newCarResults);
+        displayVerdict(newCarResults.tco, tcoCurrent);
+    }
+    function displayComparisonResults(rA, rB) {
+        const difference = Math.abs(rA.tco - rB.tco);
+        const winner = rA.tco < rB.tco ? 'Veículo A' : 'Veículo B';
+        const conclusion = `O <strong>${winner}</strong> é a opção <strong style="color: var(--success-color);">${formatCurrency(difference)} mais econômica</strong>.`;
+        resultsContent.innerHTML = `<div class="verdict-section"><h2>Resultado da Comparação</h2><p id="verdict-final">${conclusion}</p></div><div class="comparison-results-grid"><div class="result-column"><h4>Veículo A</h4><div class="metrics-panel" id="metrics-container-A"></div><div style="position:relative;min-height:300px;width:100%;margin-top:20px;"><canvas id="tcoChartA"></canvas></div></div><div class="result-column"><h4>Veículo B</h4><div class="metrics-panel" id="metrics-container-B"></div><div style="position:relative;min-height:300px;width:100%;margin-top:20px;"><canvas id="tcoChartB"></canvas></div></div></div>`;
+        document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(rA);
+        document.getElementById('metrics-container-B').innerHTML = generateMetricsHTML(rB);
+        renderTcoChart('A', rA);
+        renderTcoChart('B', rB);
+    }
+    function generateMetricsHTML(r) {
+        return `<h3>Visão Geral</h3> <div class="metric-item"><div class="label">Custo Líquido (TCO)</div><div class="value" style="color:var(--primary-color);font-weight:700;">${formatCurrency(r.tco)}</div></div><div class="metric-item"><div class="label">Total de Despesas</div><div class="value">${formatCurrency(r.totalExpenses)}</div></div><div class="metric-item"><div class="label">Custo Mensal</div><div class="value">${formatCurrency(r.tco > 0 ? r.tco / (r.ownershipYears * 12) : 0)}</div></div><div class="metric-item"><div class="label" style="display:flex;align-items:center;gap:8px;">Custo de Oportunidade<div class="info-icon" title="Ganho perdido ao investir o dinheiro da entrada.">?</div></div><div class="value" style="color: var(--warning-color);">${formatCurrency(r.opportunityCost)}</div></div>`;
+    }
+    function displayVerdict(tcoNew, tcoCurrent) {
+        const container = document.getElementById('verdict-section');
+        const difference = Math.abs(tcoNew - tcoCurrent);
+        let conclusion = ''; if (tcoNew < tcoCurrent) { conclusion = `Trocar de carro é a opção <strong style="color: var(--success-color);">${formatCurrency(difference)} mais econômica</strong> para os próximos anos.`; } else { conclusion = `Manter seu carro atual pode te <strong style="color: var(--success-color);">${formatCurrency(difference)} economizar</strong> nos próximos anos.`; }
+        container.innerHTML = `<h2>Análise de Troca: Vale a Pena?</h2><div class="verdict-comparison"><div class="verdict-box"><h4>Custo para TROCAR</h4><p>${formatCurrency(tcoNew)}</p></div><div class="verdict-box"><h4>Custo para MANTER</h4><p>${formatCurrency(tcoCurrent)}</p></div></div><p id="verdict-final">${conclusion}</p>`;
+    }
+    function renderTcoChart(id, results) {
+        const canvasId = `tcoChart${id}`;
+        const el = document.getElementById(canvasId);
+        if (!el) return;
+        const ctx = el.getContext('2d');
+        if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Desvalorização', 'Combustível', 'Custos Anuais', 'Juros'],
+                datasets: [{ data: [results.totalDepreciation, results.totalFuelCost, results.totalAnnualCosts, results.totalInterest], backgroundColor: ['#FF6384', '#FF9F40', '#4BC0C0', '#225458'], borderColor: 'var(--card-bg)', borderWidth: 4 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: 'var(--text-color)' } }, tooltip: { callbacks: { label: (c) => { const total = c.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); const p = total > 0 ? ((c.raw / total) * 100).toFixed(1) : 0; return `${c.label}: ${formatCurrency(c.raw)} (${p}%)`; } } } } }
+        });
+    }
+});
+</script>
+</body>
+</html>
+>>>>>>> dff131f05307f774094c1c9eb0857708e02857ee
