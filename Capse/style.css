@@ -1,364 +1,353 @@
-/* =================================================================== */
-/* PARCEIRO DE PROGRAMAÇÃO - CSS APRIMORADO                            */
-/* =================================================================== */
-
 :root {
-    /* ============================================================ */
-    /* PALETA DE CORES E TOKENS DE DESIGN - TEMA VERDE PROFISSIONAL */
-    /* ============================================================ */
-
-    /* --- Cores Base --- */
-    --verde-escuro-profundo: #1b4a27;
-    --verde-escuro: #206d39;
-    --verde-medio: #4daf68;
-    --verde-claro: #a6d8b4;
-    --branco-puro: #ffffff;
-    --cinza-claro: #e0e0e0;
-
-    /* --- Cores de Feedback --- */
-    --success: #00C49F;
-    --warning: #FFC300;
-    --danger: #dc3545;
-    --danger-hover: #c82333;
-
-    /* --- Aplicação Semântica (Design Tokens) --- */
-    --bg-main: var(--verde-escuro);
-    --bg-card: var(--verde-escuro-profundo);
-    --bg-input: var(--branco-puro);
-    --bg-disabled: var(--cinza-claro);
-
-    --color-primary: var(--verde-medio);
-    --color-text: var(--branco-puro);
-    --color-text-muted: var(--verde-claro);
-    --color-text-on-light: var(--verde-escuro-profundo);
-
-    --border-color: rgba(255, 255, 255, 0.1);
-    --border-color-light: var(--verde-claro);
-    --focus-ring-color: rgba(77, 175, 104, 0.5);
-
-    /* --- Tipografia --- */
-    --font-primary: 'Poppins', sans-serif;
-    --font-size-base: 1rem; /* Equivalente a 16px por padrão */
-    --line-height-base: 1.6;
-
-    /* --- Efeitos e Transições --- */
-    --border-radius-sm: 8px;
-    --border-radius-md: 12px;
-    --shadow-color: rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 6px 15px var(--shadow-color);
-    --shadow-lg: 0 12px 25px var(--shadow-color);
-    --transition-speed: 0.25s ease-in-out;
+    /* Paleta de Cores - Capse */
+    --bg-main: #1b4a27; /* Fundo principal escuro */
+    --card-bg: #206d39; /* Fundo dos cards ligeiramente mais claro que o principal */
+    --input-bg: #1b4a27; /* Fundo dos inputs, igual ao principal */
+    --border-color: #4daf68; /* Cor da borda, um verde médio */
+    --shadow-color: rgba(0, 0, 0, 0.4); /* Sombra mais escura para contraste no fundo */
+    
+    /* Cores Primárias e de Feedback - Ajustadas para contraste */
+    --primary-color: #a6d8b4; /* Verde claro da paleta, ótimo para linha de gráfico e elementos clicáveis */
+    --secondary-color: #e0f4e3; /* Verde claríssimo, ideal para o texto principal */
+    --success-color: #4daf68; /* Verde médio para indicar sucesso */
+    --warning-color: #FFD700; /* Amarelo dourado para avisos (melhor contraste) */
+    --danger-color: #dc3545; /* Vermelho padrão para erros */
+    
+    /* Cores de Texto */
+    --text-color: #e0f4e3; /* Cor principal do texto em fundos escuros */
+    --text-muted-color: #a6d8b4; /* Texto secundário ou desativado */
+    --text-color-dark-bg: #1b4a27; /* Cor de texto escuro para elementos com fundo claro (ex: botões) */
 }
-
-/* ================================== */
-/* RESET E ESTILOS GLOBAIS            */
-/* ================================== */
-
-*,
-*::before,
-*::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-html {
-    scroll-behavior: smooth;
-}
-
-body {
-    font-family: var(--font-primary);
-    background-color: var(--bg-main);
-    color: var(--color-text);
-    font-size: var(--font-size-base);
-    line-height: var(--line-height-base);
-    -webkit-font-smoothing: antialiased; /* Melhora a renderização da fonte */
-    -moz-osx-font-smoothing: grayscale;
-}
-
-/* --- Barra de Rolagem Personalizada --- */
-::-webkit-scrollbar {
-    width: 10px;
-}
-::-webkit-scrollbar-track {
-    background: var(--bg-card);
-}
-::-webkit-scrollbar-thumb {
-    background: var(--color-primary);
-    border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: var(--verde-claro);
-}
-
-/* ================================== */
-/* LAYOUT E CONTAINERS                */
-/* ================================== */
-
-.main-container {
-    max-width: 1200px;
-    margin: 40px auto;
-    padding: 20px;
-}
-
-.card {
-    background-color: var(--bg-card);
-    border-radius: var(--border-radius-md);
-    box-shadow: var(--shadow-md);
-    padding: 40px;
-    margin-bottom: 40px;
-    border: 1px solid var(--border-color);
-    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
-}
-.card:hover {
-    transform: translateY(-7px);
-    box-shadow: var(--shadow-lg);
-}
-
-.financial-columns,
-.goal-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 25px;
-}
-.dashboard-grid {
-    display: grid;
-    gap: 30px;
-    margin-bottom: 40px;
-}
-@media (min-width: 1024px) {
-    .dashboard-grid {
-        grid-template-columns: 2fr 1fr;
-    }
-}
-
-/* ================================== */
-/* TIPOGRAFIA                         */
-/* ================================== */
-
-h1, h2, h3, h4, h5, h6 {
-    color: var(--color-text);
-    font-weight: 700;
-}
-h1 { font-size: 2.375rem; text-align: center; margin-bottom: 1rem; letter-spacing: -1.5px; } /* 38px */
-h2 { font-size: 1.875rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border-color-light); padding-bottom: 1rem; } /* 30px */
-h3 { font-size: 1.5rem; margin-bottom: 1.25rem; color: var(--color-primary); } /* 24px */
-p { margin-bottom: 1.25rem; text-align: center; color: var(--color-text-muted); line-height: 1.7; }
-strong { color: var(--color-primary); }
-
-/* ================================== */
-/* LOGO                             */
-/* ================================== */
-
-.logo {
-    display: block;
-    max-width: 120px;
-    margin: 0 auto 40px auto;
-    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
-}
-
-/* ================================== */
-/* FORMULÁRIOS E INPUTS               */
-/* ================================== */
-
-.form-group label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 10px;
-    color: var(--color-text-muted);
-    font-size: 1.1rem;
-}
-
-.form-group input,
-.form-group select {
-    width: 100%;
-    padding: 14px;
-    border: 2px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    font-size: 1.0625rem; /* 17px */
-    background-color: var(--bg-input);
-    color: var(--color-text-on-light);
-    transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
-}
-.form-group input:disabled {
-    background-color: var(--bg-disabled);
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-.form-group input:focus-visible,
-.form-group select:focus-visible {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 4px var(--focus-ring-color);
-}
-
-/* ================================== */
-/* BOTÕES (REATORADO)                 */
-/* ================================== */
-
-/* --- Classe Base para todos os botões --- */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 14px 30px;
-    border-radius: var(--border-radius-sm);
-    font-size: 1.125rem; /* 18px */
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-    border: 2px solid transparent;
-    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed);
-    margin-top: 20px;
-}
-.btn:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-}
-.btn:active {
-    transform: translateY(-1px); /* Feedback de clique */
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-}
-.btn:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 4px var(--focus-ring-color);
-}
-
-/* --- Modificadores de Estilo --- */
-.btn-primary {
-    background-color: var(--color-primary);
-    color: var(--color-text-on-light);
-    border-color: var(--color-primary);
-}
-.btn-secondary {
-    background-color: transparent;
-    color: var(--color-primary);
-    border-color: var(--color-primary);
-}
-.btn-secondary:hover {
-    background-color: var(--color-primary);
-    color: var(--color-text-on-light);
-}
-
-.btn-danger {
-    background-color: var(--danger);
-    border-color: var(--danger);
-    color: var(--branco-puro);
-    padding: 8px 15px;
-    font-size: 0.9375rem; /* 15px */
-}
-.btn-danger:hover {
-    background-color: var(--danger-hover);
-    border-color: var(--danger-hover);
-}
-
-/* --- Mapeamento para nomes antigos (se necessário para manter o HTML) --- */
-.main-button { alias: .btn.btn-primary; }
-.secondary-button, .consultant-button { alias: .btn.btn-secondary; }
-.remove-button { alias: .btn.btn-danger; }
-
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Poppins', sans-serif; background-color: var(--bg-main); color: var(--text-color); font-size: 16px; line-height: 1.6; }
+.main-container { max-width: 1200px; margin: 40px auto; padding: 20px; }
+h1, h2, h3 { color: var(--text-color); }
+h1 { font-size: 32px; text-align: center; margin-bottom: 10px; }
+h2 { font-size: 24px; font-weight: 600; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+h3 { font-size: 20px; font-weight: 600; margin-bottom: 15px; }
+p { margin-bottom: 20px; text-align: center; color: var(--text-muted-color); line-height: 1.7; }
+.card { background-color: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 12px var(--shadow-color); padding: 40px; margin-bottom: 40px; }
+.form-group label { display: block; font-weight: 600; margin-bottom: 8px; }
+.form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 16px; background-color: var(--input-bg); color: var(--text-color); }
+.form-group input:disabled { background-color: #333; opacity: 0.5; }
+.main-button { display: inline-block; width: auto; padding: 14px 28px; background-color: var(--primary-color); color: var(--text-color-dark-bg); border: none; border-radius: 6px; font-size: 18px; font-weight: 600; cursor: pointer; transition: filter 0.3s; margin-top: 20px; }
+.main-button:hover { filter: brightness(1.1); }
+.secondary-button { background-color: transparent; border: 2px solid var(--primary-color); color: var(--primary-color); }
+.remove-button { background-color: var(--danger-color); color: white; border:none; padding: 5px 10px; font-size: 14px; border-radius: 4px; cursor: pointer; }
 .hidden { display: none; }
-.button-group { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-#dashboard .button-group { justify-content: flex-end; gap: 25px; }
+.button-group { display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
+.financial-columns, .goal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.goal-item { background-color: var(--input-bg); padding: 20px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid var(--primary-color); }
+.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 30px; margin-bottom: 40px;}
+@media (min-width: 1024px) { .dashboard-grid { grid-template-columns: 2fr 1fr; } }
+#chart-container { position: relative; min-height: 450px; width: 100%; }
+.metrics-panel { background-color: var(--bg-main); padding: 25px; border-radius: 8px; }
+.metric-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+.metric-item:last-child { border-bottom: none; }
+.metric-item .label, .metric-item .value { font-size: 15px; }
+.metric-item .label { font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.metric-item .value { font-weight: 700; text-align: right; }
+.value.positive { color: var(--success-color); }
+.value.negative { color: var(--warning-color); }
+.color-dot { width: 12px; height: 12px; border-radius: 50%; }
+.dot-primary { background-color: var(--primary-color); }
+.dot-yellow { background-color: var(--warning-color); }
+.dot-green { background-color: var(--success-color); }
+.info-icon { cursor: pointer; color: #aaa; border: 1px solid #aaa; border-radius: 50%; width: 16px; height: 16px; font-size: 12px; text-align: center; line-height: 16px; position: relative; }
+.info-icon .tooltip { visibility: hidden; width: 220px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -110px; opacity: 0; transition: opacity 0.3s; }
+.info-icon:hover .tooltip { visibility: visible; opacity: 1; }
+.chart-legend { text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; font-size: 14px; }
+.projection-table { width: 100%; margin-top: 20px; border-collapse: collapse; text-align: center; }
+.projection-table th, .projection-table td { padding: 12px; border: 1px solid var(--border-color); }
+.projection-table th { background-color: var(--text-color); color: var(--card-bg); }
+.projection-table tbody tr:nth-child(even) { background-color: var(--bg-main); }
+.report-page { display: none; }
+@media print { body * { visibility: hidden; } #report-page, #report-page * { visibility: visible; } #report-page { position: absolute; left: 0; top: 0; width: 100%; } }
 
+/* Ajustes para o Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: flex; /* Usar flexbox para alinhar itens */
+    align-items: center; /* Centralizar verticalmente */
+    cursor: pointer;
+    font-weight: normal;
+    margin-bottom: 15px;
+    padding-left: 60px; /* Adiciona espaço à esquerda para o slider */
+    min-height: 32px; /* Garante altura mínima para o clique */
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-switch .label-text {
+    margin-left: 0; /* Remove o margin-left anterior, agora o padding-left do pai resolve */
+    flex-grow: 1; /* Permite que o texto ocupe o espaço restante */
+    line-height: 1.2; /* Ajusta a altura da linha para melhor visualização */
+}
+.slider {
+    position: absolute;
+    top: 4px;
+    left: 0; /* Posição inicial do slider à esquerda dentro do padding */
+    height: 24px;
+    width: 44px;
+    background-color: #4A5D71;
+    border-radius: 24px;
+    transition: .4s;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: .4s;
+}
+input:checked + .slider { background-color: var(--primary-color); }
+input:checked + .slider:before { transform: translateX(20px); }
 
-/* ================================== */
-/* COMPONENTES ESPECÍFICOS            */
-/* ================================== */
+.impact-analysis { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 40px; }
+.impact-item { background-color: var(--input-bg); border-radius: 6px; padding: 20px; flex: 1; min-width: 320px; border-left: 4px solid var(--primary-color); }
+.impact-item h4 { color: var(--primary-color); }
+.scenario-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; }
+.scenario-card { background-color: var(--input-bg); padding: 15px; border-radius: 6px; }
+.scenario-card h4 { margin-bottom: 10px; text-align: center; }
+.dashboard-addons { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
+.addon-card { background-color: var(--card-bg); padding: 30px; border-radius: 8px; }
+.addon-card h3 { margin-bottom: 10px; }
+.addon-card p { font-size: 14px; text-align: left; margin-bottom: 20px;}
+#income-pie-chart-container { min-height: 300px; }
+.milestone-item { border-left: 3px solid var(--primary-color); padding-left: 15px; margin-bottom: 15px; }
+.milestone-item .age { font-weight: 700; color: var(--primary-color); }
 
-/* --- Cards de Objetivo/Cenário/Impacto --- */
-.goal-item,
-.scenario-card,
-.impact-item {
-    background-color: var(--bg-card);
-    border-radius: var(--border-radius-sm);
-    padding: 25px;
-    color: var(--color-text);
-    border-left: 4px solid var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+#scenario-simulator-card {
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    margin-top: 30px;
 }
-.goal-item:hover,
-.scenario-card:hover,
-.impact-item:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.25);
-}
-
-/* ... (o resto dos seus componentes específicos permanece praticamente o mesmo, mas beneficiando das novas variáveis) */
-/* --- Exemplo: Tabela de Projeção --- */
-.projection-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: center;
-    margin-top: 25px;
-}
-.projection-table th,
-.projection-table td {
-    padding: 15px;
-    border: 1px solid var(--border-color-light);
-}
-.projection-table th {
-    background-color: var(--color-primary);
-    color: var(--color-text-on-light);
-    font-weight: 700;
-}
-.projection-table tbody tr {
-    transition: background-color var(--transition-speed);
-}
-.projection-table tbody tr:nth-child(even) {
-    background-color: var(--bg-card);
-}
-.projection-table tbody tr:hover {
-    background-color: rgba(77, 175, 104, 0.2); /* Tom verde no hover */
-}
-
-/* --- Slider (Simulador de Cenário) com compatibilidade --- */
 .scenario-slider {
     width: 100%;
     -webkit-appearance: none;
-    appearance: none;
-    height: 10px;
-    background: var(--bg-main);
+    height: 8px;
+    background: var(--input-bg);
     border-radius: 5px;
     outline: none;
-    opacity: 0.8;
-    transition: opacity var(--transition-speed);
-    margin-top: 15px;
+    opacity: 0.7;
+    transition: opacity .2s;
+    margin-top: 10px;
 }
-.scenario-slider:hover {
-    opacity: 1;
-}
-/* Chrome, Safari, Opera, Edge */
+.scenario-slider:hover { opacity: 1; }
 .scenario-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 24px;
-    height: 24px;
-    background: var(--color-primary);
+    width: 20px;
+    height: 20px;
+    background: var(--primary-color);
     cursor: pointer;
     border-radius: 50%;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    transition: transform var(--transition-speed);
 }
-.scenario-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.1);
-}
-/* Firefox */
-.scenario-slider::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
-    background: var(--color-primary);
-    cursor: pointer;
-    border-radius: 50%;
-    border: none; /* Firefox pode adicionar uma borda por padrão */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    transition: transform var(--transition-speed);
-}
-.scenario-slider::-moz-range-thumb:hover {
-    transform: scale(1.1);
+.slider-value { font-weight: bold; color: var(--primary-color); margin-left: 10px; }
+
+/* Ocultar o cartão de alocação de ativos */
+#allocation-card { display: none; }
+/* Estilos para a nova Timeline de Marcos (VERSÃO FLEXÍVEL E RESPONSIVA) */
+/* Estilos para a nova Timeline de Marcos (VERSÃO CARROSSEL HORIZONTAL) */
+/* Estilos para a nova Timeline de Marcos (VERSÃO CARROSSEL HORIZONTAL - LARGURA TOTAL) */
+/* Estilos para a nova Timeline de Marcos (VERSÃO FINAL) */
+.timeline-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 20px;
+    margin-top: 20px;
+    margin-left: -30px;
+    margin-right: -30px;
+    padding: 10px 30px 20px 30px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) var(--input-bg);
 }
 
-/* O restante do seu CSS pode ser inserido aqui, pois já estava bem estruturado. */
-/* Os benefícios das novas variáveis e melhorias já se aplicam a eles.      */
-/* ... */
+.timeline-container::-webkit-scrollbar {
+    height: 8px;
+}
+.timeline-container::-webkit-scrollbar-track {
+    background: var(--input-bg);
+    border-radius: 4px;
+}
+.timeline-container::-webkit-scrollbar-thumb {
+    background-color: var(--primary-color);
+    border-radius: 4px;
+}
+
+.timeline-item {
+    flex: 0 0 250px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    min-height: 260px; /* NOVA ALTURA - muito mais presença vertical */
+}
+
+.timeline-icon {
+    font-size: 24px;
+    line-height: 1;
+    background-color: var(--card-bg);
+    padding: 0 10px;
+    margin-bottom: 15px;
+    z-index: 1;
+}
+
+.timeline-content {
+    background-color: var(--input-bg);
+    padding: 20px;
+    border-radius: 6px;
+    border-top: 4px solid var(--primary-color);
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    /* MELHORIA: Usa flexbox para centralizar o conteúdo verticalmente */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.timeline-content h4 {
+    color: var(--primary-color);
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.timeline-content p {
+    margin-bottom: 0;
+    text-align: center;
+    color: var(--text-color);
+    font-size: 14px;
+    line-height: 1.4;
+}
+/* Classe para preparar a página de relatório para impressão */
+.report-ready-for-print {
+    display: block !important;
+    position: absolute;
+    left: -9999px; /* Posiciona muito fora da tela */
+    top: -9999px;
+    width: 210mm; /* Largura de uma folha A4 */
+}
+/* Estilo para a Logo do Cliente */
+.client-logo {
+    display: block;
+    margin: 0 auto 30px auto;
+    max-width: 160px;
+    height: auto;
+}
+/* Estilo para o Botão "Fale com um Consultor" */
+.consultor-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #25D366; /* Cor oficial do WhatsApp */
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    width: fit-content;
+    margin: 20px auto 0 auto; /* Centraliza o botão */
+    font-weight: 600;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.consultor-button i {
+    margin-left: 10px;
+    font-size: 18px;
+}
+
+.consultor-button:hover {
+    background-color: #1DA851;
+}
+/* Estilização Exclusiva para o Botão Flutuante no Dashboard (Abordagem Recomendada) */
+
+/* 1. Estilo base para todos os botões de consultor (centralizados) */
+.consultor-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #25D366;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    width: fit-content;
+    margin: 20px auto 0 auto;
+    font-weight: 600;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+.consultor-button i {
+    margin-left: 10px;
+    font-size: 18px;
+}
+.consultor-button:hover {
+    background-color: #1DA851;
+}
+
+/* 2. Transforma o botão em um FAB APENAS dentro do #dashboard */
+#dashboard .consultor-button {
+    position: fixed; /* Fixo na tela */
+    bottom: 30px;
+    right: 30px;
+    width: 60px;  /* Largura fixa */
+    height: 60px; /* Altura fixa */
+    border-radius: 50%; /* Totalmente circular */
+    padding: 0; /* Remove o padding para o ícone centralizar */
+    margin: 0;  /* Remove a margem auto */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* 3. Ajusta o ícone dentro do FAB */
+#dashboard .consultor-button i {
+    margin: 0; /* Remove a margem do ícone */
+    font-size: 28px;
+}
+
+/* 4. Efeito de hover para o FAB */
+#dashboard .consultor-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+    background-color: #25D366; /* Mantém a cor no hover */
+}
+
+/* 5. Tooltip com o texto que aparece no hover */
+#dashboard .consultor-button::before {
+    content: 'Fale com um Consultor';
+    position: absolute;
+    top: 50%;
+    right: 100%; /* Posiciona à esquerda do botão */
+    transform: translateY(-50%) translateX(-15px);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    white-space: nowrap;
+    
+    /* Lógica para esconder/mostrar */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    pointer-events: none; /* Impede que o tooltip interaja com o mouse */
+}
+
+/* 6. Mostra o tooltip no hover */
+#dashboard .consultor-button:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(-10px);
+}

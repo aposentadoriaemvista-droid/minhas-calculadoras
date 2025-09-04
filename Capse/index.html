@@ -15,137 +15,88 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
 
-    <main id="app-container" class="main-container">
-
+    <div id="app-container" class="main-container">
         <section id="profile" class="card">
-            <header>
-                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
-                <h1>Bem-vindo(a) ao seu Planejador Financeiro</h1>
-                <p>Vamos começar com algumas informações básicas para criar um plano personalizado.</p>
-            </header>
+            <img src="capse.png" alt="Logo da Capse" class="client-logo">
+            <h1>Bem-vindo(a) ao seu Planejador Financeiro</h1>
+            <p>Vamos começar com algumas informações básicas para criar um plano personalizado.</p>
             <div class="financial-columns">
-                <div class="form-group">
-                    <label for="user-name">Seu Nome</label>
-                    <input type="text" id="user-name" placeholder="Ex: Bruno" required>
-                </div>
-                <div class="form-group">
-                    <label for="user-phone">Seu Telefone</label>
-                    <input type="tel" id="user-phone" placeholder="(51) 99999-9999" required>
-                </div>
-                <div class="form-group">
-                    <label for="idade-atual">Sua Idade Atual</label>
-                    <input type="number" class="formatted-number" id="idade-atual" placeholder="Ex: 22" min="0" inputmode="numeric" required>
-                </div>
+                <div class="form-group"><label for="user-name">Seu Nome</label><input type="text" id="user-name" placeholder="Ex: Bruno" required></div>
+                <div class="form-group"><label for="user-phone">Seu Telefone (com DDD)</label><input type="tel" id="user-phone" placeholder="(XX) XXXXX-XXXX" required maxlength="15"></div>
+                <div class="form-group"><label for="idade-atual">Sua Idade Atual</label><input type="text" class="formatted-number" id="idade-atual" placeholder="Ex: 22" required></div>
             </div>
-            <footer class="button-group">
-                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
-                <button class="btn btn-primary" data-nav="risk">Começar Planejamento</button>
-            </footer>
+            <div class="button-group" style="justify-content: flex-end;">
+                <button class="main-button" data-nav="risk">Começar Planejamento</button>
+            </div>
+            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
 
         <section id="risk" class="card hidden">
-            <header>
-                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
-                <h2>Etapa 1: Gestão de Risco</h2>
-                <p>Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
-            </header>
+            <img src="capse.png" alt="Logo da Capse" class="client-logo">
+            <h2>Etapa 1: Gestão de Risco</h2>
+            <p>Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
             <div class="form-group">
-                <label for="skip-emergency-fund" class="toggle-switch">
-                    <input type="checkbox" id="skip-emergency-fund">
-                    <span class="slider"></span>
-                    <span class="label-text">Não desejo planejar uma reserva de emergência agora</span>
-                </label>
+                <label class="toggle-switch"><input type="checkbox" id="skip-emergency-fund"><span class="slider"></span><span class="label-text">Não desejo planejar uma reserva de emergência agora</span></label>
             </div>
             <div id="emergency-fund-inputs">
                 <div class="financial-columns">
-                    <div class="form-group">
-                        <label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label>
-                        <input type="number" class="formatted-number" id="despesas-essenciais" placeholder="R$ 3.000" min="0" inputmode="numeric">
-                    </div>
-                    <div class="form-group">
-                        <label for="reserva-meses">Meses de Cobertura Desejados</label>
-                        <input type="number" class="formatted-number" id="reserva-meses" placeholder="6" min="1" inputmode="numeric">
-                    </div>
+                    <div class="form-group"><label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label><input type="text" class="formatted-number" id="despesas-essenciais" placeholder="R$ 3.000"></div>
+                    <div class="form-group"><label for="reserva-meses">Meses de Cobertura Desejados</label><input type="text" class="formatted-number" id="reserva-meses" placeholder="6"></div>
                 </div>
-                <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success);"></h3>
+                <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success-color);"></h3>
             </div>
-            <footer class="button-group">
-                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
-                <div>
-                    <button class="btn btn-secondary" data-nav="profile">Voltar</button>
-                    <button class="btn btn-primary" data-nav="financials">Próxima Etapa</button>
-                </div>
-            </footer>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="profile">Voltar</button>
+                <button class="main-button" data-nav="financials">Próxima Etapa</button>
+            </div>
+            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
 
         <section id="financials" class="card hidden">
-            <header>
-                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
-                <h2>Etapa 2: Renda e Despesas</h2>
-                <p>Agora, vamos entender seu fluxo de caixa e potencial de crescimento.</p>
-            </header>
+            <img src="capse.png" alt="Logo da Capse" class="client-logo">
+            <h2>Etapa 2: Renda e Despesas</h2>
+            <p>Agora, vamos entender seu fluxo de caixa e potencial de crescimento.</p>
             <div class="financial-columns">
-                <div class="form-group">
-                    <label for="salario">Renda Mensal Líquida</label>
-                    <input type="number" class="formatted-number" id="salario" placeholder="R$ 5.000" min="0" inputmode="numeric">
-                </div>
-                <div class="form-group">
-                    <label for="despesas-gerais">Despesas Gerais Mensais</label>
-                    <input type="number" class="formatted-number" id="despesas-gerais" placeholder="R$ 3.000" min="0" inputmode="numeric">
-                </div>
+                <div class="form-group"><label for="salario">Renda Mensal Líquida</label><input type="text" class="formatted-number" id="salario" placeholder="R$ 5.000"></div>
+                <div class="form-group"><label for="despesas-gerais">Despesas Gerais Mensais</label><input type="text" class="formatted-number" id="despesas-gerais" placeholder="R$ 3.000"></div>
             </div>
             <div class="form-group">
-                <label for="include-aporte-growth" class="toggle-switch">
-                    <input type="checkbox" id="include-aporte-growth">
-                    <span class="slider"></span>
-                    <span class="label-text">Incluir crescimento anual dos aportes</span>
-                </label>
+                <label class="toggle-switch"><input type="checkbox" id="include-aporte-growth"><span class="slider"></span><span class="label-text">Incluir crescimento anual dos aportes</span></label>
             </div>
             <div class="form-group hidden" id="aporte-growth-group">
-                <label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label>
-                <input type="number" class="formatted-number" id="aporte-growth" placeholder="Ex: 5" min="0" inputmode="numeric">
+                <label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label><input type="text" class="formatted-number" id="aporte-growth" placeholder="Ex: 5">
             </div>
             <div id="resumo-mensal"></div>
-            <footer class="button-group">
-                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
-                <div>
-                    <button class="btn btn-secondary" data-nav="risk">Voltar</button>
-                    <button class="btn btn-primary" data-nav="goals">Próxima Etapa</button>
-                </div>
-            </footer>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="risk">Voltar</button>
+                <button class="main-button" data-nav="goals">Próxima Etapa</button>
+            </div>
+            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
 
         <section id="goals" class="card hidden">
-            <header>
-                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
-                <h2>Etapa 3: Objetivos e Eventos Pontuais</h2>
-                <p>Adicione sua meta de aposentadoria e outros objetivos ou eventos financeiros importantes.</p>
-            </header>
+            <img src="capse.png" alt="Logo da Capse" class="client-logo">
+            <h2>Etapa 3: Objetivos e Eventos Pontuais</h2>
+            <p>Adicione sua meta de aposentadoria e outros objetivos ou eventos financeiros importantes.</p>
             <div id="goals-list"></div>
-            <button id="add-goal-btn" class="btn btn-secondary" style="width:100%;">+ Adicionar Objetivo de Meio de Caminho ou Evento Pontual</button>
-            <footer class="button-group">
-                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
-                <div>
-                    <button class="btn btn-secondary" data-nav="financials">Voltar</button>
-                    <button class="btn btn-primary" data-nav="patrimony">Próxima Etapa</button>
-                </div>
-            </footer>
+            <button id="add-goal-btn" class="secondary-button" style="width:100%;">+ Adicionar Objetivo de Meio de Caminho ou Evento Pontual</button>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="financials">Voltar</button>
+                <button class="main-button" data-nav="patrimony">Próxima Etapa</button>
+            </div>
+            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
 
         <section id="patrimony" class="card hidden">
-            <header>
-                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
-                <h2>Etapa 4: Seu Ponto de Partida</h2>
-                <p>Para finalizar, informe seu patrimônio atual e perfil de risco.</p>
-            </header>
+            <img src="capse.png" alt="Logo da Capse" class="client-logo">
+            <h2>Etapa 4: Seu Ponto de Partida</h2>
+            <p>Para finalizar, informe seu patrimônio atual e perfil de risco.</p>
             <div class="financial-columns">
-                <div class="form-group">
-                    <label for="patrimonio">Patrimônio Atual (Total investido)</label>
-                    <input type="number" class="formatted-number" id="patrimonio" placeholder="R$ 50.000" min="0" inputmode="numeric">
-                </div>
+                <div class="form-group"><label for="patrimonio">Patrimônio Atual (Total investido)</label><input type="text" class="formatted-number" id="patrimonio" placeholder="R$ 50.000"></div>
                 <div class="form-group">
                     <label for="risk-profile">Perfil de Risco (Rentabilidade Real Esperada)</label>
                     <select id="risk-profile">
@@ -157,28 +108,25 @@
                     </select>
                 </div>
             </div>
-            <footer class="button-group">
-                <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
-                <div>
-                    <button class="btn btn-secondary" data-nav="goals">Voltar</button>
-                    <button class="btn btn-primary" id="generate-dashboard-btn" data-nav="dashboard">Gerar Meu Planejamento</button>
-                </div>
-            </footer>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="goals">Voltar</button>
+                <button class="main-button" id="generate-dashboard-btn" data-nav="dashboard">Gerar Meu Planejamento</button>
+            </div>
+            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
         
         <section id="dashboard" class="card hidden">
-            <header class="dashboard-header">
-                <img src="capse.png" alt="Logo da Capse Financial Planning" class="logo">
-                <div class="dashboard-header-content">
+            <img src="capse.png" alt="Logo da Capse" class="client-logo">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div>
                     <h1>Seu Mapa para a Conquista</h1>
                     <p id="dashboard-subtitle" style="text-align:left;"></p>
                 </div>
                 <div class="button-group">
-                    <a href="https://wa.me/5551999999999" target="_blank" class="btn btn-secondary">Fale com um consultor</a>
-                    <button id="share-plan-btn" class="btn btn-secondary">Compartilhar Plano</button>
-                    <button id="generate-report-btn" class="btn btn-secondary">Gerar Relatório</button>
+                    <button id="share-plan-btn" class="main-button secondary-button">Compartilhar Plano</button>
+                    <button id="generate-report-btn" class="main-button secondary-button">Gerar Relatório</button>
                 </div>
-            </header>
+            </div>
             
             <div class="dashboard-grid">
                 <div class="chart-area">
@@ -206,11 +154,52 @@
                         <select id="sim-perfil-risco" class="scenario-select"></select>
                     </div>
                 </div>
-                <button id="reset-scenario-btn" class="btn btn-secondary">Restaurar Plano Original</button>
+                <button id="reset-scenario-btn" class="secondary-button" style="margin-top: 15px;">Restaurar Plano Original</button>
             </div>
 
-            </section>
-    </main>
+            <div class="dashboard-addons">
+                <div class="addon-card" id="optimizer-card" class="hidden">
+                    <h3>💡 Otimizador de Plano</h3>
+                    <div id="optimizer-container"></div>
+                </div>
+                <div class="addon-card" id="growth-composition-card">
+                    <h3>Composição do Crescimento</h3>
+                    <p>Veja como os juros se tornam a maior força do seu património.</p>
+                    <div id="growth-composition-chart-container" style="min-height: 300px;">
+                        <canvas id="growthCompositionChart"></canvas>
+                    </div>
+                </div>
+                <div class="addon-card" id="income-pie-chart-card">
+                    <h3>De Onde Virá Sua Renda?</h3>
+                    <div id="income-pie-chart-container"><canvas id="incomePieChart"></canvas></div>
+                </div>
+                <div class="addon-card" id="sensitivity-analysis-card">
+                    <h3>Análise de Sensibilidade</h3>
+                    <div id="sensitivity-analysis-container"></div>
+                </div>
+            </div>
+             <div class="addon-card" id="milestones-card" style="margin-top: 40px;">
+                <h3>Marcos da Sua Jornada</h3>
+                <div id="milestones-container"></div>
+            </div>
+            <div id="impact-analysis-container"></div>  
+            <div style="margin-top: 40px;">
+                <h2>Evolução Detalhada dos Seus Investimentos</h2>
+                <table class="projection-table">
+                    <thead>
+                        <tr>
+                            <th>Idade</th>
+                            <th>Total Aportado por Você</th>
+                            <th>Juros Ganhos</th>
+                            <th>Saldo Final</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projection-table-body"></tbody>
+                </table>
+            </div>
+            <button class="consultor-button" onclick="window.open('...')"><i class="fab fa-whatsapp"></i></button>
+        </section>
+    </div>
     
     <div id="report-page" class="report-page"></div>
 

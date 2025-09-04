@@ -4,19 +4,34 @@ document.addEventListener('DOMContentLoaded', () => {
     let projectionChartInstance = null;
     let incomePieChartInstance = null;
     let growthCompositionChartInstance = null;
-    let assetAllocationChartInstance = null; // Será removido, mas mantido para evitar erros se referenciado
-
+    
     let lastResults = {};
     let originalResults = {};
 
-    // Este objeto não é mais usado para renderização, mas mantido se houver lógica dependente
-    const allocationProfiles = {
-        muitoConservador: { labels: ['Renda Fixa Pós-Fixada'], data: [100] },
-        conservador: { labels: ['Renda Fixa Pós-Fixada', 'Renda Fixa Inflação'], data: [70, 30] },
-        moderado: { labels: ['Renda Fixa', 'Ações Brasil', 'Ações Globais'], data: [50, 25, 25] },
-        arrojado: { labels: ['Renda Fixa', 'Ações Brasil', 'Ações Globais'], data: [30, 35, 35] },
-        muitoArrojado: { labels: ['Renda Fixa', 'Ações Brasil', 'Ações Globais', 'Cripto/Outros'], data: [15, 40, 40, 5] },
-    };
+    // Função para aplicar a máscara de telefone
+    const mascaraTelefone = (event) => {
+        let input = event.target;
+        input.value = phoneMask(input.value);
+    }
+    const phoneMask = (value) => {
+        if (!value) return ""
+        value = value.replace(/\D/g,'')
+        value = value.replace(/(\d{2})(\d)/,"($1) $2")
+        value = value.replace(/(\d)(\d{4})$/,"$1-$2")
+        return value
+    }
+    // Conecta a máscara ao input de telefone
+    document.getElementById('user-phone').addEventListener('input', mascaraTelefone);
+
+    // MELHORIA 1: Capturar as cores do CSS para usar nos gráficos
+    const rootStyles = getComputedStyle(document.documentElement);
+    const primaryColor = rootStyles.getPropertyValue('--primary-color').trim();
+    const successColor = rootStyles.getPropertyValue('--success-color').trim();
+    const warningColor = rootStyles.getPropertyValue('--warning-color').trim();
+    const dangerColor = rootStyles.getPropertyValue('--danger-color').trim();
+    const cardBgColor = rootStyles.getPropertyValue('--card-bg').trim();
+    const textColorMuted = rootStyles.getPropertyValue('--text-muted-color').trim();
+    const borderColor = rootStyles.getPropertyValue('--border-color').trim();
     
     document.querySelectorAll('.main-button[data-nav]').forEach(button => {
         button.addEventListener('click', () => {
@@ -123,11 +138,19 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPlanFromURL();
     
     function runFinancialPlan() {
-    // 👇 LINHA ADICIONADA: Chamamos a função para enviar os dados! 👇
     enviarDadosParaPlanilha();
 
     try {
-        const inputs = { userName: document.getElementById('user-name').value, idadeAtual: unformatNumber(document.getElementById('idade-atual').value), patrimonioInicial: unformatNumber(document.getElementById('patrimonio').value), aporteMensal: updateAporte(), perfilRisco: document.getElementById('risk-profile').value, aporteGrowth: document.getElementById('include-aporte-growth').checked ? (unformatNumber(document.getElementById('aporte-growth').value) / 100) : 0 };
+        const inputs = { 
+            userPhone: document.getElementById('user-phone').value, // <-- Adicione esta linha
+            idadeAtual: unformatNumber(document.getElementById('idade-atual').value), 
+            patrimonioInicial: unformatNumber(document.getElementById('patrimonio').value), 
+            aporteMensal: updateAporte(), 
+            perfilRisco: document.getElementById('risk-profile').value, 
+            aporteGrowth: document.getElementById('include-aporte-growth').checked ? (unformatNumber(document.getElementById('aporte-growth').value) / 100) : 0,
+            despesasEssenciais: unformatNumber(document.getElementById('despesas-essenciais').value) || 0
+        };
+
         let userGoals = [];
         document.querySelectorAll('.goal-item').forEach(item => {
             const goal = { type: item.querySelector('.goal-type').value, description: item.querySelector('.goal-description').value, value: unformatNumber(item.querySelector('[id="goal-value"]')?.value), age: unformatNumber(item.querySelector('[id="goal-age"]')?.value) };
@@ -158,12 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fullProjection = generateFullProjection(inputs, userGoals, taxaJurosAtual);
         const patrimonioNaAposentadoria = anosParaAposentar > 0 ? fullProjection.accumulation.slice(-1)[0].saldoFinal : inputs.patrimonioInicial;
-        const probabilidadeSucesso = metaMinima > 0 ? Math.min((patrimonioNaAposentadoria / metaMinima) * 100, 100) : 100;
-
+        
         const resultsForImpact = { ...inputs, userGoals, retirementGoal, taxaJurosAtual, metaIdeal, metaMinima, aporteGrowth: inputs.aporteGrowth };
         const impactAnalysis = calculateImpactAnalysis(fullProjection, resultsForImpact);
         
-        lastResults = { projecaoAtual: patrimonioNaAposentadoria, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, probabilidadeSucesso, inputs, retirementGoal, fullProjection, taxaJurosAtual, impactAnalysis, userGoals };
+        lastResults = { projecaoAtual: patrimonioNaAposentadoria, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, inputs, retirementGoal, fullProjection, taxaJurosAtual, impactAnalysis, userGoals };
         originalResults = JSON.parse(JSON.stringify(lastResults));
         
         updateDashboardUI(lastResults);
@@ -176,73 +198,75 @@ document.addEventListener('DOMContentLoaded', () => {
 }
     
     function updateDashboardUI(results) {
-    const { projecaoAtual, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, inputs, retirementGoal, fullProjection, userGoals, taxaJurosAtual, impactAnalysis } = results;
-    document.getElementById('dashboard-subtitle').textContent = `Olá, ${inputs.userName}! Veja o resumo e o plano de ação para sua aposentadoria.`;
-    
-    const rendaComplementar = Math.max(0, retirementGoal.value - retirementGoal.postRetirementIncome);
-    const gapDeAporteMinimo = aporteMinimo - inputs.aporteMensal;
-    const atingeMinima = projecaoAtual >= metaMinima;
-    
-    const metricsContainer = document.getElementById('metrics-container');
-    metricsContainer.innerHTML = `
-        <h3>Seu Objetivo Principal</h3>
-        <div class="metric-item"><div class="label">Renda Total Desejada</div><div class="value">${formatCurrency(retirementGoal.value)}</div></div>
-        <div class="metric-item"><div class="label">Renda Extra (INSS, aluguel, etc)</div><div class="value">-${formatCurrency(retirementGoal.postRetirementIncome)}</div></div>
-        <div class="metric-item" style="border-bottom: 2px solid var(--primary-color);"><div class="label"><b>Renda a ser gerada por Invest.</b></div><div class="value"><b>${formatCurrency(rendaComplementar)}</b></div></div>
+        const { projecaoAtual, metaMinima, metaIdeal, aporteMinimo, aporteIdeal, inputs, retirementGoal, fullProjection, userGoals, taxaJurosAtual, impactAnalysis } = results;
+        document.getElementById('dashboard-subtitle').textContent = `Olá, ${inputs.userName}! Veja o resumo e o plano de ação para sua aposentadoria.`;
+        
+        const rendaComplementar = Math.max(0, retirementGoal.value - retirementGoal.postRetirementIncome);
+        const gapDeAporteMinimo = aporteMinimo - inputs.aporteMensal;
+        const gapDeAporteIdeal = aporteIdeal - inputs.aporteMensal;
+        const atingeMinima = projecaoAtual >= metaMinima;
+        
+        const metricsContainer = document.getElementById('metrics-container');
+        metricsContainer.innerHTML = `
+            <h3>Seu Objetivo Principal</h3>
+            <div class="metric-item"><div class="label">Renda Total Desejada</div><div class="value">${formatCurrency(retirementGoal.value)}</div></div>
+            <div class="metric-item"><div class="label">Renda Extra (INSS, aluguel, etc)</div><div class="value">-${formatCurrency(retirementGoal.postRetirementIncome)}</div></div>
+            <div class="metric-item" style="border-bottom: 2px solid var(--primary-color);"><div class="label"><b>Renda a ser gerada por Invest.</b></div><div class="value"><b id="dashboard-renda-invest">${formatCurrency(rendaComplementar)}</b></div></div>
 
-        <h3 style="margin-top:20px;">Metas de Investimento</h3>
-        <div class="scenario-comparison">
-            <div class="scenario-card">
-                <h4 style="color: var(--warning-color);">CENÁRIO MÍNIMO</h4>
-                <div class="metric-item"><div class="label">Meta de Patrimônio</div><div class="value">${formatCurrency(metaMinima)}</div></div>
-                <div class="metric-item"><div class="label">Aporte Necessário</div><div class="value">${isFinite(aporteMinimo) ? formatCurrency(aporteMinimo) : 'Inatingível'}</div></div>
+            <h3 style="margin-top:20px;">Metas de Investimento</h3>
+            <div class="scenario-comparison">
+                <div class="scenario-card">
+                    <h4 style="color: var(--warning-color);">CENÁRIO MÍNIMO</h4>
+                    <div class="metric-item"><div class="label">Meta de Patrimônio</div><div class="value" id="dashboard-meta-minima">${formatCurrency(metaMinima)}</div></div>
+                    <div class="metric-item"><div class="label">Aporte Necessário</div><div class="value" id="dashboard-aporte-minimo">${isFinite(aporteMinimo) ? formatCurrency(aporteMinimo) : 'Inatingível'}</div></div>
+                </div>
+                <div class="scenario-card">
+                    <h4 style="color: var(--success-color);">CENÁRIO IDEAL</h4>
+                    <div class="metric-item"><div class="label">Meta de Patrimônio</div><div class="value" id="dashboard-meta-ideal">${formatCurrency(metaIdeal)}</div></div>
+                    <div class="metric-item"><div class="label">Aporte Necessário</div><div class="value" id="dashboard-aporte-ideal">${isFinite(aporteIdeal) ? formatCurrency(aporteIdeal) : 'Inatingível'}</div></div>
+                </div>
             </div>
-            <div class="scenario-card">
-                <h4 style="color: var(--success-color);">CENÁRIO IDEAL</h4>
-                <div class="metric-item"><div class="label">Meta de Patrimônio</div><div class="value">${formatCurrency(metaIdeal)}</div></div>
-                <div class="metric-item"><div class="label">Aporte Necessário</div><div class="value">${isFinite(aporteIdeal) ? formatCurrency(aporteIdeal) : 'Inatingível'}</div></div>
-            </div>
-        </div>
 
-        <h3 style="margin-top:20px;">Diagnóstico e Plano de Ação</h3>
-        <div class="metric-item"><div class="label">Seu Aporte Mensal</div><div class="value">${formatCurrency(inputs.aporteMensal)}</div></div>
-        <div class="metric-item"><div class="label">Sua Projeção de Patrimônio</div><div class="value">${formatCurrency(projecaoAtual)}</div></div>
-        <div class="metric-item"><div class="label">Atinge a Meta Mínima?</div><div class="value ${atingeMinima ? 'positive' : 'negative'}">${atingeMinima ? 'Sim' : 'Não'}</div></div>
-        <div class="metric-item"><div class="label"><b>Ajuste no Aporte (p/ Meta Mín.)</b></div><div class="value ${gapDeAporteMinimo <= 0 ? 'positive' : 'negative'}"><b>${isFinite(gapDeAporteMinimo) ? formatCurrency(gapDeAporteMinimo) : '-'}</b></div></div>
-    `;
-
-    const optimizerCard = document.getElementById('optimizer-card');
-    if (atingeMinima) {
-        optimizerCard.classList.add('hidden');
-    } else {
-        optimizerCard.classList.remove('hidden');
-        const optimizerContainer = document.getElementById('optimizer-container');
-        const newAge = calculateOptimalRetirementAge(inputs, userGoals, taxaJurosAtual, metaMinima);
-        const newProfile = calculateOptimalRiskProfile(inputs, userGoals, metaMinima);
-        optimizerContainer.innerHTML = `
-            <p style="text-align: left; font-size: 14px; margin-bottom: 20px;">Seu plano atual não atinge a meta mínima. Aqui estão algumas alternativas para chegar lá:</p>
-            <div class="milestone-item"><span class="age">Opção 1 (Aporte):</span> Aumentar seu aporte mensal para <b>${isFinite(aporteMinimo) ? formatCurrency(aporteMinimo) : 'um valor maior'}</b>.</div>
-            ${newAge ? `<div class="milestone-item"><span class="age">Opção 2 (Tempo):</span> Aposentar-se aos <b>${newAge} anos</b>.</div>` : ''}
-            ${newProfile ? `<div class="milestone-item"><span class="age">Opção 3 (Risco):</span> Mudar seu perfil de risco para <b>"${newProfile}"</b>.</div>` : ''}
+            <h3 style="margin-top:20px;">Diagnóstico e Plano de Ação</h3>
+            <div class="metric-item"><div class="label">Seu Aporte Mensal</div><div class="value">${formatCurrency(inputs.aporteMensal)}</div></div>
+            <div class="metric-item"><div class="label">Sua Projeção de Patrimônio</div><div class="value" id="dashboard-projecao">${formatCurrency(projecaoAtual)}</div></div>
+            <div class="metric-item"><div class="label">Atinge a Meta Mínima?</div><div class="value ${atingeMinima ? 'positive' : 'negative'}" id="dashboard-atinge-minima">${atingeMinima ? 'Sim' : 'Não'}</div></div>
+            <div class="metric-item"><div class="label"><b>Ajuste no Aporte (p/ Meta Mín.)</b></div><div class="value ${gapDeAporteMinimo <= 0 ? 'positive' : 'negative'}" id="dashboard-gap-minimo"><b>${isFinite(gapDeAporteMinimo) ? formatCurrency(gapDeAporteMinimo) : '-'}</b></div></div>
+            <div class="metric-item"><div class="label"><b>Ajuste no Aporte (p/ Meta Ideal)</b></div><div class="value ${gapDeAporteIdeal <= 0 ? 'positive' : 'negative'}" id="dashboard-gap-ideal"><b>${isFinite(gapDeAporteIdeal) ? formatCurrency(gapDeAporteIdeal) : '-'}</b></div></div>
         `;
-    }
-    
-    document.getElementById('chart-legend').innerHTML = `<div class="legend-item"><span class="color-dot dot-primary"></span>Seus Investimentos</div><div class="legend-item"><span class="color-dot dot-yellow"></span>Cenário Mínimo</div><div class="legend-item"><span class="color-dot dot-green"></span>Cenário Ideal</div>`;
-    document.getElementById('chart-title').textContent = `Projeção dos Seus Investimentos para gerar ${formatCurrency(rendaComplementar)}/mês`;
-    
-    const retirementGoalOnly = [retirementGoal];
-    const minimalProjection = generateFullProjection({...inputs, aporteMensal: aporteMinimo}, retirementGoalOnly, taxaJurosAtual);
-    const idealProjection = generateFullProjection({...inputs, aporteMensal: aporteIdeal}, retirementGoalOnly, taxaJurosAtual);
-    
-    renderChart(fullProjection, minimalProjection, idealProjection, inputs.idadeAtual);
-    renderIncomePieChart(retirementGoal);
-    renderSensitivityAnalysis(inputs, userGoals, taxaJurosAtual);
-    renderMilestones(fullProjection, metaMinima, inputs);
-    renderGrowthCompositionChart(fullProjection.accumulation);
 
-    populateProjectionTable(fullProjection.accumulation);
-    updateImpactAnalysisPanel(impactAnalysis);
-}
+        const optimizerCard = document.getElementById('optimizer-card');
+        if (atingeMinima) {
+            optimizerCard.classList.add('hidden');
+        } else {
+            optimizerCard.classList.remove('hidden');
+            const optimizerContainer = document.getElementById('optimizer-container');
+            const newAge = calculateOptimalRetirementAge(inputs, userGoals, taxaJurosAtual, metaMinima);
+            const newProfile = calculateOptimalRiskProfile(inputs, userGoals, metaMinima);
+            optimizerContainer.innerHTML = `
+                <p style="text-align: left; font-size: 14px; margin-bottom: 20px;">Seu plano atual não atinge a meta mínima. Aqui estão algumas alternativas para chegar lá:</p>
+                <div class="milestone-item"><span class="age">Opção 1 (Aporte):</span> Aumentar seu aporte mensal para <b>${isFinite(aporteMinimo) ? formatCurrency(aporteMinimo) : 'um valor maior'}</b>.</div>
+                ${newAge ? `<div class="milestone-item"><span class="age">Opção 2 (Tempo):</span> Aposentar-se aos <b>${newAge} anos</b>.</div>` : ''}
+                ${newProfile ? `<div class="milestone-item"><span class="age">Opção 3 (Risco):</span> Mudar seu perfil de risco para <b>"${newProfile}"</b>.</div>` : ''}
+            `;
+        }
+        
+        document.getElementById('chart-legend').innerHTML = `<div class="legend-item"><span class="color-dot dot-primary"></span>Seus Investimentos</div><div class="legend-item"><span class="color-dot dot-yellow"></span>Cenário Mínimo</div><div class="legend-item"><span class="color-dot dot-green"></span>Cenário Ideal</div>`;
+        document.getElementById('chart-title').textContent = `Projeção dos Seus Investimentos para gerar ${formatCurrency(rendaComplementar)}/mês`;
+        
+        const retirementGoalOnly = [retirementGoal];
+        const minimalProjection = generateFullProjection({...inputs, aporteMensal: aporteMinimo}, retirementGoalOnly, taxaJurosAtual);
+        const idealProjection = generateFullProjection({...inputs, aporteMensal: aporteIdeal}, retirementGoalOnly, taxaJurosAtual);
+        
+        renderChart(fullProjection, minimalProjection, idealProjection, inputs.idadeAtual);
+        renderIncomePieChart(retirementGoal);
+        renderSensitivityAnalysis(inputs, userGoals, taxaJurosAtual);
+        renderMilestones(fullProjection, metaMinima, metaIdeal, inputs);
+        renderGrowthCompositionChart(fullProjection.accumulation);
+
+        populateProjectionTable(fullProjection.accumulation);
+        updateImpactAnalysisPanel(impactAnalysis);
+    }
     
     function renderChart(dataAtual, dataMinima, dataIdeal, idadeInicial, dataSimulada = null) { 
         const anosAteAposentar = dataAtual.accumulation.length > 0 ? dataAtual.accumulation.length - 1 : 0;
@@ -256,16 +280,17 @@ document.addEventListener('DOMContentLoaded', () => {
         grad.addColorStop(1, 'rgba(102, 246, 241, 0)');
         
         const datasets = [
-            { label: 'Seus Investimentos', data: [...dataAtual.accumulation.map(d => d.saldoFinal), ...dataAtual.decumulation.map(d => d.saldoFinal)], borderColor: 'var(--primary-color)', backgroundColor: grad, fill: true, tension: 0.1, borderWidth: 4, pointRadius: 0 },
-            dataMinima ? { label: 'Cenário Mínimo', data: [...dataMinima.accumulation.map(d => d.saldoFinal), ...dataMinima.decumulation.map(d => d.saldoFinal)], borderColor: 'var(--warning-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false } : null,
-            dataIdeal ? { label: 'Cenário Ideal', data: [...dataIdeal.accumulation.map(d => d.saldoFinal), ...dataIdeal.decumulation.map(d => d.saldoFinal)], borderColor: 'var(--success-color)', borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false } : null
+            // MELHORIA 1: Usar as variáveis de cor do JS
+            { label: 'Seus Investimentos', data: [...dataAtual.accumulation.map(d => d.saldoFinal), ...dataAtual.decumulation.map(d => d.saldoFinal)], borderColor: primaryColor, backgroundColor: grad, fill: true, tension: 0.1, borderWidth: 4, pointRadius: 0 },
+            dataMinima ? { label: 'Cenário Mínimo', data: [...dataMinima.accumulation.map(d => d.saldoFinal), ...dataMinima.decumulation.map(d => d.saldoFinal)], borderColor: warningColor, borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false } : null,
+            dataIdeal ? { label: 'Cenário Ideal', data: [...dataIdeal.accumulation.map(d => d.saldoFinal), ...dataIdeal.decumulation.map(d => d.saldoFinal)], borderColor: successColor, borderDash: [6, 6], pointRadius: 0, borderWidth: 2, fill: false } : null
         ].filter(Boolean);
 
         if (dataSimulada) {
             datasets.push({
                 label: 'Sua Simulação',
                 data: [...dataSimulada.accumulation.map(d => d.saldoFinal), ...dataSimulada.decumulation.map(d => d.saldoFinal)],
-                borderColor: 'var(--danger-color)',
+                borderColor: dangerColor, // MELHORIA 1: Usar as variáveis de cor do JS
                 borderWidth: 3,
                 borderDash: [5, 5],
                 pointRadius: 0,
@@ -274,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        projectionChartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: 'var(--text-muted-color)', callback: value => `R$${(value / 1000000).toFixed(1)}M` }, grid: { color: 'rgba(224, 224, 241, 0.1)' } }, x: { ticks: { color: 'var(--text-muted-color)' }, grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatCurrency(c.raw)}` }, backgroundColor: '#FFF', titleColor: '#333', bodyColor: '#333', borderColor: '#DDD', borderWidth: 1 }, annotation: { annotations: { retirementLine: { type: 'line', xMin: anosAteAposentar, xMax: anosAteAposentar, borderColor: 'var(--primary-color)', borderWidth: 2, borderDash: [6, 6], label: { content: 'Aposentadoria', enabled: true, position: 'start', yAdjust: -15, backgroundColor: 'rgba(34, 84, 88, 0.8)', color: 'var(--primary-color)', font: { weight: 'bold' } } } } } }, interaction: { intersect: false, mode: 'index' } } }); 
+        projectionChartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: textColorMuted, callback: value => `R$${(value / 1000000).toFixed(1)}M` }, grid: { color: 'rgba(224, 224, 241, 0.1)' } }, x: { ticks: { color: textColorMuted }, grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatCurrency(c.raw)}` }, backgroundColor: '#FFF', titleColor: '#333', bodyColor: '#333', borderColor: '#DDD', borderWidth: 1 }, annotation: { annotations: { retirementLine: { type: 'line', xMin: anosAteAposentar, xMax: anosAteAposentar, borderColor: primaryColor, borderWidth: 2, borderDash: [6, 6], label: { content: 'Aposentadoria', enabled: true, position: 'start', yAdjust: -15, backgroundColor: 'rgba(34, 84, 88, 0.8)', color: primaryColor, font: { weight: 'bold' } } } } } }, interaction: { intersect: false, mode: 'index' } } }); 
     }
 
     function renderIncomePieChart(retirementGoal) {
@@ -284,7 +309,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = document.getElementById('incomePieChart').getContext('2d');
         const rendaComplementar = Math.max(0, retirementGoal.value - retirementGoal.postRetirementIncome);
         if (incomePieChartInstance) incomePieChartInstance.destroy();
-        incomePieChartInstance = new Chart(ctx, { type: 'pie', data: { labels: ['Renda Extra', 'Saque dos Investimentos'], datasets: [{ data: [retirementGoal.postRetirementIncome, rendaComplementar], backgroundColor: ['#00C49F', '#66F6F1'], borderColor: 'var(--card-bg)', borderWidth: 2 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: 'var(--text-color)' } } } } });
+        incomePieChartInstance = new Chart(ctx, { 
+            type: 'doughnut',
+            data: { 
+                labels: ['Renda Extra', 'Saque dos Investimentos'], 
+                datasets: [{ 
+                    data: [retirementGoal.postRetirementIncome, rendaComplementar], 
+                    backgroundColor: [successColor, primaryColor], // MELHORIA 1: Usar as variáveis de cor do JS
+                    borderColor: cardBgColor, 
+                    borderWidth: 4 
+                }] 
+            }, 
+            options: { 
+                responsive: true, 
+                cutout: '60%',
+                plugins: { 
+                    legend: { position: 'bottom', labels: { color: textColorMuted } } 
+                } 
+            } 
+        });
     }
 
     function renderGrowthCompositionChart(projectionData) {
@@ -302,21 +345,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 datasets: [{
                     label: 'Total Aportado por Você',
                     data: aportesData,
-                    backgroundColor: 'var(--primary-color)',
+                    backgroundColor: primaryColor, // MELHORIA 1: Usar as variáveis de cor do JS
                 }, {
                     label: 'Juros Ganhos',
                     data: jurosData,
-                    backgroundColor: 'var(--success-color)',
+                    backgroundColor: successColor, // MELHORIA 1: Usar as variáveis de cor do JS
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: 'var(--text-color)' } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatCurrency(c.raw)}` } } }, scales: { x: { stacked: true, ticks: { color: 'var(--text-muted-color)' }, grid: { display: false } }, y: { stacked: true, ticks: { color: 'var(--text-muted-color)', callback: value => `R$${(value / 1000).toFixed(0)}k` }, grid: { color: 'rgba(224, 224, 241, 0.1)' } } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: textColorMuted } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatCurrency(c.raw)}` } } }, scales: { x: { stacked: true, ticks: { color: textColorMuted }, grid: { display: false } }, y: { stacked: true, ticks: { color: textColorMuted, callback: value => `R$${(value / 1000).toFixed(0)}k` }, grid: { color: 'rgba(224, 224, 241, 0.1)' } } } }
         });
-    }
-
-    // A função renderAssetAllocationChart não é mais necessária, pois o painel foi removido.
-    // Mantê-la vazia ou remover totalmente depende se há outras referências a ela.
-    function renderAssetAllocationChart(riskProfile) {
-        // Conteúdo vazio ou pode ser removida se não houver outras chamadas.
     }
 
     function renderSensitivityAnalysis(inputs, userGoals, taxaJurosAtual) {
@@ -332,88 +369,72 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = html;
     }
 
-    function renderMilestones(fullProjection, metaMinima, inputs) {
-    const container = document.getElementById('milestones-container');
-    const accumulation = fullProjection.accumulation;
+    function renderMilestones(fullProjection, metaMinima, metaIdeal, inputs) {
+        const container = document.getElementById('milestones-container');
+        const accumulation = fullProjection.accumulation;
+        const achievedMilestones = [];
 
-    // Lista para armazenar os marcos que o usuário atingiu
-    const achievedMilestones = [];
+        const milestonesValues = [
+            { value: 100000, text: 'Você atingirá seus primeiros R$ 100 mil!', icon: '💰' },
+            { value: 500000, text: 'Meio milhão de reais! Você está no caminho certo.', icon: '🏆' },
+            { value: 1000000, text: 'Parabéns! Você alcançará o marco de R$ 1 milhão!', icon: '⭐' }
+        ];
 
-    // 1. Verificar marcos de valores fixos (100k, 500k, 1M)
-    const milestonesValues = [
-        { value: 100000, text: 'Você atingirá seus primeiros R$ 100 mil!', icon: '💰' },
-        { value: 500000, text: 'Meio milhão de reais! Você está no caminho certo.', icon: '🏆' },
-        { value: 1000000, text: 'Parabéns! Você alcançará o marco de R$ 1 milhão!', icon: '⭐' }
-    ];
-
-    milestonesValues.forEach(milestone => {
-        const point = accumulation.find(p => p.saldoFinal >= milestone.value);
-        if (point) {
-            achievedMilestones.push({
-                idade: point.idade,
-                title: `Aos ${point.idade} anos`,
-                description: milestone.text,
-                icon: milestone.icon
-            });
-        }
-    });
-
-    // 2. Verificar marco de 50% da meta mínima
-    if (metaMinima > 0) {
-        const fiftyPercentPoint = accumulation.find(p => p.saldoFinal >= metaMinima / 2);
-        if (fiftyPercentPoint) {
-            achievedMilestones.push({
-                idade: fiftyPercentPoint.idade,
-                title: `Aos ${fiftyPercentPoint.idade} anos`,
-                description: `Você estará na metade do caminho para sua meta mínima!`,
-                icon: '🏁'
-            });
-        }
-    }
-
-    // 3. Verificar o ponto da "bola de neve"
-    const snowballPoint = accumulation.find((p, i) => {
-        if (i === 0) return false;
-        const pmtAnual = (inputs.aporteMensal * 12) * Math.pow(1 + (inputs.aporteGrowth || 0), i - 1);
-        return p.jurosGanhos > pmtAnual;
-    });
-
-    if (snowballPoint) {
-        achievedMilestones.push({
-            idade: snowballPoint.idade,
-            title: `Aos ${snowballPoint.idade} anos`,
-            description: `A mágica acontece! Seus juros anuais superarão seus aportes.`,
-            icon: '🚀'
+        milestonesValues.forEach(milestone => {
+            const point = accumulation.find(p => p.saldoFinal >= milestone.value);
+            if (point) {
+                achievedMilestones.push({ idade: point.idade, title: `Aos ${point.idade} anos`, description: milestone.text, icon: milestone.icon });
+            }
         });
+
+        if (metaMinima > 0) {
+            const fiftyPercentPoint = accumulation.find(p => p.saldoFinal >= metaMinima / 2);
+            if (fiftyPercentPoint) {
+                achievedMilestones.push({ idade: fiftyPercentPoint.idade, title: `Aos ${fiftyPercentPoint.idade} anos`, description: `Você estará na metade do caminho para sua meta mínima!`, icon: '🏁' });
+            }
+        }
+        
+        const snowballPoint = accumulation.find((p, i) => {
+            if (i === 0) return false;
+            const pmtAnual = (inputs.aporteMensal * 12) * Math.pow(1 + (inputs.aporteGrowth || 0), i - 1);
+            return p.jurosGanhos > pmtAnual;
+        });
+        if (snowballPoint) {
+            achievedMilestones.push({ idade: snowballPoint.idade, title: `Aos ${snowballPoint.idade} anos`, description: `A mágica acontece! Seus juros anuais superarão seus aportes.`, icon: '🚀' });
+        }
+
+        if (inputs.despesasEssenciais > 0) {
+            const financialFreedomPoint = accumulation.find(p => p.jurosGanhos >= (inputs.despesasEssenciais * 12));
+            if (financialFreedomPoint) {
+                achievedMilestones.push({ idade: financialFreedomPoint.idade, title: `Aos ${financialFreedomPoint.idade} anos`, description: `Liberdade! Seus juros anuais sozinhos já cobrem seus gastos essenciais.`, icon: '🎉' });
+            }
+        }
+
+        const idealGoalPoint = accumulation.find(p => p.saldoFinal >= metaIdeal);
+        if (idealGoalPoint) {
+             achievedMilestones.push({ idade: idealGoalPoint.idade, title: `Aos ${idealGoalPoint.idade} anos`, description: `Conquista máxima! Você atingirá o patrimônio da sua meta ideal.`, icon: '👑' });
+        }
+
+        if (achievedMilestones.length === 0) {
+            container.innerHTML = '<p>Sua jornada está apenas começando! Continue aportando para ver seus marcos aqui.</p>';
+            return;
+        }
+
+        const uniqueMilestones = Array.from(new Map(achievedMilestones.map(m => [m.description, m])).values()).sort((a, b) => a.idade - b.idade);
+        let html = '<div class="timeline-container">';
+        uniqueMilestones.forEach(milestone => {
+            html += `
+                <div class="timeline-item">
+                    <div class="timeline-icon">${milestone.icon}</div>
+                    <div class="timeline-content">
+                        <h4>${milestone.title}</h4>
+                        <p>${milestone.description}</p>
+                    </div>
+                </div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
     }
-
-    // Se nenhum marco foi atingido, mostrar mensagem padrão
-    if (achievedMilestones.length === 0) {
-        container.innerHTML = '<p>Sua jornada está apenas começando! Continue aportando para ver seus marcos aqui.</p>';
-        return;
-    }
-
-    // Remover duplicados e ordenar por idade
-    const uniqueMilestones = Array.from(new Map(achievedMilestones.map(m => [m.description, m])).values())
-                                  .sort((a, b) => a.idade - b.idade);
-
-    // 4. Construir o HTML da nova timeline
-    let html = '<div class="timeline-container">';
-    uniqueMilestones.forEach(milestone => {
-        html += `
-            <div class="timeline-item">
-                <div class="timeline-icon">${milestone.icon}</div>
-                <div class="timeline-content">
-                    <h4>${milestone.title}</h4>
-                    <p>${milestone.description}</p>
-                </div>
-            </div>
-        `;
-    });
-    html += '</div>';
-
-    container.innerHTML = html;
-}
     
     function setupScenarioSimulator(results) {
         const { inputs, retirementGoal } = results;
@@ -425,7 +446,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const resetButton = document.getElementById('reset-scenario-btn');
 
         aporteSlider.min = 0;
-        // Ajustar o max do aporte para ser mais dinâmico
         aporteSlider.max = Math.max(inputs.aporteMensal * 3, 5000, unformatNumber(document.getElementById('salario').value)); 
         aporteSlider.step = 100;
         aporteSlider.value = inputs.aporteMensal;
@@ -458,19 +478,51 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sim-aporte-value').textContent = formatCurrency(simAporte);
         document.getElementById('sim-idade-reforma-value').textContent = `${simIdade} anos`;
 
-        let simulatedInputs = JSON.parse(JSON.stringify(originalResults.inputs));
+        let simulatedInputs = { ...originalResults.inputs, aporteMensal: simAporte, perfilRisco: simPerfil };
         let simulatedGoals = JSON.parse(JSON.stringify(originalResults.userGoals));
-
-        simulatedInputs.aporteMensal = simAporte;
-        simulatedInputs.perfilRisco = simPerfil;
-        simulatedGoals.find(g => g.type === 'aposentadoria').age = simIdade;
+        let simulatedRetirementGoal = simulatedGoals.find(g => g.type === 'aposentadoria');
+        simulatedRetirementGoal.age = simIdade;
         
         const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
         const taxaJurosSimulada = premissas.taxasJurosReais[simPerfil];
 
+        const anosParaAposentar = simulatedRetirementGoal.age - simulatedInputs.idadeAtual;
+        const anosDeAposentadoria = simulatedRetirementGoal.lifeExpectancy - simulatedRetirementGoal.age;
+        const rendaComplementarNecessaria = Math.max(0, simulatedRetirementGoal.value - simulatedRetirementGoal.postRetirementIncome);
+        
+        const metaMinima = calculatePresentValue(rendaComplementarNecessaria * 12, taxaJurosSimulada, anosDeAposentadoria);
+        const metaIdeal = (rendaComplementarNecessaria * 12) / taxaJurosSimulada;
+        
+        const aporteMinimo = calculateRequiredPMT(simulatedInputs.patrimonioInicial, metaMinima, taxaJurosSimulada, anosParaAposentar, simulatedInputs.aporteGrowth);
+        const aporteIdeal = calculateRequiredPMT(simulatedInputs.patrimonioInicial, metaIdeal, taxaJurosSimulada, anosParaAposentar, simulatedInputs.aporteGrowth);
+
         const simulatedProjection = generateFullProjection(simulatedInputs, simulatedGoals, taxaJurosSimulada);
+        const patrimonioNaAposentadoria = anosParaAposentar > 0 ? simulatedProjection.accumulation.slice(-1)[0].saldoFinal : simulatedInputs.patrimonioInicial;
+        
+        const gapDeAporteMinimo = aporteMinimo - simAporte;
+        const gapDeAporteIdeal = aporteIdeal - simAporte;
+        const atingeMinima = patrimonioNaAposentadoria >= metaMinima;
         
         renderChart(originalResults.fullProjection, null, null, originalResults.inputs.idadeAtual, simulatedProjection);
+
+        document.getElementById('dashboard-renda-invest').textContent = formatCurrency(rendaComplementarNecessaria);
+        document.getElementById('dashboard-meta-minima').textContent = formatCurrency(metaMinima);
+        document.getElementById('dashboard-aporte-minimo').textContent = isFinite(aporteMinimo) ? formatCurrency(aporteMinimo) : 'Inatingível';
+        document.getElementById('dashboard-meta-ideal').textContent = formatCurrency(metaIdeal);
+        document.getElementById('dashboard-aporte-ideal').textContent = isFinite(aporteIdeal) ? formatCurrency(aporteIdeal) : 'Inatingível';
+        document.getElementById('dashboard-projecao').textContent = formatCurrency(patrimonioNaAposentadoria);
+        
+        const atingeMinimaEl = document.getElementById('dashboard-atinge-minima');
+        atingeMinimaEl.textContent = atingeMinima ? 'Sim' : 'Não';
+        atingeMinimaEl.className = `value ${atingeMinima ? 'positive' : 'negative'}`;
+
+        const gapMinimoEl = document.getElementById('dashboard-gap-minimo');
+        gapMinimoEl.innerHTML = `<b>${isFinite(gapDeAporteMinimo) ? formatCurrency(gapDeAporteMinimo) : '-'}</b>`;
+        gapMinimoEl.className = `value ${gapDeAporteMinimo <= 0 ? 'positive' : 'negative'}`;
+        
+        const gapIdealEl = document.getElementById('dashboard-gap-ideal');
+        gapIdealEl.innerHTML = `<b>${isFinite(gapDeAporteIdeal) ? formatCurrency(gapDeAporteIdeal) : '-'}</b>`;
+        gapIdealEl.className = `value ${gapDeAporteIdeal <= 0 ? 'positive' : 'negative'}`;
     }
     
     function calculateOptimalRetirementAge(inputs, userGoals, taxaJurosAtual, metaMinima) {
@@ -502,38 +554,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function sharePlan() {
-        try {
-            const planData = {
-                profile: { name: document.getElementById('user-name').value, email: document.getElementById('user-email').value, age: document.getElementById('idade-atual').value, },
-                risk: { skip: document.getElementById('skip-emergency-fund').checked, expenses: document.getElementById('despesas-essenciais').value, months: document.getElementById('reserva-meses').value, },
-                financials: { income: document.getElementById('salario').value, expenses: document.getElementById('despesas-gerais').value, includeGrowth: document.getElementById('include-aporte-growth').checked, growth: document.getElementById('aporte-growth').value, },
-                patrimony: { initial: document.getElementById('patrimonio').value, profile: document.getElementById('risk-profile').value, },
-                goals: []
-            };
-            document.querySelectorAll('.goal-item').forEach(item => {
-                planData.goals.push({
-                    type: item.querySelector('.goal-type').value,
-                    description: item.querySelector('.goal-description').value,
-                    value: item.querySelector('[id="goal-value"]').value,
-                    age: item.querySelector('[id="goal-age"]').value,
-                    lifeExpectancy: item.querySelector('[id="goal-life-expectancy"]')?.value || '',
-                    postRetirementIncome: item.querySelector('[id="goal-post-retirement-income"]')?.value || '',
-                    includePostRetirement: item.querySelector('.toggle-post-retirement-income')?.checked || false,
-                });
+    try {
+        const planData = {
+profile: { name: document.getElementById('user-name').value, phone: document.getElementById('user-phone').value, age: document.getElementById('idade-atual').value, },
+            risk: { skip: document.getElementById('skip-emergency-fund').checked, expenses: document.getElementById('despesas-essenciais').value, months: document.getElementById('reserva-meses').value, },
+            financials: { income: document.getElementById('salario').value, expenses: document.getElementById('despesas-gerais').value, includeGrowth: document.getElementById('include-aporte-growth').checked, growth: document.getElementById('aporte-growth').value, },
+            patrimony: { initial: document.getElementById('patrimonio').value, profile: document.getElementById('risk-profile').value, },
+            goals: []
+        };
+        document.querySelectorAll('.goal-item').forEach(item => {
+            planData.goals.push({
+                type: item.querySelector('.goal-type').value,
+                description: item.querySelector('.goal-description').value,
+                value: item.querySelector('[id="goal-value"]').value,
+                age: item.querySelector('[id="goal-age"]').value,
+                lifeExpectancy: item.querySelector('[id="goal-life-expectancy"]')?.value || '',
+                postRetirementIncome: item.querySelector('[id="goal-post-retirement-income"]')?.value || '',
+                includePostRetirement: item.querySelector('.toggle-post-retirement-income')?.checked || false,
             });
-            const jsonString = JSON.stringify(planData);
-            const compressed = pako.deflate(jsonString, { to: 'string' });
-            const encodedData = btoa(compressed);
-            const url = `${window.location.protocol}//${window.location.host}${window.location.pathname}?data=${encodeURIComponent(encodedData)}`;
-            navigator.clipboard.writeText(url).then(() => {
-                const shareButton = document.getElementById('share-plan-btn');
-                const originalText = shareButton.textContent;
-                shareButton.textContent = 'Link Copiado!';
-                setTimeout(() => { shareButton.textContent = originalText; }, 2000);
-            });
-        } catch (error) { console.error("Erro ao compartilhar plano:", error); alert("Não foi possível gerar o link do plano."); }
-    }
+        });
 
+        const jsonString = JSON.stringify(planData);
+        const compressed = pako.deflate(jsonString, { to: 'string' });
+        const encodedData = btoa(compressed);
+        const url = `${window.location.protocol}//${window.location.host}${window.location.pathname}?data=${encodeURIComponent(encodedData)}`;
+
+        // MELHORIA: Lógica de cópia mais robusta com fallback
+        const copyToClipboard = (text) => {
+            if (navigator.clipboard && window.isSecureContext) {
+                // Método moderno e seguro (funciona em https:// ou localhost)
+                return navigator.clipboard.writeText(text);
+            } else {
+                // Método de fallback para ambientes não seguros (como file://)
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'absolute';
+                textArea.style.left = '-9999px';
+                document.body.appendChild(textArea);
+                textArea.select();
+                return new Promise((res, rej) => {
+                    document.execCommand('copy') ? res() : rej();
+                    textArea.remove();
+                });
+            }
+        };
+
+        copyToClipboard(url).then(() => {
+            const shareButton = document.getElementById('share-plan-btn');
+            const originalText = shareButton.textContent;
+            shareButton.textContent = 'Link Copiado!';
+            setTimeout(() => { shareButton.textContent = originalText; }, 2000);
+        }).catch(() => {
+            alert('Não foi possível copiar o link. Tente manualmente.');
+        });
+
+    } catch (error) {
+        console.error("Erro ao compartilhar plano:", error);
+        alert("Não foi possível gerar o link do plano.");
+    }
+}
     function loadPlanFromURL() {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -543,7 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const jsonString = pako.inflate(compressed, { to: 'string' });
             const planData = JSON.parse(jsonString);
             document.getElementById('user-name').value = planData.profile.name;
-            document.getElementById('user-email').value = planData.profile.email;
+            document.getElementById('user-phone').value = planData.profile.phone;
             document.getElementById('idade-atual').value = planData.profile.age;
             document.getElementById('skip-emergency-fund').checked = planData.risk.skip;
             document.getElementById('despesas-essenciais').value = planData.risk.expenses;
@@ -583,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatNumberInput(e) { let value = e.target.value.replace(/\D/g, ''); if (value) { e.target.value = new Intl.NumberFormat('pt-BR').format(value); } else { e.target.value = ''; } }
     function unformatNumber(value) { return parseFloat(String(value).replace(/\./g, '').replace(',', '.')) || 0; }
     document.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
-    function generateFullProjection(inputs, goals, taxaAnual) { const retirementGoal = goals.find(g => g.type === 'aposentadoria'); if (!retirementGoal) return { accumulation: [], decumulation: [] }; const anosParaAposentar = retirementGoal.age - inputs.idadeAtual; const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age; let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }]; let saldo = inputs.patrimonioInicial; let pmtAnual = inputs.aporteMensal * 12; let totalAportado = inputs.patrimonioInicial; for (let ano = 1; ano <= anosParaAposentar; ano++) { const jurosDoAno = saldo * taxaAnual; let resgatesDoAno = 0; const currentAge = inputs.idadeAtual + ano; goals.forEach(goal => { if (goal.age === currentAge && goal.type !== 'aposentadoria') { resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); } }); saldo += jurosDoAno + pmtAnual + resgatesDoAno; totalAportado += pmtAnual; saldo = saldo < 0 ? 0 : saldo; accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno }); pmtAnual *= (1 + (inputs.aporteGrowth || 0)); } let decumulation = []; const rendaComplementarNecessaria = Math.max(0, (retirementGoal.value || 0) - (retirementGoal.postRetirementIncome || 0)); const saqueAnual = rendaComplementarNecessaria * 12; for (let ano = 1; ano <= anosDeAposentadoria; ano++) { const juros = saldo * taxaAnual; saldo += juros - saqueAnual; if (saldo < 0) saldo = 0; decumulation.push({ ano, idade: retirementGoal.age + ano, saldoFinal: saldo }); } return { accumulation, decumulation }; }
+    function generateFullProjection(inputs, goals, taxaAnual) { const retirementGoal = goals.find(g => g.type === 'aposentadoria'); if (!retirementGoal) return { accumulation: [], decumulation: [] }; const anosParaAposentar = retirementGoal.age - inputs.idadeAtual; const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age; let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }]; let saldo = inputs.patrimonioInicial; let pmtAnual = inputs.aporteMensal * 12; let totalAportado = inputs.patrimonioInicial; for (let ano = 1; ano <= anosParaAposentar; ano++) { const jurosDoAno = saldo * taxaAnual; let resgatesDoAno = 0; const currentAge = inputs.idadeAtual + ano; goals.forEach(goal => { if (goal.age === currentAge && goal.type !== 'aposentadoria') { resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); } }); saldo += jurosDoAno + pmtAnual + resgatesDoAno; totalAportado += pmtAnual; saldo = saldo < 0 ? 0 : saldo; accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno, jurosAcumulados: (accumulation[ano-1].jurosAcumulados || 0) + jurosDoAno }); pmtAnual *= (1 + (inputs.aporteGrowth || 0)); } let decumulation = []; const rendaComplementarNecessaria = Math.max(0, (retirementGoal.value || 0) - (retirementGoal.postRetirementIncome || 0)); const saqueAnual = rendaComplementarNecessaria * 12; for (let ano = 1; ano <= anosDeAposentadoria; ano++) { const juros = saldo * taxaAnual; saldo += juros - saqueAnual; if (saldo < 0) saldo = 0; decumulation.push({ ano, idade: retirementGoal.age + ano, saldoFinal: saldo }); } return { accumulation, decumulation }; }
     function calculateImpactAnalysis(fullProjection, analysisInputs) { const { idadeAtual, userGoals, retirementGoal, taxaJurosAtual, metaIdeal, metaMinima, aporteGrowth } = analysisInputs; const analysis = []; const intermediateEvents = userGoals.filter(g => g.type !== 'aposentadoria' && g.age < retirementGoal.age).sort((a,b) => a.age - b.age); intermediateEvents.forEach(goal => { const anoDoObjetivo = goal.age - idadeAtual; const projectionPoint = fullProjection.accumulation[anoDoObjetivo]; if (!projectionPoint) return; const patrimonioNoFinalDoAno = projectionPoint.saldoFinal; const patrimonioNoInicioDoAno = fullProjection.accumulation[anoDoObjetivo - 1]?.saldoFinal || analysisInputs.patrimonioInicial; const anosRestantesParaAposentar = retirementGoal.age - goal.age; const novoAporteIdeal = calculateRequiredPMT(patrimonioNoFinalDoAno, metaIdeal, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth); const novoAporteMinimo = calculateRequiredPMT(patrimonioNoFinalDoAno, metaMinima, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth); analysis.push({ type: goal.type, description: goal.description, age: goal.age, patrimonioAntes: patrimonioNoInicioDoAno, value: goal.value, patrimonioDepois: patrimonioNoFinalDoAno, novoAporteIdeal, novoAporteMinimo }); }); return analysis; }
     function calculatePresentValue(pmtAnual, i, n) { if (n <= 0) return 0; if (i === 0) return pmtAnual * n; return pmtAnual * ((1 - Math.pow(1 + i, -n)) / i); }
     function calculateRequiredPMT(vp, vf, i, n, pmtGrowth) { if (n <= 0) return vf > vp ? Infinity : 0; let pmtAnual = 0; if (Math.abs(i - (pmtGrowth||0)) > 1e-9) { const term1 = vf - vp * Math.pow(1 + i, n); const term2 = (Math.pow(1 + i, n) - Math.pow(1 + (pmtGrowth||0), n)) / (i - (pmtGrowth||0)); if (term2 === 0) return Infinity; pmtAnual = term1 / term2; } else { if (n === 0) return Infinity; pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n - 1)); } return pmtAnual > 0 ? pmtAnual / 12 : 0; }
@@ -591,7 +670,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportContainer = document.getElementById('report-page');
     if (!reportContainer) return;
 
-    // Coloca um estado de "carregando" no botão para o usuário saber que algo está acontecendo
     const reportButton = document.getElementById('generate-report-btn');
     const originalButtonText = reportButton.textContent;
     reportButton.textContent = 'Gerando...';
@@ -600,14 +678,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const userName = document.getElementById('user-name').value || "Cliente";
     const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    // Usa o html2canvas para gerar a imagem do gráfico
     html2canvas(document.getElementById('projectionChart')).then(canvas => {
         const chartImage = canvas.toDataURL('image/png');
         const metricsHTML = document.getElementById('metrics-container').innerHTML;
         const impactHTML = document.getElementById('impact-analysis-container')?.innerHTML || '';
         const tableHTML = document.querySelector('.projection-table').outerHTML;
 
-        // Conteúdo e estilo aprimorados para o relatório
         reportContainer.innerHTML = `
             <style>
                 @media print {
@@ -621,7 +697,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .report-section { margin-bottom: 30px; page-break-inside: avoid; }
                 .report-section h2 { font-size: 20px; color: #1B4043; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 15px; }
                 img.chart-image { max-width: 100%; border: 1px solid #eee; border-radius: 8px; margin-top: 10px; }
-                /* Ajustes nos estilos importados para o relatório */
                 .metrics-panel, .impact-analysis { background-color: #f8f9fa; padding: 20px; border-radius: 8px; }
                 .metric-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e0e0e0; }
                 .metric-item:last-child { border-bottom: none; }
@@ -653,20 +728,14 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // **A CORREÇÃO:**
-        // 1. Adiciona a classe que deixa o relatório 'visível' para o navegador, mas fora da tela.
         reportContainer.classList.add('report-ready-for-print');
-
-        // 2. Espera um instante para o navegador renderizar o conteúdo antes de imprimir.
         setTimeout(() => {
-            window.print(); // Abre a janela de impressão
-
-            // 3. Limpa tudo depois que a impressão é chamada.
+            window.print(); 
             reportContainer.classList.remove('report-ready-for-print');
             reportContainer.innerHTML = '';
             reportButton.textContent = originalButtonText;
             reportButton.disabled = false;
-        }, 250); // Um pequeno delay de 250ms é geralmente suficiente.
+        }, 250);
 
     }).catch(error => {
         console.error('Erro ao gerar relatório:', error);
@@ -679,43 +748,22 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAporte();
     updateEmergencyFund();
 
-    /**
- * Função para enviar os dados do formulário para a planilha do Google Sheets via SheetDB.
- */
-/**
- * Função para enviar os dados do formulário para a planilha do Google Sheets via SheetDB.
- */
 function enviarDadosParaPlanilha() {
-    // 1. Coleta os dados dos campos do formulário (agora com telefone)
     const data = new Date().toLocaleString('pt-BR');
     const nome = document.getElementById('user-name').value;
-    const telefone = document.getElementById('user-phone').value; // MUDANÇA AQUI
+    const telefone = document.getElementById('user-phone').value;
     const idade = unformatNumber(document.getElementById('idade-atual').value);
     const patrimonio = unformatNumber(document.getElementById('patrimonio').value);
     const rendaMensal = unformatNumber(document.getElementById('salario').value);
     const aporteMensal = unformatNumber(document.getElementById('salario').value) - unformatNumber(document.getElementById('despesas-gerais').value);
     const perfilRisco = document.getElementById('risk-profile').value;
 
-    // 2. Monta o objeto de dados com os mesmos nomes das colunas da sua planilha
-    const dadosParaEnviar = {
-        data: data,
-        nome: nome,
-        telefone: telefone, // MUDANÇA AQUI
-        idade: idade,
-        patrimonio: patrimonio,
-        rendaMensal: rendaMensal,
-        aporteMensal: aporteMensal,
-        perfilRisco: perfilRisco
-    };
+    const dadosParaEnviar = { data, nome, telefone, idade, patrimonio, rendaMensal, aporteMensal, perfilRisco };
 
-    // 3. Envia os dados para a API do SheetDB
     const urlApi = 'https://sheetdb.io/api/v1/kqxmth5zljkyi';
-
     fetch(urlApi, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify({ data: dadosParaEnviar }),
     })
     .then(response => response.json())
