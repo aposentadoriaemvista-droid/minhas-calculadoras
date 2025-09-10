@@ -26,23 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    const essentialExpensesInput = document.getElementById('despesas-essenciais');
-    const monthsInput = document.getElementById('reserva-meses');
-    document.getElementById('skip-emergency-fund').addEventListener('change', (e) => {
-        const disabled = e.target.checked;
-        document.getElementById('emergency-fund-inputs').style.display = disabled ? 'none' : 'block';
-        if (disabled) {
-            essentialExpensesInput.value = '';
-            monthsInput.value = '';
-        }
-        updateEmergencyFund();
-    });
-    [essentialExpensesInput, monthsInput].forEach(input => input.addEventListener('input', updateEmergencyFund));
-    function updateEmergencyFund() {
-        const ideal = unformatNumber(essentialExpensesInput.value) * unformatNumber(monthsInput.value);
-        document.getElementById('reserva-ideal-result').textContent = ideal > 0 ? `Sua reserva ideal é de: ${formatCurrency(ideal)}` : '';
-    }
-
+    
     document.getElementById('include-aporte-growth').addEventListener('change', (e) => {
         document.getElementById('aporte-growth-group').classList.toggle('hidden', !e.target.checked);
     });
@@ -133,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
             aporteMensal: updateAporte(), 
             perfilRisco: document.getElementById('risk-profile').value, 
             aporteGrowth: document.getElementById('include-aporte-growth').checked ? (unformatNumber(document.getElementById('aporte-growth').value) / 100) : 0,
-            despesasEssenciais: unformatNumber(document.getElementById('despesas-essenciais').value) || 0
         };
 
         let userGoals = [];
@@ -387,14 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (snowballPoint) {
             achievedMilestones.push({ idade: snowballPoint.idade, title: `Aos ${snowballPoint.idade} anos`, description: `A mágica acontece! Seus juros anuais superarão seus aportes.`, icon: '🚀' });
         }
-
-        if (inputs.despesasEssenciais > 0) {
-            const financialFreedomPoint = accumulation.find(p => p.jurosGanhos >= (inputs.despesasEssenciais * 12));
-            if (financialFreedomPoint) {
-                achievedMilestones.push({ idade: financialFreedomPoint.idade, title: `Aos ${financialFreedomPoint.idade} anos`, description: `Liberdade! Seus juros anuais sozinhos já cobrem seus gastos essenciais.`, icon: '🎉' });
-            }
-        }
-
         const idealGoalPoint = accumulation.find(p => p.saldoFinal >= metaIdeal);
         if (idealGoalPoint) {
              achievedMilestones.push({ idade: idealGoalPoint.idade, title: `Aos ${idealGoalPoint.idade} anos`, description: `Conquista máxima! Você atingirá o patrimônio da sua meta ideal.`, icon: '👑' });
@@ -731,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
     updateAporte();
-    updateEmergencyFund();
+    
 
 function enviarDadosParaPlanilha() {
     const data = new Date().toLocaleString('pt-BR');
