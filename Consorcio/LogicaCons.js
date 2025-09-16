@@ -251,6 +251,9 @@ const calcularConsorcio = (valorCarta, taxaAdm, numeroMeses, ipcaMensal, valorLa
                     </div>
                 </div>
                 <h4 class="resultado-mensagem">${mensagem}</h4>
+                <p class="aviso-consorcio">
+                    <b>Aviso:</b> O cálculo do Consórcio assume a contemplação por lance na primeira assembleia.
+                </p>
             </div>
         `;
         resumoContainer.innerHTML = resumoHTML;

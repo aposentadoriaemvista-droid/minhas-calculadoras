@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
             datasets.push({
                 label: 'Sua Simulação',
                 data: [...dataSimulada.accumulation.map(d => d.saldoFinal), ...dataSimulada.decumulation.map(d => d.saldoFinal)],
-                borderColor: dangerColor, // MELHORIA 1: Usar as variáveis de cor do JS
+                borderColor: warningColor, // Alterado de dangerColor para warningColor
                 borderWidth: 3,
                 borderDash: [5, 5],
                 pointRadius: 0,
