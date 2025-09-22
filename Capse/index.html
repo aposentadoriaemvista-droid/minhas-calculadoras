@@ -11,11 +11,12 @@
     
     <link rel="stylesheet" href="style.css">
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
 </head>
 <body>
 
@@ -35,26 +36,33 @@
             <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
 
-        <section id="risk" class="card hidden">
-            <img src="capse.png" alt="Logo da Capse" class="client-logo">
-            <h2>Etapa 1: Gestão de Risco</h2>
-            <p>Calcule sua reserva de emergência ideal para cobrir imprevistos.</p>
-            <div class="form-group">
-                <label class="toggle-switch"><input type="checkbox" id="skip-emergency-fund"><span class="slider"></span><span class="label-text">Não desejo planejar uma reserva de emergência agora</span></label>
-            </div>
-            <div id="emergency-fund-inputs">
-                <div class="financial-columns">
-                    <div class="form-group"><label for="despesas-essenciais">Média de Gastos Mensais Essenciais</label><input type="text" class="formatted-number" id="despesas-essenciais" placeholder="R$ 3.000"></div>
-                    <div class="form-group"><label for="reserva-meses">Meses de Cobertura Desejados</label><input type="text" class="formatted-number" id="reserva-meses" placeholder="6"></div>
-                </div>
-                <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success-color);"></h3>
-            </div>
-            <div class="button-group">
-                <button class="main-button secondary-button" data-nav="profile">Voltar</button>
-                <button class="main-button" data-nav="financials">Próxima Etapa</button>
-            </div>
-            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
-        </section>
+    <section id="risk" class="card hidden">
+    <img src="capse.png" alt="Logo da Capse" class="client-logo">
+    <h2>Etapa 1: Gestão de Risco</h2>
+    <p>Calcule sua reserva de emergência ideal. Ela deve cobrir seus custos de vida por um período, trazendo segurança para imprevistos.</p>
+    <div class="form-group">
+        <label class="toggle-switch"><input type="checkbox" id="skip-emergency-fund"><span class="slider"></span><span class="label-text">Não desejo planejar uma reserva de emergência agora</span></label>
+    </div>
+    <div id="emergency-fund-inputs">
+        <div class="financial-columns">
+            <div class="form-group"><label for="despesas-essenciais">Gastos Mensais Essenciais</label><input type="text" class="formatted-number" id="despesas-essenciais" placeholder="R$ 3.000"></div>
+            <div class="form-group"><label for="despesas-nao-essenciais">Outras Despesas Mensais (não essenciais)</label><input type="text" class="formatted-number" id="despesas-nao-essenciais" placeholder="R$ 1.000"></div>
+            <div class="form-group"><label for="dividas-mensais">Parcelas de Dívidas / Financiamentos</label><input type="text" class="formatted-number" id="dividas-mensais" placeholder="R$ 500"></div>
+            <div class="form-group"><label for="reserva-meses">Meses de Cobertura Desejados</label><input type="text" class="formatted-number" id="reserva-meses" placeholder="6"></div>
+        </div>
+        <h3 id="emergency-fund-total-expenses" style="text-align:center; color: var(--text-muted-color); font-size: 16px; font-weight: normal;"></h3>
+        <h3 id="reserva-ideal-result" style="text-align:center; color: var(--success-color);"></h3>
+    </div>
+
+    <div id="emergency-fund-alert" class="hidden" style="background-color: var(--input-bg); border-left: 4px solid var(--warning-color); padding: 15px; margin-top: 20px; border-radius: 4px;">
+        </div>
+
+    <div class="button-group">
+        <button class="main-button secondary-button" data-nav="profile">Voltar</button>
+        <button class="main-button" data-nav="financials">Próxima Etapa</button>
+    </div>
+    <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
+</section>
 
         <section id="financials" class="card hidden">
             <img src="capse.png" alt="Logo da Capse" class="client-logo">
@@ -78,18 +86,18 @@
             <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
         </section>
 
-        <section id="goals" class="card hidden">
-            <img src="capse.png" alt="Logo da Capse" class="client-logo">
-            <h2>Etapa 3: Objetivos e Eventos Pontuais</h2>
-            <p>Adicione sua meta de aposentadoria e outros objetivos ou eventos financeiros importantes.</p>
-            <div id="goals-list"></div>
-            <button id="add-goal-btn" class="secondary-button" style="width:100%;">+ Adicionar Objetivo de Meio de Caminho ou Evento Pontual</button>
-            <div class="button-group">
-                <button class="main-button secondary-button" data-nav="financials">Voltar</button>
-                <button class="main-button" data-nav="patrimony">Próxima Etapa</button>
-            </div>
-            <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
-        </section>
+       <section id="goals" class="card hidden">
+    <img src="capse.png" alt="Logo da Capse" class="client-logo">
+    <h2>Etapa 3: Seus Projetos de Vida</h2>
+    <p>Adicione sua meta de aposentadoria e outros projetos ou eventos financeiros que ocorrerão ao longo da sua jornada.</p>
+    <div id="goals-list"></div>
+    <button id="add-goal-btn" class="secondary-button" style="width:100%;">+ Adicionar Projeto (Viagem, Carro, etc.)</button>
+    <div class="button-group">
+        <button class="main-button secondary-button" data-nav="financials">Voltar</button>
+        <button class="main-button" data-nav="patrimony">Próxima Etapa</button>
+    </div>
+    <button class="consultor-button" onclick="window.open('https://api.whatsapp.com/send?phone=SEU_NUMERO_WHATSAPP&text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20consultor%20sobre%20meu%20planejamento%20financeiro.', '_blank')">Fale com um Consultor <i class="fab fa-whatsapp"></i></button>
+</section>
 
         <section id="patrimony" class="card hidden">
             <img src="capse.png" alt="Logo da Capse" class="client-logo">
@@ -200,9 +208,17 @@
             <button class="consultor-button" onclick="window.open('...')"><i class="fab fa-whatsapp"></i></button>
         </section>
     </div>
-    
     <div id="report-page" class="report-page"></div>
 
+    <div id="impact-modal-overlay" class="modal-overlay hidden">
+        <div id="impact-modal-content" class="modal-content">
+            <button id="impact-modal-close" class="modal-close-btn">&times;</button>
+            <div id="impact-modal-body">
+                </div>
+        </div>
+    </div>
+    <div id="hover-card" class="hover-card hidden"></div>
+    <script src="script.js"></script>
     <script src="script.js"></script>
 
 </body>

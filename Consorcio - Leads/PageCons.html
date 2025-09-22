@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparativo de Finanças</title>
+    <link rel="stylesheet" href="StyleCons.css">
+    <script src="LogicaCons.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Comparativo: Consórcio vs. Financiamento</h1>
+
+       <form id="form-simulacao">
+    <div class="form-section">
+        <fieldset>
+            <legend>Dados do Financiamento</legend>
+            <div class="form-group">
+                <label for="valor-imovel">Valor do Imóvel:</label>
+                <input type="text" id="valor-imovel" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="valor-entrada">Valor de Entrada:</label>
+                <input type="text" id="valor-entrada" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="taxa-juros">Taxa de Juros Anual (%):</label>
+                <input type="text" id="taxa-juros" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="taxa-referencial">TR Anual (%):</label>
+                <input type="text" id="taxa-referencial" step="0.01" required>
+            </div>
+        </fieldset>
+    </div>
+
+    <div class="form-section">
+        <fieldset>
+            <legend>Dados do Consórcio</legend>
+            <div class="form-group">
+                <label for="valor-carta">Valor da Carta:</label>
+                <input type="text" id="valor-carta" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="taxa-adm">Taxa de Administração (%):</label>
+                <input type="text" id="taxa-adm" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="valor-lance">Valor do Lance (Opcional):</label>
+                <input type="text" id="valor-lance" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="ipca">IPCA Anual (%):</label>
+                <input type="text" id="ipca" step="0.01" required>
+            </div>
+        </fieldset>
+    </div>
+
+    <div class="form-section">
+        <fieldset>
+            <legend>Dados Gerais</legend>
+            <div class="form-group">
+                <label for="numero-meses">Número de Meses:</label>
+                <input type="text" id="numero-meses" required>
+            </div>
+        </fieldset>
+    </div>
+
+    <button type="submit" class="btn-calcular">Calcular Comparativo</button>
+</form>
+       <div id="resultados" class="resultados-section">
+    <div id="resumo-container">
+        </div>
+    <div id="grafico-container">
+        <canvas id="grafico-comparativo"></canvas>
+    </div>
+    <div id="tabela-container">
+        </div>
+</div>
+            </div>
+    </div>
+</body>
+<img src="logo.png" alt="Logo da Empresa" class="logo-watermark">
+</html>
