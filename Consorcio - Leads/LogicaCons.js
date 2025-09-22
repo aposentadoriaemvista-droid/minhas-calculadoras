@@ -41,9 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="email" id="email-coleta" required>
                 </div>
                 <div class="form-group" style="margin-top: 15px;">
-                    <label for="telefone-coleta">Telefone:</label>
-                    <input type="tel" id="telefone-coleta" required>
-                </div>
+    <label for="telefone-coleta">Telefone:</label>
+    <input type="tel" id="telefone-coleta" maxlength="11" pattern="[0-9]{11}" required>
+</div>
                 <button type="submit" class="btn-calcular" style="margin-top: 25px;">Continuar e Enviar</button>
             </form>
             <button id="fechar-popup" style="background: none; border: none; font-size: 1.5rem; position: absolute; top: 10px; right: 15px; cursor: pointer;">&times;</button>
@@ -113,59 +113,53 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     // Lógica para exibir pop-up de bloqueio
-    const exibirPopupBloqueio = () => {
-        // Verifica se o pop-up já existe
-        let popup = document.getElementById('popup-bloqueio');
-        if (popup) {
-            popup.style.display = 'block';
-            document.getElementById('popup-overlay-bloqueio').style.display = 'block';
-            return;
-        }
+const exibirPopupBloqueio = () => {
+    let popup = document.getElementById('popup-bloqueio');
+    if (popup) {
+        popup.style.display = 'block';
+        document.getElementById('popup-overlay-bloqueio').style.display = 'block';
+        return;
+    }
 
-        // Se não existir, cria o pop-up
-        popup = document.createElement('div');
-        popup.id = 'popup-bloqueio';
-        popup.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: var(--cor-fundo-card);
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-            text-align: center;
-            width: 90%;
-            max-width: 400px;
-        `;
-        popup.innerHTML = `
-            <h3>Limite de Uso Atingido</h3>
-            <p>Para ter acesso ilimitado à nossa calculadora e a outras ferramentas, entre em contato para mais informações.</p>
-            <button id="fechar-popup" style="background: none; border: none; font-size: 1.5rem; position: absolute; top: 10px; right: 15px; cursor: pointer;">&times;</button>
-        `;
-        document.body.appendChild(popup);
+    popup = document.createElement('div');
+    popup.id = 'popup-bloqueio';
+    popup.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: var(--cor-fundo-card);
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        text-align: center;
+        width: 90%;
+        max-width: 400px;
+    `;
+    popup.innerHTML = `
+        <h3>Limite de Uso Atingido</h3>
+        <p>Para ter acesso ilimitado à nossa calculadora e a outras ferramentas, siga-nos no Instagram para ficar por dentro das novidades.</p>
+        <a href="https://www.instagram.com/mateuspalermo/?hl=pt-br" target="_blank" style="background: none; border: none; font-size: 1.5rem; position: absolute; top: 10px; right: 15px; cursor: pointer; color: var(--cor-principal); text-decoration: none;">&times;</a>
+    `;
+    document.body.appendChild(popup);
 
-        // Adiciona um fundo escuro para o pop-up
-        const overlay = document.createElement('div');
-        overlay.id = 'popup-overlay-bloqueio';
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-        `;
-        document.body.appendChild(overlay);
+    const overlay = document.createElement('div');
+    overlay.id = 'popup-overlay-bloqueio';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    `;
+    document.body.appendChild(overlay);
 
-        // Lógica para fechar o pop-up
-        document.getElementById('fechar-popup').addEventListener('click', () => {
-            popup.style.display = 'none';
-            overlay.style.display = 'none';
-        });
-    };
+    // O pop-up não pode ser fechado sem clicar no "X" (agora um link)
+    // O evento de clique é removido para que o link funcione
+};
     
     // --- Lógica de controle de uso no botão Calcular ---
     form.addEventListener('submit', (event) => {
