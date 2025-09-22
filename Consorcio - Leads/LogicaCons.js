@@ -3,13 +3,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('form-simulacao');
     const btnCalcular = document.querySelector('.btn-calcular');
     const API_URL = 'https://sheetdb.io/api/v1/2movwuamqwsf1';
-    
+    const MAX_USOS_POS_CADASTRO = 2; // Número de usos extras após o cadastro
+
     // --- Função para criar e exibir o pop-up de coleta ---
     const exibirPopupColeta = () => {
         // Verifica se o pop-up já existe
         let popup = document.getElementById('popup-coleta');
         if (popup) {
             popup.style.display = 'block';
+            document.getElementById('popup-overlay').style.display = 'block';
             return;
         }
 
@@ -32,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         popup.innerHTML = `
             <h3>Cadastre-se para Continuar</h3>
-            <p>Sua simulação é valiosa! Preencha seus dados para ter acesso ilimitado à calculadora e receber um comparativo detalhado no seu e-mail.</p>
+            <p>Sua simulação é valiosa! Preencha seus dados para ter mais dois usos gratuitos da calculadora.</p>
             <form id="form-coleta-leads">
                 <div class="form-group">
                     <label for="email-coleta">E-mail:</label>
@@ -73,37 +75,50 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const email = document.getElementById('email-coleta').value;
             const telefone = document.getElementById('telefone-coleta').value;
-            
-            // Envia os dados para a API
-            fetch(API_URL, {
+
+            enviarDadosECalcular(email, telefone);
+        });
+    };
+
+    // --- Função para enviar dados para a API e continuar ---
+    const enviarDadosECalcular = async (email, telefone) => {
+        try {
+            const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    data: [ { email, telefone } ]
+                    data: [{ email, telefone }]
                 })
-            }).then(response => response.json())
-              .then(data => {
-                  console.log('Dados enviados com sucesso:', data);
-                  alert('Obrigado! Acesso ilimitado liberado.');
-                  // Salva no localStorage que o usuário já se cadastrou
-                  localStorage.setItem('acessoLiberado', 'true');
-                  popup.style.display = 'none';
-                  overlay.style.display = 'none';
-                  // Recalcula imediatamente após o cadastro
-                  btnCalcular.click();
-              }).catch(error => {
-                  console.error('Erro ao enviar dados:', error);
-                  alert('Ocorreu um erro. Tente novamente.');
-              });
-        });
+            });
+            const data = await response.json();
+            
+            console.log('Dados enviados com sucesso:', data);
+            alert('Obrigado! Você tem mais dois usos gratuitos.');
+            
+            // Define o contador para o número de usos extras
+            localStorage.setItem('usosExtras', '0');
+            localStorage.setItem('contadorUso', '1');
+            
+            // Fecha o pop-up de coleta
+            document.getElementById('popup-coleta').style.display = 'none';
+            document.getElementById('popup-overlay').style.display = 'none';
+            
+            // Executa o cálculo imediatamente após o cadastro
+            executarCalculo();
+            
+        } catch (error) {
+            console.error('Erro ao enviar dados:', error);
+            alert('Ocorreu um erro. Tente novamente.');
+        }
     };
     
     // Lógica para exibir pop-up de bloqueio
     const exibirPopupBloqueio = () => {
-         // Verifica se o pop-up já existe
+        // Verifica se o pop-up já existe
         let popup = document.getElementById('popup-bloqueio');
         if (popup) {
             popup.style.display = 'block';
+            document.getElementById('popup-overlay-bloqueio').style.display = 'block';
             return;
         }
 
@@ -126,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         popup.innerHTML = `
             <h3>Limite de Uso Atingido</h3>
-            <p>Para ter acesso ilimitado à nossa calculadora e todas as funcionalidades, por favor, entre em contato para mais informações.</p>
+            <p>Para ter acesso ilimitado à nossa calculadora e a outras ferramentas, entre em contato para mais informações.</p>
             <button id="fechar-popup" style="background: none; border: none; font-size: 1.5rem; position: absolute; top: 10px; right: 15px; cursor: pointer;">&times;</button>
         `;
         document.body.appendChild(popup);
@@ -152,37 +167,49 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     
-    // --- Evento de clique no botão "Calcular" ---
+    // --- Lógica de controle de uso no botão Calcular ---
     form.addEventListener('submit', (event) => {
         event.preventDefault();
+        
+        const usosExtras = localStorage.getItem('usosExtras');
 
-        // Obtém o contador de uso do localStorage
-        let contador = parseInt(localStorage.getItem('contadorUso') || '0', 10);
-        const acessoLiberado = localStorage.getItem('acessoLiberado');
-
-        // Se o acesso já foi liberado, não faz nada e executa o cálculo
-        if (acessoLiberado) {
-            executarCalculo();
+        // Se o usuário já se cadastrou, usamos o contador de usos extras
+        if (usosExtras !== null) {
+            let contadorExtra = parseInt(usosExtras, 10);
+            if (contadorExtra < MAX_USOS_POS_CADASTRO) {
+                // Se ainda há usos extras, incrementa e calcula
+                contadorExtra++;
+                localStorage.setItem('usosExtras', contadorExtra.toString());
+                executarCalculo();
+            } else {
+                // Acabaram os usos extras, mostra o bloqueio
+                exibirPopupBloqueio();
+            }
             return;
         }
 
-        // Incrementa o contador
+        // --- Lógica de bloqueio para o uso inicial, antes do cadastro ---
+        let contador = parseInt(localStorage.getItem('contadorUso') || '0', 10);
+        
+        if (contador >= 2) {
+            // Se o contador for 2 ou mais, estamos na terceira ou mais tentativas
+            exibirPopupBloqueio();
+            return; // Impede que o código de cálculo continue
+        }
+
+        // Incrementa o contador para a próxima vez
         contador++;
         localStorage.setItem('contadorUso', contador.toString());
 
-        // Lógica de controle de uso
+        // Lógica de controle de uso para quem ainda não se cadastrou
         if (contador === 1) {
             executarCalculo();
         } else if (contador === 2) {
             executarCalculo();
             exibirPopupColeta();
-        } else if (contador >= 4) {
-            exibirPopupBloqueio();
-        } else {
-            executarCalculo();
         }
     });
-    
+
     // --- Função principal que executa o cálculo da sua calculadora ---
     const executarCalculo = () => {
         // --- Código de cálculo original da calculadora ---
@@ -224,9 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Restante do seu código original (funções de cálculo e exibição) ---
-    // (Código de formatação, calcularFinanciamentoSAC, calcularConsorcio, exibirTabelaResultados, exibirResumoFinal, exibirGrafico... Sem alterações aqui, mantendo a sua lógica original.)
+    // (Código de formatação, calcularFinanciamentoSAC, calcularConsorcio, exibirTabelaResultados, exibirResumoFinal, exibirGrafico...)
     
-    // --- Código de formatação de números (sem alterações) ---
     const inputs = document.querySelectorAll('#valor-imovel, #valor-entrada, #valor-carta, #valor-lance');
 
     const formatarNumero = (valor) => {
