@@ -81,13 +81,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Função para enviar dados para a API e continuar ---
+    // --- Função para enviar dados para a API e continuar ---
     const enviarDadosECalcular = async (email, telefone) => {
+        // Captura os novos valores dos inputs
+        const valorImovel = document.getElementById('valor-imovel').value;
+        const valorEntrada = document.getElementById('valor-entrada').value;
+        const valorCarta = document.getElementById('valor-carta').value;
+        const valorLance = document.getElementById('valor-lance').value;
+
         try {
             const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    data: [{ email, telefone }]
+                    data: [{
+                        email: email,
+                        telefone: telefone,
+                        valordoimovel: valorImovel,
+                        valordeentrada: valorEntrada,
+                        valordacarta: valorCarta,
+                        valordolance: valorLance
+                    }]
                 })
             });
             const data = await response.json();

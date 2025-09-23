@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Planning Pro</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+</head>
+<body>
+
+    <div id="app-container" class="main-container">
+        <section id="profile" class="card">
+            <h1>Bem-vindo(a) ao seu Planejador Financeiro</h1>
+            <p>Vamos começar com algumas informações básicas para criar um plano personalizado.</p>
+            <div class="financial-columns">
+                <div class="form-group"><label for="user-name">Seu Nome</label><input type="text" id="user-name" placeholder="Ex: Bruno" required></div>
+                <div class="form-group"><label for="user-email">Seu Email Principal</label><input type="email" id="user-email" placeholder="Ex: bruno@email.com" required></div>
+                <div class="form-group"><label for="idade-atual">Sua Idade Atual</label><input type="text" class="formatted-number" id="idade-atual" placeholder="Ex: 22" required></div>
+            </div>
+            <div class="button-group" style="justify-content: flex-end;">
+                <button class="main-button" data-nav="financials">Começar Planejamento</button>
+            </div>
+        </section>
+
+        <section id="financials" class="card hidden">
+            <h2>Etapa 2: Renda e Despesas</h2>
+            <p>Agora, vamos entender seu fluxo de caixa e potencial de crescimento.</p>
+            <div class="financial-columns">
+                <div class="form-group"><label for="salario">Renda Mensal Líquida</label><input type="text" class="formatted-number" id="salario" placeholder="R$ 5.000"></div>
+                <div class="form-group"><label for="despesas-gerais">Despesas Gerais Mensais</label><input type="text" class="formatted-number" id="despesas-gerais" placeholder="R$ 3.000"></div>
+            </div>
+            <div class="form-group">
+                <label class="toggle-switch"><input type="checkbox" id="include-aporte-growth"><span class="slider"></span><span class="label-text">Incluir crescimento anual dos aportes</span></label>
+            </div>
+            <div class="form-group hidden" id="aporte-growth-group">
+                <label for="aporte-growth">Crescimento Anual da Renda/Aportes (%)</label><input type="text" class="formatted-number" id="aporte-growth" placeholder="Ex: 5">
+            </div>
+            <div id="resumo-mensal"></div>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="risk">Voltar</button>
+                <button class="main-button" data-nav="goals">Próxima Etapa</button>
+            </div>
+        </section>
+
+        <section id="goals" class="card hidden">
+            <h2>Etapa 3: Objetivos e Eventos Pontuais</h2>
+            <p>Adicione sua meta de aposentadoria e outros objetivos ou eventos financeiros importantes.</p>
+            <div id="goals-list"></div>
+            <button id="add-goal-btn" class="secondary-button" style="width:100%;">+ Adicionar Objetivo de Meio de Caminho ou Evento Pontual</button>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="financials">Voltar</button>
+                <button class="main-button" data-nav="patrimony">Próxima Etapa</button>
+            </div>
+        </section>
+
+        <section id="patrimony" class="card hidden">
+            <h2>Etapa 4: Seu Ponto de Partida</h2>
+            <p>Para finalizar, informe seu patrimônio atual e perfil de risco.</p>
+            <div class="financial-columns">
+                <div class="form-group"><label for="patrimonio">Patrimônio Atual (Total investido)</label><input type="text" class="formatted-number" id="patrimonio" placeholder="R$ 50.000"></div>
+                <div class="form-group">
+                    <label for="risk-profile">Perfil de Risco (Rentabilidade Real Esperada)</label>
+                    <select id="risk-profile">
+                        <option value="muitoConservador">Muito Conservador (2% a.a.)</option>
+                        <option value="conservador">Conservador (4% a.a.)</option>
+                        <option value="moderado" selected>Moderado (6% a.a.)</option>
+                        <option value="arrojado">Arrojado (8% a.a.)</option>
+                        <option value="muitoArrojado">Muito Arrojado (10% a.a.)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="main-button secondary-button" data-nav="goals">Voltar</button>
+                <button class="main-button" id="generate-dashboard-btn" data-nav="dashboard">Gerar Meu Planejamento</button>
+            </div>
+        </section>
+        
+        <section id="dashboard" class="card hidden">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h1>Seu Mapa para a Conquista</h1>
+                    <p id="dashboard-subtitle" style="text-align:left;"></p>
+                </div>
+                <div class="button-group">
+                    <button id="share-plan-btn" class="main-button secondary-button">Compartilhar Plano</button>
+                    <button id="generate-report-btn" class="main-button secondary-button">Gerar Relatório</button>
+                </div>
+            </div>
+            
+            <div class="dashboard-grid">
+                <div class="chart-area">
+                    <h3 id="chart-title">Projeção do Seu Patrimônio Investido</h3>
+                    <div id="chart-container"><canvas id="projectionChart"></canvas></div>
+                    <div class="chart-legend" id="chart-legend"></div>
+                </div>
+                <div class="metrics-panel" id="metrics-container"></div>
+            </div>
+
+            <div id="scenario-simulator-card" class="addon-card">
+                <h3>🔬 Simulador de Cenários</h3>
+                <p>Arraste os controlos abaixo para ver o impacto de diferentes decisões no seu plano. A linha tracejada no gráfico mostrará a sua simulação.</p>
+                <div class="financial-columns">
+                    <div class="form-group">
+                        <label for="sim-aporte">Aporte Mensal Simulado<span id="sim-aporte-value" class="slider-value"></span></label>
+                        <input type="range" id="sim-aporte" class="scenario-slider">
+                    </div>
+                    <div class="form-group">
+                        <label for="sim-idade-reforma">Idade de Reforma Simulada<span id="sim-idade-reforma-value" class="slider-value"></span></label>
+                        <input type="range" id="sim-idade-reforma" class="scenario-slider">
+                    </div>
+                    <div class="form-group">
+                        <label for="sim-perfil-risco">Perfil de Risco Simulado</label>
+                        <select id="sim-perfil-risco" class="scenario-select"></select>
+                    </div>
+                </div>
+                <button id="reset-scenario-btn" class="secondary-button" style="margin-top: 15px;">Restaurar Plano Original</button>
+            </div>
+
+            <div class="dashboard-addons">
+                <div class="addon-card" id="optimizer-card" class="hidden">
+                    <h3>💡 Otimizador de Plano</h3>
+                    <div id="optimizer-container"></div>
+                </div>
+                <div class="addon-card" id="growth-composition-card">
+                    <h3>Composição do Crescimento</h3>
+                    <p>Veja como os juros se tornam a maior força do seu património.</p>
+                    <div id="growth-composition-chart-container" style="min-height: 300px;">
+                        <canvas id="growthCompositionChart"></canvas>
+                    </div>
+                </div>
+                <div class="addon-card" id="income-pie-chart-card">
+                    <h3>De Onde Virá Sua Renda?</h3>
+                    <div id="income-pie-chart-container"><canvas id="incomePieChart"></canvas></div>
+                </div>
+                <div class="addon-card" id="sensitivity-analysis-card">
+                    <h3>Análise de Sensibilidade</h3>
+                    <div id="sensitivity-analysis-container"></div>
+                </div>
+            </div>
+             <div class="addon-card" id="milestones-card" style="margin-top: 40px;">
+                <h3>Marcos da Sua Jornada</h3>
+                <div id="milestones-container"></div>
+            </div>
+            <div id="impact-analysis-container"></div>  
+            <div style="margin-top: 40px;">
+                <h2>Evolução Detalhada dos Seus Investimentos</h2>
+                <table class="projection-table">
+                    <thead>
+                        <tr>
+                            <th>Idade</th>
+                            <th>Total Aportado por Você</th>
+                            <th>Juros Ganhos</th>
+                            <th>Saldo Final</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projection-table-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+    
+    <div id="report-page" class="report-page"></div>
+<div id="report-page" class="report-page"></div>
+
+    <div id="blocker-popup" class="popup-overlay hidden">
+        <div class="popup-content">
+            <span class="popup-close">&times;</span>
+            <h2>Gostou do nosso planejador?</h2>
+            <p>
+                Para criar novos planejamentos, ter acesso a uma análise detalhada e receber 
+                ajuda para colocar seu plano em prática, fale comigo!
+            </p>
+            <a href="https://www.instagram.com/mateuspalermo/" target="_blank" class="main-button">
+                Fale comigo no Instagram
+            </a>
+        </div>
+    </div>
+    <script src="script.js"></script>
+
+</body>
+</html>
