@@ -1,4 +1,4 @@
-// script.js (VERSÃO CORRIGIDA DO ERRO DE EXECUÇÃO)
+// script.js (VERSÃO COM LÓGICA DE JUROS MENSAIS CORRIGIDA)
 
 // --- Variáveis Globais e Referências de Elementos ---
 let todosOsAtivos = [];
@@ -8,8 +8,7 @@ const filtroEmissor = document.getElementById('filtro-emissor');
 const btnRecalcular = document.getElementById('recalcular-btn');
 const insightsContainer = document.getElementById('insights-container');
 const tableContainer = document.getElementById('table-container');
-const rendimentosMensaisContainer = document.getElementById('rendimentos-mensais-container'); 
-// script.js (adicione no topo)
+const rendimentosMensaisContainer = document.getElementById('rendimentos-mensais-container');
 const projecaoSelicInput = document.getElementById('projecao-selic');
 const projecaoIgpmInput = document.getElementById('projecao-igpm');
 
@@ -132,14 +131,14 @@ function criarRelatorio(ativos) {
     criarGraficoProjecao(ativos);
     criarGraficoFluxoCaixa(ativos);
     gerarInsights(ativos);
-    gerarPrevisaoRendimentos(ativos); 
+    gerarPrevisaoRendimentos(ativos);
 }
 
 // --- Funções de Renderização (Desenho na Tela) ---
 
 function gerarPrevisaoRendimentos(ativos) {
-    const ativosComJurosMensais = ativos.filter(ativo => 
-        ativo.produto.toUpperCase().includes('JUROS MENSAIS') || 
+    const ativosComJurosMensais = ativos.filter(ativo =>
+        ativo.produto.toUpperCase().includes('JUROS MENSAIS') ||
         ativo.produto.toUpperCase().includes('JURO MENSAL')
     );
 
@@ -177,7 +176,7 @@ function gerarPrevisaoRendimentos(ativos) {
 
     html += '</ul>';
     html += `<hr><p><strong>Total Mensal Líquido Estimado: ${formatCurrency(totalRendimentoMensalLiquido)}</strong></p>`;
-    
+
     rendimentosMensaisContainer.innerHTML = html;
 }
 
@@ -206,14 +205,14 @@ function gerarInsights(ativos) {
             insightsHTML += `<li><span style="color: #dc3545; font-weight: bold;">Atenção:</span> ${percentualConcentracao.toFixed(0)}% da carteira analisada está concentrada no emissor <strong>${maiorEmissor}</strong>.</li>`;
         }
     }
-    
+
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); 
-    
+    hoje.setHours(0, 0, 0, 0);
+
     const proximoAtivo = ativos
-        .map(a => ({...a, dataVencObj: new Date(a.dataVencimento.split('/').reverse().join('-'))}))
-        .filter(a => a.dataVencObj >= hoje) 
-        .sort((a,b) => a.dataVencObj - b.dataVencObj)[0];
+        .map(a => ({ ...a, dataVencObj: new Date(a.dataVencimento.split('/').reverse().join('-')) }))
+        .filter(a => a.dataVencObj >= hoje)
+        .sort((a, b) => a.dataVencObj - b.dataVencObj)[0];
 
     if (proximoAtivo) {
         insightsHTML += `<li>Seu próximo vencimento é em <strong>${proximoAtivo.dataVencimento}</strong> do ativo <strong>${proximoAtivo.produto}</strong>.</li>`;
@@ -256,13 +255,13 @@ function criarGraficoFluxoCaixa(ativos) {
     const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
     const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
     const fluxoPorAno = {};
-    
+
     ativos.forEach(ativo => {
         const anoVencimento = ativo.dataVencimento.split('/')[2];
         const valorFinal = calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA);
-        fluxoPorAno[anoVencimento] = (fluxoPorAno[anoVencimento] || 0) + valorFinal; 
+        fluxoPorAno[anoVencimento] = (fluxoPorAno[anoVencimento] || 0) + valorFinal;
     });
-    
+
     const labels = Object.keys(fluxoPorAno).sort();
     const data = labels.map(ano => fluxoPorAno[ano]);
 
@@ -276,17 +275,17 @@ function criarGraficoProjecao(ativos) {
     const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
     const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
 
-    const ativosComProjecao = ativos.map(ativo => ({ 
-        ...ativo, 
-        valorFuturo: calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) 
+    const ativosComProjecao = ativos.map(ativo => ({
+        ...ativo,
+        valorFuturo: calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA)
     }));
-    
+
     ativosComProjecao.sort((a, b) => new Date(a.dataVencimento.split('/').reverse().join('-')) - new Date(b.dataVencimento.split('/').reverse().join('-')));
-    
+
     let patrimonioAcumulado = ativos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
     const labelsLinhaDoTempo = ['Hoje'];
     const dadosLinhaDoTempo = [patrimonioAcumulado];
-    
+
     const vencimentosAgrupados = {};
     ativosComProjecao.forEach(ativo => {
         const dataVenc = ativo.dataVencimento;
@@ -297,44 +296,66 @@ function criarGraficoProjecao(ativos) {
         vencimentosAgrupados[dataVenc].valorLiquidoTotal += ativo.valorLiquido;
     });
 
-    const datasOrdenadas = Object.keys(vencimentosAgrupados).sort((a,b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
+    const datasOrdenadas = Object.keys(vencimentosAgrupados).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
 
     datasOrdenadas.forEach(data => {
         labelsLinhaDoTempo.push(data);
         const vencimento = vencimentosAgrupados[data];
         patrimonioAcumulado += (vencimento.valorFuturoTotal - vencimento.valorLiquidoTotal);
-        // <-- CORREÇÃO DO ERRO DE DIGITAÇÃO AQUI -->
         dadosLinhaDoTempo.push(patrimonioAcumulado);
     });
 
     desenharGraficoLinhaDoTempo(labelsLinhaDoTempo, dadosLinhaDoTempo);
 }
 
-// Substitua a função original por esta versão corrigida
 
-// Versão para DEBUG da função calcularValorFuturo
-
-// script.js (substitua a função inteira)
-
+// AQUI ESTÁ A FUNÇÃO CORRIGIDA
 function calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) {
-    // Leitura dos novos inputs. Fazemos aqui para sempre pegar o valor mais atual.
     const projecaoSelic = parseFloat(projecaoSelicInput.value) / 100;
     const projecaoIGPM = parseFloat(projecaoIgpmInput.value) / 100;
-
     const nomeProduto = ativo.produto.toUpperCase();
     const taxaStr = ativo.taxa.toUpperCase();
-    
-    // ... (a lógica para JUROS MENSAIS e para ativos vencidos continua a mesma) ...
+
+    // --- LÓGICA CORRIGIDA PARA JUROS MENSAIS ---
     if (nomeProduto.includes('JUROS MENSAIS') || nomeProduto.includes('JURO MENSAL')) {
-        // ... (código inalterado) ...
+        // Calcula o valor total que o ativo terá gerado no vencimento.
+        const dataAplicacao = new Date(ativo.dataAplicacao.split('/').reverse().join('-'));
+        const dataVenc = new Date(ativo.dataVencimento.split('/').reverse().join('-'));
+
+        // 1. Calcula a duração total do investimento em dias e anos
+        const diffTimeTotal = dataVenc - dataAplicacao;
+        const diffDaysTotal = Math.ceil(diffTimeTotal / (1000 * 60 * 60 * 24));
+        const diffAnosTotal = diffTimeTotal / (1000 * 60 * 60 * 24 * 365.25);
+
+        // 2. Extrai a taxa anual do ativo
+        const taxaPre = parseFloat(taxaStr.replace('%', '').replace('+', '').replace(',', '.'));
+        const taxaAnual = !isNaN(taxaPre) ? taxaPre / 100 : 0;
+
+        // 3. Calcula o total de juros brutos durante toda a vida do ativo
+        const jurosBrutosTotais = ativo.valorAplicado * taxaAnual * diffAnosTotal;
+
+        // 4. Determina a alíquota de IR com base na duração total (será a menor possível)
+        let aliquotaIR = 0.15; // Assume a menor alíquota para prazos longos
+        if (diffDaysTotal <= 180) aliquotaIR = 0.225;
+        else if (diffDaysTotal <= 360) aliquotaIR = 0.20;
+        else if (diffDaysTotal <= 720) aliquotaIR = 0.175;
+
+        // 5. Calcula o total de juros líquidos
+        const jurosLiquidosTotais = jurosBrutosTotais * (1 - aliquotaIR);
+
+        // 6. O valor futuro é o principal + todos os juros líquidos recebidos.
         return ativo.valorAplicado + jurosLiquidosTotais;
     }
+
+    // --- Lógica para os outros ativos (continua a mesma) ---
     const hoje = new Date();
     const dataVenc = new Date(ativo.dataVencimento.split('/').reverse().join('-'));
     const diffTime = dataVenc - hoje;
+
     if (diffTime <= 0) {
         return ativo.valorLiquido;
     }
+
     const diffAnos = diffTime / (1000 * 60 * 60 * 24 * 365.25);
     const valorPresente = ativo.valorLiquido;
     let taxaAnual = 0;
@@ -344,38 +365,32 @@ function calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) {
         taxaAnual = percentualCDI * projecaoCDI;
 
     } else if (taxaStr.includes('IPCA') || taxaStr.includes('IPC-A')) {
-        const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/); 
+        const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/);
         if (matchJuros) {
             const jurosReais = parseFloat(matchJuros[0].replace(',', '.')) / 100;
             taxaAnual = (1 + projecaoIPCA) * (1 + jurosReais) - 1;
         } else {
-            return valorPresente; 
+            return valorPresente;
         }
 
-    // --- NOVA LÓGICA PARA LFT / SELIC ---
     } else if (taxaStr.includes('LFT') || taxaStr.includes('SELIC')) {
         const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/);
         let jurosAdicionais = 0;
         if (matchJuros) {
             jurosAdicionais = parseFloat(matchJuros[0].replace(',', '.')) / 100;
         }
-        
-        // Verifica se é ágio (+) ou deságio (-)
         if (taxaStr.includes('-')) {
             taxaAnual = projecaoSelic - jurosAdicionais;
         } else {
-            taxaAnual = projecaoSelic + jurosAdicionais; // Assume + por padrão
+            taxaAnual = projecaoSelic + jurosAdicionais;
         }
 
-    // --- NOVA LÓGICA PARA IGP-M ---
     } else if (taxaStr.includes('IGP-M') || taxaStr.includes('IGPM')) {
         const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/);
         if (matchJuros) {
             const jurosReais = parseFloat(matchJuros[0].replace(',', '.')) / 100;
-            // A fórmula é a mesma do IPCA, mas usando a projeção do IGP-M
             taxaAnual = (1 + projecaoIGPM) * (1 + jurosReais) - 1;
         } else {
-            // Caso seja apenas "IGP-M" sem taxa adicional
             taxaAnual = projecaoIGPM;
         }
 
@@ -387,7 +402,6 @@ function calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) {
             return valorPresente;
         }
     }
-
     return valorPresente * Math.pow((1 + taxaAnual), diffAnos);
 }
 
