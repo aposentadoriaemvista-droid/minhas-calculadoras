@@ -1,0 +1,397 @@
+// script.js (VERSÃO CORRIGIDA DO ERRO DE EXECUÇÃO)
+
+// --- Variáveis Globais e Referências de Elementos ---
+let todosOsAtivos = [];
+const pdfUpload = document.getElementById('pdf-upload');
+const reportContainer = document.getElementById('report-container');
+const filtroEmissor = document.getElementById('filtro-emissor');
+const btnRecalcular = document.getElementById('recalcular-btn');
+const insightsContainer = document.getElementById('insights-container');
+const tableContainer = document.getElementById('table-container');
+const rendimentosMensaisContainer = document.getElementById('rendimentos-mensais-container'); 
+// script.js (adicione no topo)
+const projecaoSelicInput = document.getElementById('projecao-selic');
+const projecaoIgpmInput = document.getElementById('projecao-igpm');
+
+// Contextos dos Gráficos
+const vencimentosChartCtx = document.getElementById('vencimentos-chart').getContext('2d');
+const bancosChartCtx = document.getElementById('bancos-chart').getContext('2d');
+const fluxoCaixaChartCtx = document.getElementById('fluxo-caixa-chart').getContext('2d');
+const projecaoChartCtx = document.getElementById('projecao-patrimonio-chart').getContext('2d');
+
+// Instâncias dos Gráficos
+let vencimentosChart, bancosChart, fluxoCaixaChart, projecaoChart = null;
+
+
+// --- Funções Auxiliares ---
+function gerarChaveDeAgrupamento(nomeDoProduto) {
+    let chave = nomeDoProduto.toUpperCase();
+    const stopWords = ['S/A', 'S.A.', 'LTDA', 'JUROS SEMESTRAIS', 'DI', 'CDB', 'CDE', 'LCI', 'LCA', 'CRI', 'CRA'];
+    chave = chave.replace(/-/g, ' ');
+    stopWords.forEach(word => {
+        chave = chave.replace(new RegExp(`\\b${word}\\b`, 'g'), '');
+    });
+    chave = chave.replace(/\s+\d+[A-Z]\s?S?\b/g, '');
+    chave = chave.replace(/[A-Z]{3}\/\d{4}/g, '');
+    return chave.replace(/\s+/g, ' ').trim();
+}
+
+const formatCurrency = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+
+// --- Lógica Principal (Eventos) ---
+pdfUpload.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+        lerPDF(file);
+    } else {
+        alert("Por favor, selecione um arquivo PDF.");
+    }
+});
+
+filtroEmissor.addEventListener('change', aplicarFiltros);
+btnRecalcular.addEventListener('click', aplicarFiltros);
+
+
+// --- Funções de Processamento de Dados ---
+async function lerPDF(file) {
+    const reader = new FileReader();
+    reader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+        const pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const textContent = await page.getTextContent();
+            fullText += textContent.items.map(item => item.str).join(' ');
+        }
+        processarTextoDoPDF(fullText);
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processarTextoDoPDF(text) {
+    const regex = /(CDB|CDE|LCI|LCA|CRI|CRA)\s(.*?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(.*?)\s+\d+\s*\d*\s+R\$\s+([\d.,]+)\s+R\$\s+([\d.,]+)\s+R\$\s+([\d.,]+)/g;
+    const ativos = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        const tipoAtivo = match[1];
+        const fullProductName = match[2];
+        const chaveAgrupamento = gerarChaveDeAgrupamento(`${tipoAtivo} ${fullProductName}`);
+        ativos.push({
+            tipo: tipoAtivo,
+            banco: chaveAgrupamento,
+            produto: fullProductName.trim(),
+            dataAplicacao: match[3],
+            dataVencimento: match[5],
+            taxa: match[6].trim(),
+            valorAplicado: parseFloat(match[7].replace(/\./g, '').replace(',', '.')),
+            valorLiquido: parseFloat(match[9].replace(/\./g, '').replace(',', '.'))
+        });
+    }
+
+    if (ativos.length > 0) {
+        reportContainer.style.display = 'block';
+        todosOsAtivos = ativos;
+        popularFiltros(todosOsAtivos);
+        aplicarFiltros();
+    } else {
+        alert("Nenhum ativo de Renda Fixa (CDB, LCI, LCA, etc.) foi encontrado no formato esperado.");
+    }
+}
+
+function popularFiltros(ativos) {
+    filtroEmissor.innerHTML = '';
+    const allOption = document.createElement('option');
+    allOption.value = 'todos';
+    allOption.textContent = 'Todos os Emissores';
+    filtroEmissor.appendChild(allOption);
+    const emissores = [...new Set(ativos.map(ativo => ativo.banco))];
+    emissores.sort().forEach(emissor => {
+        const option = document.createElement('option');
+        option.value = emissor;
+        option.textContent = emissor;
+        filtroEmissor.appendChild(option);
+    });
+}
+
+function aplicarFiltros() {
+    const valorFiltro = filtroEmissor.value;
+    let ativosFiltrados = todosOsAtivos;
+    if (valorFiltro !== 'todos') {
+        ativosFiltrados = todosOsAtivos.filter(ativo => ativo.banco === valorFiltro);
+    }
+    criarRelatorio(ativosFiltrados);
+}
+
+function criarRelatorio(ativos) {
+    desenharGraficoVencimentos(ativos);
+    desenharGraficoBancos(ativos);
+    criarTabelaDetalhada(ativos);
+    criarGraficoProjecao(ativos);
+    criarGraficoFluxoCaixa(ativos);
+    gerarInsights(ativos);
+    gerarPrevisaoRendimentos(ativos); 
+}
+
+// --- Funções de Renderização (Desenho na Tela) ---
+
+function gerarPrevisaoRendimentos(ativos) {
+    const ativosComJurosMensais = ativos.filter(ativo => 
+        ativo.produto.toUpperCase().includes('JUROS MENSAIS') || 
+        ativo.produto.toUpperCase().includes('JURO MENSAL')
+    );
+
+    if (ativosComJurosMensais.length === 0) {
+        rendimentosMensaisContainer.innerHTML = '<p>Nenhum ativo com pagamento de juros mensais encontrado na seleção atual.</p>';
+        return;
+    }
+
+    let totalRendimentoMensalLiquido = 0;
+    let html = '<ul>';
+
+    const hoje = new Date();
+    ativosComJurosMensais.forEach(ativo => {
+        const dataAplicacao = new Date(ativo.dataAplicacao.split('/').reverse().join('-'));
+        const diffTime = hoje - dataAplicacao;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        let aliquotaIR = 0;
+        if (diffDays <= 180) aliquotaIR = 0.225;
+        else if (diffDays <= 360) aliquotaIR = 0.20;
+        else if (diffDays <= 720) aliquotaIR = 0.175;
+        else aliquotaIR = 0.15;
+
+        const taxaStr = ativo.taxa.toUpperCase();
+        let taxaAnual = 0;
+        const taxaPre = parseFloat(taxaStr.replace('%', '').replace(',', '.'));
+        if (!isNaN(taxaPre)) taxaAnual = taxaPre / 100;
+
+        const rendimentoBrutoMensal = (ativo.valorAplicado * taxaAnual) / 12;
+        const rendimentoLiquidoMensal = rendimentoBrutoMensal * (1 - aliquotaIR);
+        totalRendimentoMensalLiquido += rendimentoLiquidoMensal;
+
+        html += `<li><strong>${ativo.produto}:</strong> ${formatCurrency(rendimentoLiquidoMensal)} <span style="font-size: 0.8em; color: #606770;">(IR: ${aliquotaIR * 100}%)</span></li>`;
+    });
+
+    html += '</ul>';
+    html += `<hr><p><strong>Total Mensal Líquido Estimado: ${formatCurrency(totalRendimentoMensalLiquido)}</strong></p>`;
+    
+    rendimentosMensaisContainer.innerHTML = html;
+}
+
+function criarTabelaDetalhada(ativos) {
+    let tableHTML = '<table><thead><tr><th>Emissor</th><th>Produto</th><th>Vencimento</th><th>Taxa</th><th>Valor Aplicado</th><th>Valor Líquido (Atual)</th></tr></thead><tbody>';
+    for (const ativo of ativos) {
+        tableHTML += `<tr><td>${ativo.banco}</td><td>${ativo.produto}</td><td>${ativo.dataVencimento}</td><td>${ativo.taxa}</td><td>${formatCurrency(ativo.valorAplicado)}</td><td>${formatCurrency(ativo.valorLiquido)}</td></tr>`;
+    }
+    tableHTML += '</tbody></table>';
+    tableContainer.innerHTML = tableHTML;
+}
+
+function gerarInsights(ativos) {
+    insightsContainer.innerHTML = '';
+    if (ativos.length === 0) return;
+    let insightsHTML = '<ul>';
+    const totalValor = ativos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
+    const bancosData = {};
+    ativos.forEach(ativo => {
+        bancosData[ativo.banco] = (bancosData[ativo.banco] || 0) + ativo.valorLiquido;
+    });
+    if (Object.keys(bancosData).length > 0) {
+        const [maiorEmissor, valorMaiorEmissor] = Object.entries(bancosData).reduce((a, b) => a[1] > b[1] ? a : b);
+        const percentualConcentracao = (valorMaiorEmissor / totalValor) * 100;
+        if (percentualConcentracao > 50 && Object.keys(bancosData).length > 1) {
+            insightsHTML += `<li><span style="color: #dc3545; font-weight: bold;">Atenção:</span> ${percentualConcentracao.toFixed(0)}% da carteira analisada está concentrada no emissor <strong>${maiorEmissor}</strong>.</li>`;
+        }
+    }
+    
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); 
+    
+    const proximoAtivo = ativos
+        .map(a => ({...a, dataVencObj: new Date(a.dataVencimento.split('/').reverse().join('-'))}))
+        .filter(a => a.dataVencObj >= hoje) 
+        .sort((a,b) => a.dataVencObj - b.dataVencObj)[0];
+
+    if (proximoAtivo) {
+        insightsHTML += `<li>Seu próximo vencimento é em <strong>${proximoAtivo.dataVencimento}</strong> do ativo <strong>${proximoAtivo.produto}</strong>.</li>`;
+    }
+    insightsHTML += `<li>A análise considera um total de <strong>${ativos.length}</strong> ativos, somando <strong>${formatCurrency(totalValor)}</strong> (valor líquido atual).</li>`;
+    insightsHTML += '</ul>';
+    insightsContainer.innerHTML = insightsHTML;
+}
+
+function desenharGraficoVencimentos(ativos) {
+    const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
+    const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
+    const vencimentosData = {};
+
+    ativos.forEach(ativo => {
+        const valorFinal = calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA);
+        vencimentosData[ativo.dataVencimento] = (vencimentosData[ativo.dataVencimento] || 0) + valorFinal;
+    });
+
+    const labels = Object.keys(vencimentosData).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
+    const data = labels.map(label => vencimentosData[label]);
+
+    if (vencimentosChart) vencimentosChart.destroy();
+    vencimentosChart = new Chart(vencimentosChartCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Valor Final no Vencimento (R$)', data: data, backgroundColor: '#6f42c1' }] }, options: { scales: { y: { beginAtZero: true } } } });
+}
+
+function desenharGraficoBancos(ativos) {
+    const bancosData = {};
+    ativos.forEach(ativo => {
+        bancosData[ativo.banco] = (bancosData[ativo.banco] || 0) + ativo.valorLiquido;
+    });
+    const labels = Object.keys(bancosData);
+    const data = labels.map(label => bancosData[label]);
+
+    if (bancosChart) bancosChart.destroy();
+    bancosChart = new Chart(bancosChartCtx, { type: 'doughnut', data: { labels: labels, datasets: [{ label: 'Distribuição por Emissor', data: data, backgroundColor: ['#0d6efd', '#dc3545', '#ffc107', '#198754', '#6f42c1', '#fd7e14'] }] } });
+}
+
+function criarGraficoFluxoCaixa(ativos) {
+    const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
+    const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
+    const fluxoPorAno = {};
+    
+    ativos.forEach(ativo => {
+        const anoVencimento = ativo.dataVencimento.split('/')[2];
+        const valorFinal = calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA);
+        fluxoPorAno[anoVencimento] = (fluxoPorAno[anoVencimento] || 0) + valorFinal; 
+    });
+    
+    const labels = Object.keys(fluxoPorAno).sort();
+    const data = labels.map(ano => fluxoPorAno[ano]);
+
+    if (fluxoCaixaChart) fluxoCaixaChart.destroy();
+    fluxoCaixaChart = new Chart(fluxoCaixaChartCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Valor Final a Vencer no Ano (R$)', data: data, backgroundColor: '#fd7e14' }] }, options: { indexAxis: 'y', scales: { x: { beginAtZero: true } } } });
+}
+
+
+// --- Funções do Motor de Cálculo (para Projeção) ---
+function criarGraficoProjecao(ativos) {
+    const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
+    const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
+
+    const ativosComProjecao = ativos.map(ativo => ({ 
+        ...ativo, 
+        valorFuturo: calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) 
+    }));
+    
+    ativosComProjecao.sort((a, b) => new Date(a.dataVencimento.split('/').reverse().join('-')) - new Date(b.dataVencimento.split('/').reverse().join('-')));
+    
+    let patrimonioAcumulado = ativos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
+    const labelsLinhaDoTempo = ['Hoje'];
+    const dadosLinhaDoTempo = [patrimonioAcumulado];
+    
+    const vencimentosAgrupados = {};
+    ativosComProjecao.forEach(ativo => {
+        const dataVenc = ativo.dataVencimento;
+        if (!vencimentosAgrupados[dataVenc]) {
+            vencimentosAgrupados[dataVenc] = { valorFuturoTotal: 0, valorLiquidoTotal: 0 };
+        }
+        vencimentosAgrupados[dataVenc].valorFuturoTotal += ativo.valorFuturo;
+        vencimentosAgrupados[dataVenc].valorLiquidoTotal += ativo.valorLiquido;
+    });
+
+    const datasOrdenadas = Object.keys(vencimentosAgrupados).sort((a,b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
+
+    datasOrdenadas.forEach(data => {
+        labelsLinhaDoTempo.push(data);
+        const vencimento = vencimentosAgrupados[data];
+        patrimonioAcumulado += (vencimento.valorFuturoTotal - vencimento.valorLiquidoTotal);
+        // <-- CORREÇÃO DO ERRO DE DIGITAÇÃO AQUI -->
+        dadosLinhaDoTempo.push(patrimonioAcumulado);
+    });
+
+    desenharGraficoLinhaDoTempo(labelsLinhaDoTempo, dadosLinhaDoTempo);
+}
+
+// Substitua a função original por esta versão corrigida
+
+// Versão para DEBUG da função calcularValorFuturo
+
+// script.js (substitua a função inteira)
+
+function calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) {
+    // Leitura dos novos inputs. Fazemos aqui para sempre pegar o valor mais atual.
+    const projecaoSelic = parseFloat(projecaoSelicInput.value) / 100;
+    const projecaoIGPM = parseFloat(projecaoIgpmInput.value) / 100;
+
+    const nomeProduto = ativo.produto.toUpperCase();
+    const taxaStr = ativo.taxa.toUpperCase();
+    
+    // ... (a lógica para JUROS MENSAIS e para ativos vencidos continua a mesma) ...
+    if (nomeProduto.includes('JUROS MENSAIS') || nomeProduto.includes('JURO MENSAL')) {
+        // ... (código inalterado) ...
+        return ativo.valorAplicado + jurosLiquidosTotais;
+    }
+    const hoje = new Date();
+    const dataVenc = new Date(ativo.dataVencimento.split('/').reverse().join('-'));
+    const diffTime = dataVenc - hoje;
+    if (diffTime <= 0) {
+        return ativo.valorLiquido;
+    }
+    const diffAnos = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+    const valorPresente = ativo.valorLiquido;
+    let taxaAnual = 0;
+
+    if (taxaStr.includes('CDI')) {
+        const percentualCDI = parseFloat(taxaStr.replace('%', '').replace('DO', '').replace('CDI', '').replace(',', '.')) / 100;
+        taxaAnual = percentualCDI * projecaoCDI;
+
+    } else if (taxaStr.includes('IPCA') || taxaStr.includes('IPC-A')) {
+        const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/); 
+        if (matchJuros) {
+            const jurosReais = parseFloat(matchJuros[0].replace(',', '.')) / 100;
+            taxaAnual = (1 + projecaoIPCA) * (1 + jurosReais) - 1;
+        } else {
+            return valorPresente; 
+        }
+
+    // --- NOVA LÓGICA PARA LFT / SELIC ---
+    } else if (taxaStr.includes('LFT') || taxaStr.includes('SELIC')) {
+        const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/);
+        let jurosAdicionais = 0;
+        if (matchJuros) {
+            jurosAdicionais = parseFloat(matchJuros[0].replace(',', '.')) / 100;
+        }
+        
+        // Verifica se é ágio (+) ou deságio (-)
+        if (taxaStr.includes('-')) {
+            taxaAnual = projecaoSelic - jurosAdicionais;
+        } else {
+            taxaAnual = projecaoSelic + jurosAdicionais; // Assume + por padrão
+        }
+
+    // --- NOVA LÓGICA PARA IGP-M ---
+    } else if (taxaStr.includes('IGP-M') || taxaStr.includes('IGPM')) {
+        const matchJuros = taxaStr.match(/(\d+[,.]\d+)|(\d+)/);
+        if (matchJuros) {
+            const jurosReais = parseFloat(matchJuros[0].replace(',', '.')) / 100;
+            // A fórmula é a mesma do IPCA, mas usando a projeção do IGP-M
+            taxaAnual = (1 + projecaoIGPM) * (1 + jurosReais) - 1;
+        } else {
+            // Caso seja apenas "IGP-M" sem taxa adicional
+            taxaAnual = projecaoIGPM;
+        }
+
+    } else { // Ativos Pré-Fixados
+        const taxaPre = parseFloat(taxaStr.replace('%', '').replace(',', '.'));
+        if (!isNaN(taxaPre)) {
+            taxaAnual = taxaPre / 100;
+        } else {
+            return valorPresente;
+        }
+    }
+
+    return valorPresente * Math.pow((1 + taxaAnual), diffAnos);
+}
+
+function desenharGraficoLinhaDoTempo(labels, data) {
+    if (projecaoChart) projecaoChart.destroy();
+    projecaoChart = new Chart(projecaoChartCtx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Patrimônio Projetado (R$)', data: data, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, tension: 0.1 }] }, options: { scales: { y: { beginAtZero: false } } } });
+}

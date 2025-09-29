@@ -1,0 +1,165 @@
+/* style.css (VERSÃO CORRIGIDA) */
+
+:root {
+    --cor-fundo: #f0f2f5;
+    --cor-card: #ffffff;
+    --cor-texto-primario: #1c1e21;
+    --cor-texto-secundario: #606770;
+    --cor-borda: #ddd;
+    --cor-azul-principal: #0d6efd;
+    --cor-azul-hover: #0b5ed7;
+    --sombra-card: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto-primario);
+}
+
+.header {
+    background-color: var(--cor-card);
+    padding: 20px 40px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.container {
+    width: 95%;
+    max-width: 1400px;
+    margin: auto;
+}
+
+h1 {
+    font-size: 1.5em;
+    margin: 0;
+}
+
+h2 {
+    font-size: 1.1em;
+    text-align: left;
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+/* Modifique esta regra existente */
+
+.card {
+    padding: 25px;
+    background-color: var(--cor-card);
+    border-radius: 8px;
+    box-shadow: var(--sombra-card);
+    margin-bottom: 30px; /* <-- MUDANÇA: Aumentamos de 25px para 30px */
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 25px;
+    margin-top: 30px; /* <-- ADICIONAMOS ESTA LINHA */
+}
+
+.main-column, .sidebar-column {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Substitua a regra original por esta versão corrigida */
+
+/* style.css (adicione esta nova regra) */
+
+.input-group {
+    display: flex;
+    align-items: center;
+    gap: 5px; /* Adiciona um pequeno espaço entre o input e o % */
+}
+
+/* style.css (modifique a regra existente) */
+
+.controls-container {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-end; /* <-- MUDANÇA: Voltamos ao alinhamento pela base */
+    flex-wrap: wrap;
+    gap: 25px; 
+}
+
+.controls-container > div {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    margin-bottom: 5px;
+    color: var(--cor-texto-secundario);
+    font-size: 14px;
+}
+
+select, input[type="number"] {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--cor-borda);
+    min-width: 150px;
+}
+
+.button {
+    padding: 9px 16px;
+    border-radius: 6px;
+    border: none;
+    background-color: var(--cor-azul-principal);
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.button:hover {
+    background-color: var(--cor-azul-hover);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+th, td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+th {
+    background-color: #f8f9fa;
+    color: var(--cor-texto-secundario);
+}
+
+tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#insights-container ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--cor-texto-secundario);
+    font-size: 0.9em;
+}
+#insights-container li {
+    margin-bottom: 10px;
+}
+
+@media (max-width: 992px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .controls-container {
+        justify-content: flex-start;
+    }
+}

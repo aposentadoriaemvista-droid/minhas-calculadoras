@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente de Custo de Veículo</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="veiculo.css">
+</head>
+<body>
+    <div id="app" class="main-container">
+
+        <section id="mode-selector">
+            <h1>Assistente de Custo de Veículos</h1>
+            <p>Comece escolhendo o tipo de análise que você deseja realizar.</p>
+            <div class="mode-selection-grid">
+                <div class="mode-card" data-mode="single_analysis"><h3>Analisar um Veículo</h3><p>Calcule o custo total de propriedade de um único carro.</p></div>
+                <div class="mode-card" data-mode="trade_in_analysis"><h3>Avaliar Troca do Meu Carro</h3><p>Compare os custos de manter seu carro atual versus comprar um novo.</p></div>
+                <div class="mode-card" data-mode="comparison_analysis"><h3>Comparar Dois Veículos</h3><p>Coloque dois modelos lado a lado para ver a melhor opção.</p></div>
+            </div>
+        </section>
+
+        <section id="calculator-section" class="card hidden">
+            <form id="calculator-form" novalidate>
+                <div id="validation-summary" class="validation-summary hidden"></div>
+                <h2 id="calculator-title">Preencha os Dados</h2>
+                <div id="form-modules-container"></div>
+                <div class="button-group">
+                    <button type="button" id="calculate-btn" class="main-button">Calcular Custos</button>
+                </div>
+            </form>
+        </section>
+
+        <section id="results-section" class="card hidden">
+             <div id="results-content"></div>
+             <div class="button-group">
+                <button type="button" id="reset-btn" class="main-button secondary-button">Fazer Nova Análise</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="veiculo.js"></script>
+</body>
+</html>

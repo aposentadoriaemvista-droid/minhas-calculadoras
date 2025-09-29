@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Renda Fixa</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Dashboard de Renda Fixa</h1>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <p>Faça o upload do seu extrato de Posição Consolidada (PDF) para começar a análise.</p>
+            <input type="file" id="pdf-upload" accept=".pdf">
+        </div>
+
+        <div id="report-container" style="display: none;">
+           <div class="controls-container">
+    <div>
+        <label for="filtro-emissor">Filtrar por Emissor:</label>
+        <select id="filtro-emissor"></select>
+    </div>
+    <div>
+        <label for="projecao-cdi">Projeção CDI (anual):</label>
+        <div class="input-group">
+            <input type="number" id="projecao-cdi" value="10.5" step="0.1">
+            <span>%</span>
+        </div>
+    </div>
+    <div>
+        <label for="projecao-ipca">Projeção IPCA (anual):</label>
+        <div class="input-group">
+            <input type="number" id="projecao-ipca" value="4.5" step="0.1">
+            <span>%</span>
+        </div>
+    </div>
+    <div>
+        <label for="projecao-selic">Projeção Selic (anual):</label>
+        <div class="input-group">
+            <input type="number" id="projecao-selic" value="10.5" step="0.1">
+            <span>%</span>
+        </div>
+    </div>
+    <div>
+        <label for="projecao-igpm">Projeção IGP-M (anual):</label>
+        <div class="input-group">
+            <input type="number" id="projecao-igpm" value="5.0" step="0.1">
+            <span>%</span>
+        </div>
+    </div>
+    <div>
+        <label>&nbsp;</label> 
+        <button id="recalcular-btn" class="button">Recalcular</button>
+    </div>
+</div>
+
+            <div class="dashboard-grid">
+                
+                <div class="main-column">
+                    <div class="card">
+                        <h2>Projeção de Patrimônio</h2>
+                        <canvas id="projecao-patrimonio-chart"></canvas>
+                    </div>
+                    <div class="card">
+                        <h2>Detalhes dos Ativos</h2>
+                        <div id="table-container">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-column">
+                    <div class="card">
+                        <h2>Insights Rápidos</h2>
+                        <div id="insights-container"></div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>Previsão de Rendimentos Mensais</h2>
+                        <div id="rendimentos-mensais-container"></div>
+                    </div>
+
+                    <div class="card">
+                        <h2>Distribuição por Emissor</h2>
+                        <canvas id="bancos-chart"></canvas>
+                    </div>
+                    <div class="card">
+                        <h2>Fluxo de Caixa Anual</h2>
+                        <canvas id="fluxo-caixa-chart"></canvas>
+                    </div>
+                    <div class="card">
+                        <h2>Vencimentos (Próximas Datas)</h2>
+                        <canvas id="vencimentos-chart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
