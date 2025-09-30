@@ -11,6 +11,8 @@ const tableContainer = document.getElementById('table-container');
 const rendimentosMensaisContainer = document.getElementById('rendimentos-mensais-container');
 const projecaoSelicInput = document.getElementById('projecao-selic');
 const projecaoIgpmInput = document.getElementById('projecao-igpm');
+const indexadoresChartCtx = document.getElementById('indexadores-chart').getContext('2d');
+let indexadoresChart = null;
 
 // Contextos dos Gráficos
 const vencimentosChartCtx = document.getElementById('vencimentos-chart').getContext('2d');
@@ -20,7 +22,17 @@ const projecaoChartCtx = document.getElementById('projecao-patrimonio-chart').ge
 
 // Instâncias dos Gráficos
 let vencimentosChart, bancosChart, fluxoCaixaChart, projecaoChart = null;
-
+// --- Adicione esta nova função para categorizar os ativos ---
+function categorizarPorIndexador(taxa) {
+    const taxaUpper = taxa.toUpperCase();
+    if (taxaUpper.includes('CDI')) return 'Pós-fixado (CDI)';
+    if (taxaUpper.includes('IPCA') || taxaUpper.includes('IPC-A')) return 'Híbrido (Inflação)';
+    if (taxaUpper.includes('IGP-M') || taxaUpper.includes('IGPM')) return 'Híbrido (Inflação)';
+    if (taxaUpper.includes('LFT') || taxaUpper.includes('SELIC')) return 'Pós-fixado (Selic)';
+    // Se não for nenhum dos acima e tiver '%' no nome, é pré-fixado.
+    if (taxaUpper.includes('%')) return 'Pré-fixado';
+    return 'Outro'; // Categoria para casos não identificados
+}
 
 // --- Funções Auxiliares ---
 function gerarChaveDeAgrupamento(nomeDoProduto) {
@@ -132,6 +144,7 @@ function criarRelatorio(ativos) {
     criarGraficoFluxoCaixa(ativos);
     gerarInsights(ativos);
     gerarPrevisaoRendimentos(ativos);
+    desenharGraficoIndexadores(ativos); // <-- ADICIONE AQUI
 }
 
 // --- Funções de Renderização (Desenho na Tela) ---
@@ -408,4 +421,37 @@ function calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) {
 function desenharGraficoLinhaDoTempo(labels, data) {
     if (projecaoChart) projecaoChart.destroy();
     projecaoChart = new Chart(projecaoChartCtx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Patrimônio Projetado (R$)', data: data, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, tension: 0.1 }] }, options: { scales: { y: { beginAtZero: false } } } });
+}
+function desenharGraficoIndexadores(ativos) {
+    const indexadoresData = {};
+    ativos.forEach(ativo => {
+        const categoria = categorizarPorIndexador(ativo.taxa);
+        indexadoresData[categoria] = (indexadoresData[categoria] || 0) + ativo.valorLiquido;
+    });
+
+    const labels = Object.keys(indexadoresData);
+    const data = Object.values(indexadoresData);
+
+    if (indexadoresChart) {
+        indexadoresChart.destroy();
+    }
+    indexadoresChart = new Chart(indexadoresChartCtx, {
+        type: 'pie', // O tipo 'pie' (pizza) funciona bem aqui também
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Distribuição por Indexador',
+                data: data,
+                backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#dc3545', '#6f42c1']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            }
+        }
+    });
 }
