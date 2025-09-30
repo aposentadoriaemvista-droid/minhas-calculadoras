@@ -8,7 +8,34 @@
 </head>
 <body>
     <div class="header">
-        <h1>Dashboard de Renda Fixa</h1>
+        <div class="logo-container">
+            <img src="logo.png" alt="Logo da Marca" class="logo">
+            <h1>Dashboard de Renda Fixa</h1>
+        </div>
+        <button id="contact-btn" class="button">Entre em Contato</button>
+    </div>
+
+    <div class="container">
+        </div>
+
+    <div id="contact-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Fale Conosco</h2>
+            <p>Preencha seus dados para que nossa equipe possa entrar em contato.</p>
+            <form id="contact-form">
+                <div class="form-group">
+                    <label for="nome">Nome Completo:</label>
+                    <input type="text" id="nome" name="nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="telefone">Telefone (com DDD):</label>
+                    <input type="tel" id="telefone" name="telefone" required>
+                </div>
+                <button type="submit" id="submit-form-btn" class="button">Enviar</button>
+                <div id="form-status"></div>
+            </form>
+        </div>
     </div>
 
     <div class="container">

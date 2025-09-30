@@ -11,18 +11,34 @@
     --sombra-card: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+/* style.css (adicione ou modifique estas regras) */
+
+/* AJUSTE NO BODY PARA COMPENSAR O CABEÇALHO FIXO */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     background-color: var(--cor-fundo);
     color: var(--cor-texto-primario);
+    padding-top: 90px; /* <-- ADICIONE ESTA LINHA (altura do header + margem) */
 }
 
+/* MODIFIQUE A REGRA .header */
 .header {
     background-color: var(--cor-card);
-    padding: 20px 40px;
+    padding: 15px 40px; /* Ajuste no padding */
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     margin-bottom: 30px;
+    display: flex; /* <-- Adicionado */
+    justify-content: space-between; /* <-- Adicionado */
+    align-items: center; /* <-- Adicionado */
+    
+    /* Regras para fixar o cabeçalho */
+    position: fixed; /* <-- Adicionado */
+    top: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box; /* Garante que padding não aumente a largura */
+    z-index: 1000; /* Garante que o header fique sobre outros elementos */
 }
 
 .container {
@@ -162,4 +178,93 @@ tbody tr:hover {
     .controls-container {
         justify-content: flex-start;
     }
+}
+/* ADICIONE ESTAS NOVAS REGRAS PARA O LOGO E O CONTAINER */
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Espaço entre o logo e o título */
+}
+
+.logo {
+    height: 45px; /* Ajuste a altura do seu logo conforme necessário */
+}
+
+/* ADICIONE TODAS AS REGRAS PARA O MODAL ABAIXO */
+.modal {
+    display: none; /* Escondido por padrão */
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.6);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.show {
+    display: flex; /* Mostra o modal quando tiver a classe .show */
+}
+
+.modal-content {
+    background-color: var(--cor-card);
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    animation: slide-down 0.3s ease-out;
+}
+
+@keyframes slide-down {
+    from {
+        transform: translateY(-30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.close-button {
+    color: #aaa;
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: black;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px; /* Aumenta o espaço */
+    font-weight: 500; /* Deixa o label mais forte */
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid var(--cor-borda);
+    box-sizing: border-box; /* Importante para o width 100% */
+}
+
+#form-status {
+    margin-top: 15px;
+    font-size: 0.9em;
 }

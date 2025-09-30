@@ -13,6 +13,100 @@ const projecaoSelicInput = document.getElementById('projecao-selic');
 const projecaoIgpmInput = document.getElementById('projecao-igpm');
 const indexadoresChartCtx = document.getElementById('indexadores-chart').getContext('2d');
 let indexadoresChart = null;
+const contactBtn = document.getElementById('contact-btn');
+const contactModal = document.getElementById('contact-modal');
+const closeButton = document.querySelector('.close-button');
+const contactForm = document.getElementById('contact-form');
+const formStatus = document.getElementById('form-status');
+const submitFormBtn = document.getElementById('submit-form-btn');
+
+
+contactBtn.addEventListener('click', () => {
+    contactModal.classList.add('show');
+});
+
+// Fechar o modal ao clicar no 'X'
+closeButton.addEventListener('click', () => {
+    contactModal.classList.remove('show');
+});
+
+// Fechar o modal ao clicar fora da área do conteúdo
+window.addEventListener('click', (event) => {
+    if (event.target == contactModal) {
+        contactModal.classList.remove('show');
+    }
+});
+
+
+// --- LÓGICA PARA ENVIO DO FORMULÁRIO PARA O SHEETDB ---
+// Adicione este bloco de código no final do arquivo
+
+contactForm.addEventListener('submit', async (event) => {
+    event.preventDefault(); // Impede o recarregamento da página
+
+    // Feedback visual para o usuário
+    submitFormBtn.disabled = true;
+    submitFormBtn.textContent = 'Enviando...';
+    formStatus.textContent = '';
+
+    // 1. Coletar dados do formulário
+    const nome = document.getElementById('nome').value;
+    const telefone = document.getElementById('telefone').value;
+
+    // 2. Calcular métricas da carteira
+    const quantidadeAtivos = todosOsAtivos.length;
+    const totalLiquido = todosOsAtivos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
+
+     const listaDeAtivosFormatada = todosOsAtivos.map(ativo => 
+        `- Produto: ${ativo.produto} | Venc: ${ativo.dataVencimento} | Taxa: ${ativo.taxa} | Valor Líq.: ${ativo.valorLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+    ).join('\n'); // O '\n' cria uma nova linha para cada ativo na célula da planilha
+
+    // 3. Montar o objeto de dados para envio
+    const dataToSend = {
+        Nome: nome,
+        Telefone: telefone,
+        QuantidadeAtivos: quantidadeAtivos,
+        TotalLiquido: totalLiquido.toFixed(2), // Envia como texto com 2 casas decimais
+        Ativos: listaDeAtivosFormatada
+    };
+
+    // 4. Enviar para a API do SheetDB
+    try {
+        const response = await fetch('https://sheetdb.io/api/v1/x18aah8in10lt', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            // O SheetDB espera os dados dentro de um objeto { "data": [...] }
+            body: JSON.stringify({
+                data: [dataToSend] 
+            })
+        });
+
+        if (response.ok) {
+            formStatus.textContent = 'Dados enviados com sucesso! Agradecemos o contato.';
+            formStatus.style.color = 'green';
+            contactForm.reset(); // Limpa o formulário
+            setTimeout(() => { // Fecha o modal após 3 segundos
+                contactModal.classList.remove('show');
+            }, 3000);
+        } else {
+            throw new Error('Falha no envio dos dados.');
+        }
+
+    } catch (error) {
+        console.error('Erro ao enviar formulário:', error);
+        formStatus.textContent = 'Ocorreu um erro. Por favor, tente novamente.';
+        formStatus.style.color = 'red';
+    } finally {
+        // Reativa o botão independentemente do resultado
+        submitFormBtn.disabled = false;
+        submitFormBtn.textContent = 'Enviar';
+    }
+});
+
+
 
 // Contextos dos Gráficos
 const vencimentosChartCtx = document.getElementById('vencimentos-chart').getContext('2d');
