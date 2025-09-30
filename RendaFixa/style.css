@@ -268,3 +268,20 @@ tbody tr:hover {
     margin-top: 15px;
     font-size: 0.9em;
 }
+/* style.css (ADICIONE ESTA NOVA REGRA NO FINAL) */
+
+.disclaimer-text {
+    font-size: 0.8em;
+    color: var(--cor-texto-secundario);
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--cor-borda);
+}
+
+.disclaimer-text p {
+    margin: 0;
+}
+
+#vencimentos-foco-container {
+    margin-top: 30px;
+}

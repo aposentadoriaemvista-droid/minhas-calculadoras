@@ -16,87 +16,93 @@
     </div>
 
     <div class="container">
+        <div id="contact-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h2>Fale Conosco</h2>
+                <p>Preencha seus dados para que nossa equipe possa entrar em contato.</p>
+                <form id="contact-form">
+                    <div class="form-group">
+                        <label for="nome">Nome Completo:</label>
+                        <input type="text" id="nome" name="nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="telefone">Telefone (com DDD):</label>
+                        <input type="tel" id="telefone" name="telefone" required>
+                    </div>
+                    <button type="submit" id="submit-form-btn" class="button">Enviar</button>
+                    <div id="form-status"></div>
+                </form>
+            </div>
         </div>
 
-    <div id="contact-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Fale Conosco</h2>
-            <p>Preencha seus dados para que nossa equipe possa entrar em contato.</p>
-            <form id="contact-form">
-                <div class="form-group">
-                    <label for="nome">Nome Completo:</label>
-                    <input type="text" id="nome" name="nome" required>
-                </div>
-                <div class="form-group">
-                    <label for="telefone">Telefone (com DDD):</label>
-                    <input type="tel" id="telefone" name="telefone" required>
-                </div>
-                <button type="submit" id="submit-form-btn" class="button">Enviar</button>
-                <div id="form-status"></div>
-            </form>
-        </div>
-    </div>
-
-    <div class="container">
         <div class="card">
             <p>Faça o upload do seu extrato de Posição Consolidada (PDF) para começar a análise.</p>
             <input type="file" id="pdf-upload" accept=".pdf">
+            <div class="disclaimer-text">
+                <p><strong>Aviso de Privacidade e Responsabilidade:</strong> Seus dados são processados localmente no seu navegador. Nenhum documento é enviado para nossos servidores. As análises e projeções são baseadas em dados extraídos automaticamente e podem conter imprecisões. Esta ferramenta não constitui uma recomendação de investimento.</p>
+            </div>
         </div>
 
         <div id="report-container" style="display: none;">
            <div class="controls-container">
-    <div>
-        <label for="filtro-emissor">Filtrar por Emissor:</label>
-        <select id="filtro-emissor"></select>
-    </div>
-    <div>
-        <label for="projecao-cdi">Projeção CDI (anual):</label>
-        <div class="input-group">
-            <input type="number" id="projecao-cdi" value="10.5" step="0.1">
-            <span>%</span>
-        </div>
-    </div>
-    <div>
-        <label for="projecao-ipca">Projeção IPCA (anual):</label>
-        <div class="input-group">
-            <input type="number" id="projecao-ipca" value="4.5" step="0.1">
-            <span>%</span>
-        </div>
-    </div>
-    <div>
-        <label for="projecao-selic">Projeção Selic (anual):</label>
-        <div class="input-group">
-            <input type="number" id="projecao-selic" value="10.5" step="0.1">
-            <span>%</span>
-        </div>
-    </div>
-    <div>
-        <label for="projecao-igpm">Projeção IGP-M (anual):</label>
-        <div class="input-group">
-            <input type="number" id="projecao-igpm" value="5.0" step="0.1">
-            <span>%</span>
-        </div>
-    </div>
-    <div>
-        <label>&nbsp;</label> 
-        <button id="recalcular-btn" class="button">Recalcular</button>
-    </div>
-</div>
+                <div>
+                    <label for="filtro-emissor">Filtrar por Emissor:</label>
+                    <select id="filtro-emissor"></select>
+                </div>
+                <div>
+                    <label for="projecao-cdi">Projeção CDI (anual):</label>
+                    <div class="input-group">
+                        <input type="number" id="projecao-cdi" value="10.5" step="0.1">
+                        <span>%</span>
+                    </div>
+                </div>
+                <div>
+                    <label for="projecao-ipca">Projeção IPCA (anual):</label>
+                    <div class="input-group">
+                        <input type="number" id="projecao-ipca" value="4.5" step="0.1">
+                        <span>%</span>
+                    </div>
+                </div>
+                <div>
+                    <label for="projecao-selic">Projeção Selic (anual):</label>
+                    <div class="input-group">
+                        <input type="number" id="projecao-selic" value="10.5" step="0.1">
+                        <span>%</span>
+                    </div>
+                </div>
+                <div>
+                    <label for="projecao-igpm">Projeção IGP-M (anual):</label>
+                    <div class="input-group">
+                        <input type="number" id="projecao-igpm" value="5.0" step="0.1">
+                        <span>%</span>
+                    </div>
+                </div>
+                <div>
+                    <label>&nbsp;</label> 
+                    <button id="recalcular-btn" class="button">Recalcular</button>
+                </div>
+            </div>
 
             <div class="dashboard-grid">
                 
                 <div class="main-column">
                     <div class="card">
-                        <h2>Projeção de Patrimônio</h2>
+                        <h2>Projeção de Patrimônio Aplicado</h2>
                         <canvas id="projecao-patrimonio-chart"></canvas>
                     </div>
+
+                    <div class="card">
+                        <h2>Vencimentos (Próximas Datas)</h2>
+                        <canvas id="vencimentos-chart"></canvas>
+                    </div>
+
                     <div class="card">
                         <h2>Detalhes dos Ativos</h2>
-                        <div id="table-container">
-                            </div>
+                        <div id="table-container"></div>
                     </div>
-        <div class="card">
+                    
+                    <div class="card">
                         <h2>Fluxo de Caixa Anual</h2>
                         <canvas id="fluxo-caixa-chart"></canvas>
                     </div>
@@ -104,7 +110,7 @@
 
                 <div class="sidebar-column">
                     <div class="card">
-                        <h2>Insights Rápidos</h2>
+                        <h2>Insights e Oportunidades</h2>
                         <div id="insights-container"></div>
                     </div>
                     
@@ -113,20 +119,14 @@
                         <div id="rendimentos-mensais-container"></div>
                     </div>
                     <div class="card">
-                        <h2>Vencimentos (Próximas Datas)</h2>
-                        <canvas id="vencimentos-chart"></canvas>
-                    </div>
-                    <div class="card">
                         <h2>Distribuição por Emissor</h2>
                         <canvas id="bancos-chart"></canvas>
                     </div>
-                                  <div class="card">
-    <h2>Distribuição por Indexador</h2>
-    <canvas id="indexadores-chart"></canvas>
-</div>
-                    
+                    <div class="card">
+                        <h2>Distribuição por Indexador</h2>
+                        <canvas id="indexadores-chart"></canvas>
+                    </div>
                 </div>
-
             </div>
         </div>
     </div>

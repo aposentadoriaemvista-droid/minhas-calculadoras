@@ -386,13 +386,20 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTcoChart('A', r);
     }
     function displayTradeInResults(newCarResults, tcoCurrent) {
-        resultsContent.innerHTML = `<div id="verdict-section" class="verdict-section"></div><div id="intelligent-suggestion-section"></div><h2 id="results-title">Análise do Custo do Carro Novo: ${newCarResults.brand}</h2><div class="dashboard-grid"><div style="position:relative;min-height:400px;width:100%;"><canvas id="tcoChartA"></canvas></div><div class="metrics-panel"><div id="metrics-container-A"></div></div></div><div id="report-container-A"></div>`;
-        document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(newCarResults);
-        document.getElementById('report-container-A').innerHTML = generateYearlyReportHTML(newCarResults);
-        renderTcoChart('A', newCarResults);
-        displayVerdict(newCarResults.tco, tcoCurrent);
-        if(newCarResults.tco > tcoCurrent){ displayIntelligentSuggestion(newCarResults.tco, tcoCurrent); }
-    }
+    resultsContent.innerHTML = `<div id="verdict-section" class="verdict-section"></div><div id="intelligent-suggestion-section"></div><h2 id="results-title">Análise do Custo do Carro Novo: ${newCarResults.brand}</h2><div class="dashboard-grid"><div style="position:relative;min-height:400px;width:100%;"><canvas id="tcoChartA"></canvas></div><div class="metrics-panel"><div id="metrics-container-A"></div></div></div><div id="report-container-A"></div><div class="comparison-chart-container" style="margin-top: 40px;">
+        <h4 style="text-align:center;">Comparação Direta de Custos</h4>
+        <div style="position:relative;min-height:400px;width:100%;"><canvas id="tradeInBarChart"></canvas></div>
+    </div>`;
+    document.getElementById('metrics-container-A').innerHTML = generateMetricsHTML(newCarResults);
+    document.getElementById('report-container-A').innerHTML = generateYearlyReportHTML(newCarResults);
+    renderTcoChart('A', newCarResults);
+    displayVerdict(newCarResults.tco, tcoCurrent);
+    if(newCarResults.tco > tcoCurrent){ displayIntelligentSuggestion(newCarResults.tco, tcoCurrent); }
+
+    // NOVO: Adicione a chamada para a nova função
+    renderTradeInBarChart(newCarResults, tcoCurrent);
+}
+// ...
     // ALTERADO: Adiciona o container do novo gráfico e chama a função para renderizá-lo
     function displayComparisonResults(rA, rB) {
         const difference = Math.abs(rA.tco - rB.tco);
@@ -481,4 +488,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // ...
+// NOVO: Função para renderizar o gráfico de barras para a análise de troca
+function renderTradeInBarChart(newCarResults, tcoCurrent) {
+    const canvasId = 'tradeInBarChart';
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const ctx = el.getContext('2d');
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+    const currentCarData = {
+        totalDepreciation: newCarResults.totalExpenses - newCarResults.totalInterest - newCarResults.totalAnnualCosts - newCarResults.totalFuelCost, // Aproximação da depreciação do carro atual. O cálculo exato está em `calculateSingleVehicleTCO`.
+        totalFuelCost: (newCarResults.kmPerMonth * 12 * newCarResults.ownershipYears / getCleanValue('current-car-consumption')) * getCleanValue('car-fuel-price-A'),
+        totalAnnualCosts: getCleanValue('current-car-costs') * newCarResults.ownershipYears,
+        totalInterest: 0 // Assumimos que o carro atual já está quitado
+    };
+
+    chartInstances[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Desvalorização', 'Combustível', 'Custos Anuais', 'Juros'],
+            datasets: [
+                {
+                    label: 'Carro Novo',
+                    data: [newCarResults.totalDepreciation, newCarResults.totalFuelCost, newCarResults.totalAnnualCosts, newCarResults.totalInterest],
+                    backgroundColor: 'rgba(34, 84, 88, 0.7)',
+                    borderColor: 'rgba(34, 84, 88, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Carro Atual',
+                    data: [currentCarData.totalDepreciation, currentCarData.totalFuelCost, currentCarData.totalAnnualCosts, currentCarData.totalInterest],
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } }
+        }
+    });
+}
+
 });
