@@ -532,6 +532,6 @@ function renderTradeInBarChart(newCarResults, tcoCurrent) {
             scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } }
         }
     });
-}
+}git
 
 });
