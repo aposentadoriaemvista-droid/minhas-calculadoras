@@ -89,12 +89,13 @@ p { margin-bottom: 20px; }
 .lead-form {
     background-color: var(--off-white);
     color: var(--text-dark);
-    padding: 25px;
+    padding: 15px; /* Reduzimos um pouco o padding para dar mais espaço ao iframe */
     border-radius: 8px;
     margin-top: 25px;
     max-width: 500px;
     margin-left: auto;
     margin-right: auto;
+    overflow: hidden; /* Garante que o iframe não ultrapasse as bordas arredondadas */
 }
 
 /* O resto dos estilos do formulário (.lead-form input, .cta-button) permanecem os mesmos */
