@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seção Hero</title>
+    <style>
+        /* ============================================= */
+        /* CSS COMPLETO (Corrigido e Otimizado)        */
+        /* ============================================= */
+        :root {
+            --dark-green: #1b4043; --off-white: #f8f9f3; --accent-green: #2e8b57;
+            --text-dark: #333333; --text-light: #f8f9f3;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: transparent; color: var(--text-dark); line-height: 1.6; }
+        .container { width: 90%; max-width: 1000px; margin: 0 auto; padding: 60px 0; }
+        h1, h2, h3 { line-height: 1.2; margin-bottom: 20px; }
+        h1 { font-size: 2.2em; } h2 { font-size: 1.8em; } h3 { font-size: 1.3em; }
+        p { margin-bottom: 20px; }
+
+        .hero-section { background-color: var(--dark-green); color: var(--text-light); padding-top: 20px; padding-bottom: 40px; }
+        .hero-section .container { padding: 0; }
+        .hero-header { display: flex; justify-content: flex-start; padding: 0 5%; margin-bottom: 20px; }
+        .hero-section .logo { max-width: 140px; }
+        .hero-section h1, .hero-section > .container > p, .video-placeholder, .lead-form { text-align: center; padding-left: 5%; padding-right: 5%; }
+        .video-placeholder { background-color: #000; width: 100%; max-width: 500px; height: 220px; margin: 25px auto; border-radius: 8px; overflow: hidden; }
+        .video-placeholder iframe { width: 100%; height: 100%; border: 0; }
+        .lead-form { background-color: var(--off-white); color: var(--text-dark); padding: 25px; border-radius: 8px; margin-top: 25px; max-width: 500px; margin-left: auto; margin-right: auto; }
+        .lead-form input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 1em; }
+        .cta-button { width: 100%; background-color: var(--accent-green); color: white; padding: 15px; border: none; border-radius: 5px; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
+        .cta-button:hover { background-color: #256d44; }
+        .lead-form input.error { border-color: #e74c3c; }
+        .error-message { color: #e74c3c; font-size: 0.9em; margin-top: -8px; margin-bottom: 10px; text-align: left; }
+    </style>
+</head>
+<body>
+
+    <header class="hero-section">
+        <div class="container">
+            <h1>Não dependa mais de um assessor e dê seus primeiros passos nos investimentos</h1>
+            <p>Aprenda a investir do zero, tomar o controle do seu futuro financeiro e construir sua aposentadoria em 45 dias.</p>
+            
+            <div class="video-placeholder">
+                <iframe src="https://www.youtube.com/embed/yJosu60Uu_8?si=ETVVxRzoPit4ZFr4" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+            </div>
+    </header>
+</body>
+</html>

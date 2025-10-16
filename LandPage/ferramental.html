@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seção Ferramentas</title>
+    <style>
+        :root { --dark-green: #1b4043; --off-white: #f8f9f3; --accent-green: #2e8b57; --text-dark: #333333; --text-light: #f8f9f3; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #fff; color: var(--text-dark); line-height: 1.6; }
+        .container { width: 90%; max-width: 1000px; margin: 0 auto; padding: 60px 0; }
+        h2 { font-size: 1.8em; } h3 { font-size: 1.3em; } h2, h3 { line-height: 1.2; margin-bottom: 20px; }
+        p { margin-bottom: 20px; }
+        .tools-section { text-align: center; }
+        .tools-grid { display: grid; grid-template-columns: 1fr; gap: 30px; margin-top: 40px; }
+        .tool-card { border: 1px solid #eee; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        .tool-image { width: 100%; height: 180px; object-fit: cover; border-radius: 5px; margin-bottom: 15px; }
+        @media (min-width: 768px) {
+            .container { padding: 80px 0; }
+            h2 { font-size: 2.2em; }
+            .tools-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <section class="tools-section">
+            <div class="container">
+                <h2>Tenha acesso a ferramentas exclusivas que te dão clareza e poder de decisão</h2>
+                <p>Nossos alunos recebem um arsenal de calculadoras e planilhas para tomar decisões inteligentes.</p>
+                <div class="tools-grid">
+                    <div class="tool-card">
+                        <img src="images/Consorcio.png" alt="Calculadora de Consórcio vs Financiamento" class="tool-image">
+                        <h3>Calculadora de Consórcio X Financiamento</h3>
+                        <p>Descubra de forma simples e visual qual das duas opções realmente vale a pena para o seu bolso.</p>
+                    </div>
+                    <div class="tool-card">
+                        <img src="images/Aluguel.png" alt="Calculadora de Aluguel vs Financiamento" class="tool-image">
+                        <h3>Calculadora de Financiamento X Compra X Aluguel</h3>
+                        <p>A grande dúvida do imóvel resolvida com matemática. Tome a melhor decisão para o seu lar.</p>
+                    </div>
+                    <div class="tool-card">
+                        <img src="images/Veiculos.png" alt="Calculadora de Veiculo" class="tool-image">
+                        <h3>Calculadora de Custo de Veículo</h3>
+                        <p>Planeje a compra ou troca do seu carro calculando todos os custos envolvidos, sem surpresas.</p>
+                    </div>
+                    <div class="tool-card">
+                        <img src="images/FP.png" alt="Calculadora Planejador Financeiro" class="tool-image">
+                        <h3>Plano Financeiro para Aposentadoria</h3>
+                        <p>A ferramenta definitiva para você projetar seu futuro e saber exatamente o caminho a seguir.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

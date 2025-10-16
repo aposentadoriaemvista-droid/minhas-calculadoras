@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seção Depoimentos</title>
+    <style>
+        :root { --dark-green: #1b4043; --off-white: #f8f9f3; --accent-green: #2e8b57; --text-dark: #333333; --text-light: #f8f9f3; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #fff; color: var(--text-dark); line-height: 1.6; }
+        .container { width: 90%; max-width: 1000px; margin: 0 auto; padding: 60px 0; }
+        h2 { font-size: 1.8em; margin-bottom: 20px; line-height: 1.2; }
+        p { margin-bottom: 0; }
+        .testimonials-section { text-align: center; }
+        .testimonial-card { background-color: var(--off-white); padding: 30px; border-left: 5px solid var(--accent-green); margin-bottom: 20px; text-align: left; border-radius: 5px; }
+        .testimonial-card p { margin-bottom: 15px; }
+        .testimonial-card strong { display: block; color: var(--accent-green); }
+        @media (min-width: 768px) {
+            .container { padding: 80px 0; }
+            h2 { font-size: 2.2em; }
+            .testimonials-section .container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start; }
+            .testimonials-section h2 { grid-column: 1 / -1; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <section class="testimonials-section">
+            <div class="container">
+                <h2>Quem já fez, recomenda</h2>
+                <div class="testimonial-card">
+                    <p>"Sempre tive dificuldade em entender o mercado financeiro, parecia algo muito distante. Mas com o passar das primeiras aulas a minha visão já mudou completamente. Foi uma experiência transformadora e recomendo para qualquer pessoa com vontade de aprender, mesmo para quem não tem experiência, assim como eu não tinha."</p>
+                    <strong>- Gabriela</strong>
+                </div>
+                 <div class="testimonial-card">
+                    <p>"O curso foi uma experiência incríveeel pra mim!! A organização, a estrutura, a didática... tudo excepcional! Sem palavras pra descrever o quanto aprendi e cresci nesse um mês e pouco! Sem duvidas recomendo pra todo mundo essa experiência!"</p>
+                    <strong>- Maria Julia</strong>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
