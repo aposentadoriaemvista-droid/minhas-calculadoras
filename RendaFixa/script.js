@@ -1,7 +1,12 @@
-// script.js (VERSÃO COM CÁLCULO DE FGC CORRIGIDO)
+// script.js (VERSÃO FINAL 5.1: NOMES CORRIGIDOS + TÍTULOS AJUSTADOS)
 
-// --- Variáveis Globais e Referências de Elementos ---
+// --- Variáveis Globais ---
 let todosOsAtivos = [];
+let fluxoCaixaMode = 'ano'; 
+const LIMITE_FGC = 250000;
+const TIPOS_FGC = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB']; 
+
+// Elementos DOM
 const pdfUpload = document.getElementById('pdf-upload');
 const reportContainer = document.getElementById('report-container');
 const filtroEmissor = document.getElementById('filtro-emissor');
@@ -9,10 +14,21 @@ const btnRecalcular = document.getElementById('recalcular-btn');
 const insightsContainer = document.getElementById('insights-container');
 const tableContainer = document.getElementById('table-container');
 const rendimentosMensaisContainer = document.getElementById('rendimentos-mensais-container');
-const projecaoSelicInput = document.getElementById('projecao-selic');
-const projecaoIgpmInput = document.getElementById('projecao-igpm');
+const listaEmissoresContainer = document.getElementById('lista-emissores-container');
+const btnToggleFluxo = document.getElementById('toggle-fluxo-btn');
+const btnPrint = document.getElementById('btn-print-pdf');
+const btnCopy = document.getElementById('btn-copy-summary');
+
+// Charts
+const fluxoCaixaChartCtx = document.getElementById('fluxo-caixa-chart').getContext('2d');
+const projecaoChartCtx = document.getElementById('projecao-patrimonio-chart').getContext('2d');
 const indexadoresChartCtx = document.getElementById('indexadores-chart').getContext('2d');
+
+let fluxoCaixaChart = null;
+let projecaoChart = null;
 let indexadoresChart = null;
+
+// Modal
 const contactBtn = document.getElementById('contact-btn');
 const contactModal = document.getElementById('contact-modal');
 const closeButton = document.querySelector('.close-button');
@@ -20,645 +36,216 @@ const contactForm = document.getElementById('contact-form');
 const formStatus = document.getElementById('form-status');
 const submitFormBtn = document.getElementById('submit-form-btn');
 
-
-contactBtn.addEventListener('click', () => {
-    contactModal.classList.add('show');
-});
-
-// Fechar o modal ao clicar no 'X'
-closeButton.addEventListener('click', () => {
-    contactModal.classList.remove('show');
-});
-
-// Fechar o modal ao clicar fora da área do conteúdo
-window.addEventListener('click', (event) => {
-    if (event.target == contactModal) {
-        contactModal.classList.remove('show');
-    }
-});
-
-
-// --- LÓGICA PARA ENVIO DO FORMULÁRIO PARA O SHEETDB ---
-contactForm.addEventListener('submit', async (event) => {
-    event.preventDefault(); // Impede o recarregamento da página
-
-    // Feedback visual para o usuário
-    submitFormBtn.disabled = true;
-    submitFormBtn.textContent = 'Enviando...';
-    formStatus.textContent = '';
-
-    // 1. Coletar dados do formulário
-    const nome = document.getElementById('nome').value;
-    const telefone = document.getElementById('telefone').value;
-
-    // 2. Calcular métricas da carteira
-    const quantidadeAtivos = todosOsAtivos.length;
-    const totalLiquido = todosOsAtivos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
-
-     const listaDeAtivosFormatada = todosOsAtivos.map(ativo => 
-        `- Produto: ${ativo.produto} | Venc: ${ativo.dataVencimento} | Taxa: ${ativo.taxa} | Valor Líq.: ${ativo.valorLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
-    ).join('\n');
-
-    // 3. Montar o objeto de dados para envio
-    const dataToSend = {
-        Nome: nome,
-        Telefone: telefone,
-        QuantidadeAtivos: quantidadeAtivos,
-        TotalLiquido: totalLiquido.toFixed(2),
-        Ativos: listaDeAtivosFormatada
-    };
-
-    // 4. Enviar para a API do SheetDB
-    try {
-        const response = await fetch('https://sheetdb.io/api/v1/x18aah8in10lt', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                data: [dataToSend] 
-            })
-        });
-
-        if (response.ok) {
-            formStatus.textContent = 'Dados enviados com sucesso! Agradecemos o contato.';
-            formStatus.style.color = 'green';
-            contactForm.reset();
-            setTimeout(() => {
-                contactModal.classList.remove('show');
-            }, 3000);
-        } else {
-            throw new Error('Falha no envio dos dados.');
-        }
-
-    } catch (error) {
-        console.error('Erro ao enviar formulário:', error);
-        formStatus.textContent = 'Ocorreu um erro. Por favor, tente novamente.';
-        formStatus.style.color = 'red';
-    } finally {
-        submitFormBtn.disabled = false;
-        submitFormBtn.textContent = 'Enviar';
-    }
-});
-
-
-// Contextos dos Gráficos
-const vencimentosChartCtx = document.getElementById('vencimentos-chart').getContext('2d');
-const bancosChartCtx = document.getElementById('bancos-chart').getContext('2d');
-const fluxoCaixaChartCtx = document.getElementById('fluxo-caixa-chart').getContext('2d');
-const projecaoChartCtx = document.getElementById('projecao-patrimonio-chart').getContext('2d');
-
-// Instâncias dos Gráficos
-let vencimentosChart, bancosChart, fluxoCaixaChart, projecaoChart = null;
-
-function categorizarPorIndexador(taxa) {
-    const taxaUpper = taxa.toUpperCase();
-    if (taxaUpper.includes('CDI')) return 'Pós-fixado (CDI)';
-    if (taxaUpper.includes('IPCA') || taxaUpper.includes('IPC-A')) return 'Híbrido (Inflação)';
-    if (taxaUpper.includes('IGP-M') || taxaUpper.includes('IGPM')) return 'Híbrido (Inflação)';
-    if (taxaUpper.includes('LFT') || taxaUpper.includes('SELIC')) return 'Pós-fixado (Selic)';
-    if (taxaUpper.includes('%')) return 'Pré-fixado';
-    return 'Outro';
-}
-
-function gerarChaveDeAgrupamento(nomeDoProduto) {
-    let chave = nomeDoProduto.toUpperCase();
-    const stopWords = ['S/A', 'S.A.', 'LTDA', 'JUROS SEMESTRAIS', 'DI', 'CDB', 'CDE', 'LCI', 'LCA', 'CRI', 'CRA', 'DEB', 'LIG'];
-    chave = chave.replace(/-/g, ' ');
-    stopWords.forEach(word => {
-        chave = chave.replace(new RegExp(`\\b${word}\\b`, 'g'), '');
-    });
-    chave = chave.replace(/\s+\d+[A-Z]\s?S?\b/g, '');
-    chave = chave.replace(/[A-Z]{3}\/\d{4}/g, '');
-    return chave.replace(/\s+/g, ' ').trim();
-}
-
-const formatCurrency = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+// --- Event Listeners ---
+contactBtn.addEventListener('click', () => contactModal.classList.add('show'));
+closeButton.addEventListener('click', () => contactModal.classList.remove('show'));
+window.addEventListener('click', (event) => { if (event.target == contactModal) contactModal.classList.remove('show'); });
 
 pdfUpload.addEventListener('change', (event) => {
     const file = event.target.files[0];
-    if (file && file.type === 'application/pdf') {
-        lerPDF(file);
-    } else {
-        alert("Por favor, selecione um arquivo PDF.");
-    }
+    if (file && file.type === 'application/pdf') lerPDF(file);
+    else alert("Por favor, selecione um arquivo PDF.");
 });
 
 filtroEmissor.addEventListener('change', aplicarFiltros);
 btnRecalcular.addEventListener('click', aplicarFiltros);
+btnToggleFluxo.addEventListener('click', () => {
+    fluxoCaixaMode = fluxoCaixaMode === 'ano' ? 'mes' : 'ano';
+    btnToggleFluxo.textContent = fluxoCaixaMode === 'ano' ? 'Ver Mensal' : 'Ver Anual';
+    aplicarFiltros();
+});
 
-async function lerPDF(file) {
-    const reader = new FileReader();
-    reader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
-        const pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const textContent = await page.getTextContent();
-            fullText += textContent.items.map(item => item.str).join(' ');
-        }
-        processarTextoDoPDF(fullText);
-    };
-    reader.readAsArrayBuffer(file);
+// PDF e COPY
+btnPrint.addEventListener('click', () => {
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+    document.getElementById('data-relatorio').textContent = `Data da Análise: ${dataHoje}`;
+    window.print();
+});
+
+btnCopy.addEventListener('click', () => {
+    gerarResumoClipboard();
+});
+
+// --- FUNÇÕES UTILITÁRIAS ---
+function categorizarPorIndexador(ativo) {
+    const taxaLimpa = ativo.taxa ? ativo.taxa.toUpperCase().replace(/\s/g, '') : "";
+    const produtoLimpo = ativo.produto ? ativo.produto.toUpperCase().replace(/\s/g, '') : "";
+    if (taxaLimpa.includes('IPCA') || taxaLimpa.includes('IPC-A') || taxaLimpa.includes('IMAB') || produtoLimpo.includes('NTNB') || produtoLimpo.includes('IPCA')) return 'Híbrido (Inflação)';
+    if (taxaLimpa.includes('CDI') || produtoLimpo.includes('LFT') || taxaLimpa.includes('SELIC')) return taxaLimpa.includes('CDI') ? 'Pós-fixado (CDI)' : 'Pós-fixado (Selic)';
+    if (taxaLimpa.includes('IGPM') || taxaLimpa.includes('IGP-M')) return 'Híbrido (Inflação)';
+    if (taxaLimpa.includes('%') || taxaLimpa.includes('PRE')) return 'Pré-fixado';
+    return 'Outro';
 }
 
-/**
- * Processa os dados de um ativo encontrado no extrato do BTG.
- * @param {Array} match O resultado da execução do Regex.
- * @returns {Object} Um objeto formatado com os dados do ativo.
- */
-function parseBTGMatch(match) {
-    // A estrutura do Regex do BTG captura os dados em índices diferentes
-    // dependendo se é Tesouro ou LCA. Esta função normaliza isso.
-    const emissor = match[1] || match[8];
-    const produto = match[2] || match[9];
-    const dataVencimento = match[4] || match[11];
-    const taxa = match[5] || match[12];
-    const valorLiquidoStr = match[7] || match[14];
-    
-    // Limpa a string do valor e a converte para número
-    const valorLiquido = parseFloat(valorLiquidoStr.replace(/\./g, '').replace(',', '.'));
+function formatCurrency(value) { return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+function parseDataBR(dataStr) { if (!dataStr) return null; const p = dataStr.split('/'); if (p.length === 3) return new Date(p[2], p[1]-1, p[0]); return null; }
 
-    return {
-        tipo: produto.split(' ')[0], // Pega a primeira palavra como tipo (LFT, LCA, etc)
-        banco: emissor.trim(),
-        produto: produto.trim(),
-        dataAplicacao: match[3] || match[10], // Data de Emissão/Aquisição
-        dataVencimento: dataVencimento,
-        taxa: taxa.replace(/\s+/g, ' ').trim(), // Limpa espaços extras na taxa
-        // O relatório de posição do BTG não informa o valor aplicado,
-        // então usaremos o valor líquido como uma aproximação.
-        valorAplicado: valorLiquido,
-        valorLiquido: valorLiquido
-    };
+function estimarTaxaAnual(taxaStr) {
+    const pCDI = parseFloat(document.getElementById('projecao-cdi').value)||0;
+    const pIPCA = parseFloat(document.getElementById('projecao-ipca').value)||0;
+    const pSelic = parseFloat(document.getElementById('projecao-selic').value)||0;
+    const pIGPM = parseFloat(document.getElementById('projecao-igpm').value)||0;
+    let t = taxaStr.toUpperCase().replace(/\s/g, '').replace(',', '.');
+    if (t.includes('CDI')) { let pct = parseFloat(t.split('%')[0]); if (isNaN(pct)) pct=100; return (pCDI/100)*(pct/100); }
+    if (t.includes('IPCA')||t.includes('IPC-A')) { let fix=0; const m=t.match(/[\+\-](\d+\.?\d*)/); if(m) fix=parseFloat(m[1]); return ((pIPCA+fix)/100); }
+    if (t.includes('SELIC')||t.includes('LFT')) { let fix=0; const m=t.match(/[\+\-](\d+\.?\d*)/); if(m) fix=parseFloat(m[1]); return ((pSelic+fix)/100); }
+    if (t.includes('IGPM')||t.includes('IGP-M')) { let fix=0; const m=t.match(/[\+\-](\d+\.?\d*)/); if(m) fix=parseFloat(m[1]); return ((pIGPM+fix)/100); }
+    let val = parseFloat(t.replace('%', '')); if (!isNaN(val)) return val/100; return 0;
 }
 
-function parseXPMatch(match) {
-    const tipoAtivo = match[1];
-    const fullProductName = match[2];
-    const chaveAgrupamento = gerarChaveDeAgrupamento(`${tipoAtivo} ${fullProductName}`);
+// --- PARSERS E LIMPEZA DE NOMES ---
+const regexBTG = /(BACEN - BANCO CENTRAL DO BRASIL\s*-\s*RJ)\s+(LFT|LTN|NTNB(?: - P)?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:SELIC|OVER|IPCA)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+(?:[\d.,]+|-)\s+-\s+([\d.,]+)|(BANCO BTG PACTUAL S A)\s+(LCA\s*-\s*.*?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:IPCA|CDI)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+-\s+-\s+([\d.,]+)/g;
+const regexXP = /(CDB|LCI|LCA|CRI|CRA|DEB|LIG|CDCA|NTN\s*-?\s*B)([\s\S]*?)(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})[\s\S]*?(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})[\s\S]*?((?:[A-Za-z\s-]+\+)?\s*-?\s*[\d.,\s]+%(?:\s*[A-Za-z]+)?|[\d.,\s]+%[\s\S]*?CDI)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)/g;
+
+function limparDataXP(str) { if (!str) return ""; return str.replace(/\s/g, ''); }
+function limparNumeroXP(str) { if (!str) return 0; let limpo = str.replace(/\./g, '').replace(/\s/g, ''); limpo = limpo.replace(',', '.'); return parseFloat(limpo); }
+
+// EXTRAÇÃO DE BANCO MELHORADA (CORRIGE BANCO BBC / REDE D'OR)
+function extrairBanco(nome) { 
+    const nomeUpper = nome.toUpperCase();
     
-    return {
-        tipo: tipoAtivo,
-        banco: chaveAgrupamento,
-        produto: fullProductName.trim(),
-        dataAplicacao: match[3],
-        dataVencimento: match[5],
-        taxa: match[6].trim(),
-        valorAplicado: parseFloat(match[7].replace(/\./g, '').replace(',', '.')),
-        valorLiquido: parseFloat(match[9].replace(/\./g, '').replace(',', '.')) // O 9º grupo é o Valor Líquido no padrão da XP
-    };
+    // Casos Especiais de Agrupamento
+    if (nomeUpper.includes("NTN") || nomeUpper.includes("LTN") || nomeUpper.includes("TESOURO")) return "Tesouro Nacional";
+    if (nomeUpper.includes("MASTER") || nomeUpper.includes("WILL FINANCEIRA")) return "Banco Master";
+    
+    // Limpeza de sufixos de data e pontuação final
+    let nomeLimpo = nome.replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '') // Remove "- DEZ/2029"
+                        .replace(/\s+-\s+$/, '') // Remove traço solto no final
+                        .trim();
+
+    // RETORNA O NOME COMPLETO LIMPO
+    // Isso corrige "BANCO C6 CONSIGNADO" e "REDE D'OR"
+    if (nomeLimpo.length < 2) return "Outros"; // Proteção contra nomes vazios
+    
+    return nomeLimpo; 
 }
 
 function normalizarAtivo(ativo) {
     const ativoNormalizado = { ...ativo };
-
-    // --- PONTO 1: Normaliza o nome do Emissor ---
-    if (ativoNormalizado.banco && ativoNormalizado.banco.toUpperCase().includes('BACEN')) {
-        ativoNormalizado.banco = 'Tesouro Nacional';
-    }
-
-    // Padroniza o campo 'taxa'
-    if (ativoNormalizado.taxa) {
-        let taxaUpper = ativoNormalizado.taxa.toUpperCase();
-        
-        taxaUpper = taxaUpper.replace('IPC-A', 'IPCA');
-        taxaUpper = taxaUpper.replace('IGP-M', 'IGPM');
-        
-        ativoNormalizado.taxa = taxaUpper.replace(/\s+/g, ' ').trim();
-    }
-    
+    if (ativoNormalizado.tipo.includes("NTN") || ativoNormalizado.tipo.includes("Tesouro")) ativoNormalizado.banco = 'Tesouro Nacional';
+    ativoNormalizado.banco = extrairBanco(ativoNormalizado.banco); 
     return ativoNormalizado;
 }
 
+function parseBTGMatch(match) {
+    const emissor = match[1]||match[8]; const produto = match[2]||match[9]; const dataVencimento = match[4]||match[11]; const taxa = match[5]||match[12]; const valorLiquidoStr = match[7]||match[14]; const valorLiquido = parseFloat(valorLiquidoStr.replace(/\./g, '').replace(',', '.'));
+    return { tipo: produto.split(' ')[0], banco: emissor.trim(), produto: produto.trim(), dataAplicacao: match[3]||match[10], dataVencimento: dataVencimento, taxa: taxa.replace(/\s+/g, ' ').trim(), valorAplicado: valorLiquido, valorLiquido: valorLiquido };
+}
 
-const regexXP = /(CDB|CDE|LCI|LCA|CRI|CRA|DEB|LIG)\s(.*?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(.*?)\s+\d+\s*\d*\s+R\$\s+([\d.,]+)\s+R\$\s+([\d.,]+)\s+R\$\s+([\d.,]+)/g;
-const regexBTG = /(BACEN - BANCO CENTRAL DO BRASIL\s*-\s*RJ)\s+(LFT|LTN|NTNB(?: - P)?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:SELIC|OVER|IPCA)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+(?:[\d.,]+|-)\s+-\s+([\d.,]+)|(BANCO BTG PACTUAL S A)\s+(LCA\s*-\s*.*?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:IPCA|CDI)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+-\s+-\s+([\d.,]+)/g;
+function parseXPMatch(match) {
+    let tipoAtivo = match[1]; let nomeBruto = match[2].replace(/\n/g, ' ').trim(); let taxaBruta = match[5].replace(/\s+/g, ' ').trim();
+    if (nomeBruto.includes("T00:00:00")||nomeBruto.length > 150) return null;
+    const matchAno = taxaBruta.match(/^(20\d{2})\s+([\d.,]+.*)/); if (matchAno) taxaBruta = matchAno[2];
+    taxaBruta = taxaBruta.replace(/(\d)\s+([.,])\s+(\d)/g, '$1$2$3');
+    
+    // Limpeza mais agressiva para remover datas do nome
+    nomeBruto = nomeBruto.replace(/Garantia|Posição|Disponível|Vencimento|Título|Preço|Total/g, '')
+                         .replace(/R\s*\$\s*[\d.,]+/g, '')
+                         .replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '') // Remove JAN/2025 do nome
+                         .trim();
+                         
+    if (tipoAtivo.includes("NTN")) { nomeBruto = nomeBruto.replace(/^-/, '').trim(); if(nomeBruto.length < 5) nomeBruto = "IPCA+"; tipoAtivo = "Tesouro IPCA+ (NTN-B)"; }
+    return { tipo: tipoAtivo, banco: extrairBanco(nomeBruto), produto: `${tipoAtivo} ${nomeBruto}`, dataAplicacao: limparDataXP(match[3]), dataVencimento: limparDataXP(match[4]), taxa: taxaBruta, valorAplicado: limparNumeroXP(match[6]), valorLiquido: limparNumeroXP(match[9]) };
+}
+const BIBLIOTECA_DE_PARSERS = [ { nomeCorretora: 'BTG Pactual', regex: regexBTG, funcaoDeExtracao: parseBTGMatch }, { nomeCorretora: 'XP Investimentos', regex: regexXP, funcaoDeExtracao: parseXPMatch } ];
 
-// 2. Montagem da Biblioteca
-const BIBLIOTECA_DE_PARSERS = [
-    {
-        nomeCorretora: 'BTG Pactual',
-        regex: regexBTG,
-        funcaoDeExtracao: parseBTGMatch
-    },
-    {
-        nomeCorretora: 'XP Investimentos',
-        regex: regexXP,
-        funcaoDeExtracao: parseXPMatch
-    }
-    // PARA ADICIONAR UMA NOVA CORRETORA, BASTA ADICIONAR UM NOVO OBJETO AQUI!
-];
-
+async function lerPDF(file) {
+    const reader = new FileReader(); reader.onload = async function() {
+        const typedarray = new Uint8Array(this.result); pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+        try { const pdfDoc = await pdfjsLib.getDocument(typedarray).promise; let fullText = '';
+            for (let i = 1; i <= pdfDoc.numPages; i++) { const page = await pdfDoc.getPage(i); const textContent = await page.getTextContent(); fullText += textContent.items.map(item => item.str).join(' '); }
+            processarTextoDoPDF(fullText);
+        } catch (error) { alert("Erro ao ler PDF."); }
+    }; reader.readAsArrayBuffer(file);
+}
 function processarTextoDoPDF(text) {
-    let ativos = [];
-
-    // Loop principal que testa cada parser da nossa biblioteca
-    for (const parser of BIBLIOTECA_DE_PARSERS) {
-        let match;
-        // O "g" no final do regex é importante para que o loop while funcione
-        parser.regex.lastIndex = 0; // Reseta o índice do regex para uma nova busca
-
-        while ((match = parser.regex.exec(text)) !== null) {
-            // Usa a função de extração específica daquela corretora
-            const ativoBruto = parser.funcaoDeExtracao(match);
-            // Normaliza os dados extraídos para garantir consistência
-            const ativoNormalizado = normalizarAtivo(ativoBruto);
-            ativos.push(ativoNormalizado);
-        }
-
-        // Se encontrou ativos com este parser, assume que é a corretora certa e para o loop
-        if (ativos.length > 0) {
-            console.log(`PDF identificado como padrão da corretora: ${parser.nomeCorretora}`);
-            break;
-        }
-    }
-
-    if (ativos.length > 0) {
-        reportContainer.style.display = 'block';
-        todosOsAtivos = ativos;
-        popularFiltros(todosOsAtivos);
-        aplicarFiltros();
-    } else {
-        alert("Nenhum ativo de Renda Fixa foi encontrado em um formato reconhecido. Verifique o documento PDF.");
-    }
+    let ativos = []; text = text.replace(/Posição Consolidada\s+Data de referência\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4}/gi, ' ');
+    const regexCorte = /P\s*R\s*[ÓO]\s*X\s*I\s*M\s*O\s*S\s*[\s\S]*?V\s*E\s*N\s*C\s*I\s*M\s*E\s*N\s*T\s*O\s*S/i;
+    const matchCorte = text.match(regexCorte); if (matchCorte && matchCorte.index) text = text.substring(0, matchCorte.index);
+    text = text.replace(/Posição Consolidada/gi, ' '); 
+    for (const parser of BIBLIOTECA_DE_PARSERS) { let match; parser.regex.lastIndex = 0; while ((match = parser.regex.exec(text)) !== null) { try { const ativoBruto = parser.funcaoDeExtracao(match); if (!ativoBruto) continue; if (ativoBruto.produto.toUpperCase().includes("PRE DU ")||ativoBruto.produto.toUpperCase().includes("POS DU ")) continue; ativos.push(normalizarAtivo(ativoBruto)); } catch (e) {} } }
+    if (ativos.length > 0) { reportContainer.style.display = 'block'; todosOsAtivos = ativos; popularFiltros(todosOsAtivos); aplicarFiltros(); } else { alert("Nenhum ativo encontrado."); }
 }
 
-function popularFiltros(ativos) {
-    filtroEmissor.innerHTML = '';
-    const allOption = document.createElement('option');
-    allOption.value = 'todos';
-    allOption.textContent = 'Todos os Emissores';
-    filtroEmissor.appendChild(allOption);
-    const emissores = [...new Set(ativos.map(ativo => ativo.banco))];
-    emissores.sort().forEach(emissor => {
-        const option = document.createElement('option');
-        option.value = emissor;
-        option.textContent = emissor;
-        filtroEmissor.appendChild(option);
-    });
-}
-
-function aplicarFiltros() {
-    const valorFiltro = filtroEmissor.value;
-    let ativosFiltrados = todosOsAtivos;
-    if (valorFiltro !== 'todos') {
-        ativosFiltrados = todosOsAtivos.filter(ativo => ativo.banco === valorFiltro);
-    }
-    criarRelatorio(ativosFiltrados);
-}
+function popularFiltros(ativos) { filtroEmissor.innerHTML = ''; const allOption = document.createElement('option'); allOption.value = 'todos'; allOption.textContent = 'Todos os Emissores'; filtroEmissor.appendChild(allOption); const emissores = [...new Set(ativos.map(ativo => ativo.banco))]; emissores.sort().forEach(emissor => { const option = document.createElement('option'); option.value = emissor; option.textContent = emissor; filtroEmissor.appendChild(option); }); }
+function aplicarFiltros() { const valorFiltro = filtroEmissor.value; let ativosFiltrados = todosOsAtivos; if (valorFiltro !== 'todos') ativosFiltrados = todosOsAtivos.filter(ativo => ativo.banco === valorFiltro); criarRelatorio(ativosFiltrados); }
 
 function criarRelatorio(ativos) {
-    desenharGraficoVencimentos(ativos);
-    desenharGraficoBancos(ativos);
-    criarTabelaDetalhada(ativos);
-    criarGraficoProjecao(ativos);
-    criarGraficoFluxoCaixa(ativos);
-    gerarInsights(ativos);
-    gerarPrevisaoRendimentos(ativos);
-    desenharGraficoIndexadores(ativos);
+    criarTabelaDetalhada(ativos); gerarInsights(ativos); gerarPrevisaoRendimentos(ativos); desenharGraficoIndexadores(ativos); gerarListaEmissores(ativos); criarGraficoFluxoCaixa(ativos); criarGraficoProjecaoPatrimonio(ativos);
 }
 
-function gerarPrevisaoRendimentos(ativos) {
-    const ativosComJurosMensais = ativos.filter(ativo =>
-        ativo.produto.toUpperCase().includes('JUROS MENSAIS') ||
-        ativo.produto.toUpperCase().includes('JURO MENSAL')
-    );
-
-    if (ativosComJurosMensais.length === 0) {
-        rendimentosMensaisContainer.innerHTML = '<p>Nenhum ativo com pagamento de juros mensais encontrado na seleção atual.</p>';
-        return;
-    }
-
-    let totalRendimentoMensalLiquido = 0;
-    let html = '<ul>';
-
-    const hoje = new Date();
-    ativosComJurosMensais.forEach(ativo => {
-        const dataAplicacao = new Date(ativo.dataAplicacao.split('/').reverse().join('-'));
-        const diffTime = hoje - dataAplicacao;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        let aliquotaIR = 0;
-        if (diffDays <= 180) aliquotaIR = 0.225;
-        else if (diffDays <= 360) aliquotaIR = 0.20;
-        else if (diffDays <= 720) aliquotaIR = 0.175;
-        else aliquotaIR = 0.15;
-
-        const taxaStr = ativo.taxa.toUpperCase();
-        let taxaAnual = 0;
-        const taxaPre = parseFloat(taxaStr.replace('%', '').replace(',', '.'));
-        if (!isNaN(taxaPre)) taxaAnual = taxaPre / 100;
-
-        const rendimentoBrutoMensal = (ativo.valorAplicado * taxaAnual) / 12;
-        const rendimentoLiquidoMensal = rendimentoBrutoMensal * (1 - aliquotaIR);
-        totalRendimentoMensalLiquido += rendimentoLiquidoMensal;
-
-        html += `<li><strong>${ativo.produto}:</strong> ${formatCurrency(rendimentoLiquidoMensal)} <span style="font-size: 0.8em; color: #606770;">(IR: ${aliquotaIR * 100}%)</span></li>`;
+function gerarResumoClipboard() {
+    const total = todosOsAtivos.reduce((acc, at) => acc + at.valorLiquido, 0);
+    const qtd = todosOsAtivos.length;
+    const bancos = [...new Set(todosOsAtivos.map(a => a.banco))].join(', ');
+    
+    let text = `📊 *Resumo de Carteira - Renda Fixa*\n`;
+    text += `💰 Total: ${formatCurrency(total)}\n`;
+    text += `📄 Ativos: ${qtd}\n`;
+    text += `⚠️ *Avisos de Risco (FGC):*\n`;
+    
+    const porBanco = {};
+    todosOsAtivos.forEach(at => {
+        if (!porBanco[at.banco]) porBanco[at.banco] = 0;
+        if (TIPOS_FGC.some(t => at.tipo.toUpperCase().includes(t))) porBanco[at.banco] += at.valorLiquido;
     });
-
-    html += '</ul>';
-    html += `<hr><p><strong>Total Mensal Líquido Estimado: ${formatCurrency(totalRendimentoMensalLiquido)}</strong></p>`;
-
-    rendimentosMensaisContainer.innerHTML = html;
-}
-
-function criarTabelaDetalhada(ativos) {
-    let tableHTML = '<table><thead><tr><th>Emissor</th><th>Produto</th><th>Vencimento</th><th>Taxa</th><th>Valor Aplicado</th><th>Valor Líquido (Atual)</th></tr></thead><tbody>';
-    for (const ativo of ativos) {
-        tableHTML += `<tr><td>${ativo.banco}</td><td>${ativo.produto}</td><td>${ativo.dataVencimento}</td><td>${ativo.taxa}</td><td>${formatCurrency(ativo.valorAplicado)}</td><td>${formatCurrency(ativo.valorLiquido)}</td></tr>`;
+    
+    let riscoEncontrado = false;
+    for (const [banco, valor] of Object.entries(porBanco)) {
+        if (valor > LIMITE_FGC * 0.9) {
+            text += `- ${banco}: ${formatCurrency(valor)} (Atenção!)\n`;
+            riscoEncontrado = true;
+        }
     }
-    tableHTML += '</tbody></table>';
-    tableContainer.innerHTML = tableHTML;
+    if (!riscoEncontrado) text += "Nenhum emissor próximo do teto FGC (R$ 250k).\n";
+    text += `\n📅 Gerado em: ${new Date().toLocaleDateString()}`;
+    navigator.clipboard.writeText(text).then(() => { alert("Resumo copiado!"); }).catch(err => alert("Erro ao copiar."));
 }
 
-function gerarInsights(ativos) {
-    insightsContainer.innerHTML = '';
-    if (ativos.length === 0) return;
-    
-    let insightsHTML = '<ul>';
-    const totalValor = ativos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
+function criarTabelaDetalhada(ativos) { let tableHTML = '<table><thead><tr><th>Emissor/Produto</th><th>Vencimento</th><th>Taxa</th><th>Valor Líquido</th></tr></thead><tbody>'; ativos.forEach(ativo => { tableHTML += `<tr><td>${ativo.produto}</td><td>${ativo.dataVencimento}</td><td>${ativo.taxa}</td><td>${formatCurrency(ativo.valorLiquido)}</td></tr>`; }); tableHTML += '</tbody></table>'; tableContainer.innerHTML = tableHTML; }
+function gerarPrevisaoRendimentos(ativos) { const ativosComJuros = ativos.filter(ativo => ativo.produto.toUpperCase().includes('JUROS MENSAIS')||ativo.produto.toUpperCase().includes('JURO MENSAL')); if (ativosComJuros.length === 0) { rendimentosMensaisContainer.innerHTML = '<p>Nenhum ativo com juros mensais.</p>'; return; } let totalMensal = 0; let html = '<ul>'; ativosComJuros.forEach(ativo => { const taxaAnual = estimarTaxaAnual(ativo.taxa); const rendaMensalBruta = (ativo.valorLiquido * taxaAnual) / 12; const rendaMensalLiq = rendaMensalBruta * 0.85; totalMensal += rendaMensalLiq; html += `<li><strong>${ativo.produto}:</strong> ~${formatCurrency(rendaMensalLiq)}</li>`; }); html += '</ul>'; html += `<hr><p><strong>Total Estimado: ${formatCurrency(totalMensal)}/mês</strong></p>`; rendimentosMensaisContainer.innerHTML = html; }
+function gerarInsights(ativos) { if (ativos.length === 0) return; const total = ativos.reduce((acc, at) => acc + at.valorLiquido, 0); const hoje = new Date(); hoje.setHours(0,0,0,0); const proximo = ativos.map(a => ({...a, dt: parseDataBR(a.dataVencimento)})).filter(a => a.dt && a.dt >= hoje).sort((a,b) => a.dt - b.dt)[0]; const porEmissor = {}; ativos.forEach(a => porEmissor[a.banco] = (porEmissor[a.banco] || 0) + a.valorLiquido); const maiorEmissor = Object.keys(porEmissor).reduce((a, b) => porEmissor[a] > porEmissor[b] ? a : b); let html = `<ul><li><strong>Quantidade de Ativos:</strong> ${ativos.length}</li><li><strong>Total Patrimônio:</strong> ${formatCurrency(total)}</li><li><strong>Próximo Vencimento:</strong> ${proximo ? proximo.dataVencimento + " (" + proximo.produto + ")" : "Nenhum"}</li><li><strong>Maior Concentração:</strong> ${maiorEmissor} (${formatCurrency(porEmissor[maiorEmissor])})</li></ul>`; insightsContainer.innerHTML = html; }
 
-    const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
-    const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
-    const emissoresFuturo = {};
-    
-    ativos.forEach(ativo => {
-        const tiposFGC = ['CDB', 'CDE', 'LCI', 'LCA', 'LIG'];
-        if(tiposFGC.includes(ativo.tipo.toUpperCase())){
-            if (!emissoresFuturo[ativo.banco]) {
-                emissoresFuturo[ativo.banco] = 0;
+function gerarListaEmissores(ativos) {
+    const porBanco = {};
+    const taxaSimulacaoAnual = parseFloat(document.getElementById('taxa-simulacao').value)||12.0;
+    const taxaSimulacaoMensal = Math.pow(1 + (taxaSimulacaoAnual / 100), 1/12) - 1;
+    ativos.forEach(at => { if (!porBanco[at.banco]) porBanco[at.banco] = { total: 0, totalFGC: 0, ativos: [], temAtivoFGC: false }; porBanco[at.banco].total += at.valorLiquido; porBanco[at.banco].ativos.push(at); const isFGC = TIPOS_FGC.some(tipo => at.tipo.toUpperCase().includes(tipo)); if (isFGC) { porBanco[at.banco].totalFGC += at.valorLiquido; porBanco[at.banco].temAtivoFGC = true; } });
+    let html = ''; const hoje = new Date(); hoje.setHours(0,0,0,0);
+    Object.keys(porBanco).sort((a,b) => porBanco[b].totalFGC - porBanco[a].totalFGC).forEach(banco => {
+        const dados = porBanco[banco]; const percentualUso = Math.min(100, (dados.totalFGC / LIMITE_FGC) * 100); let corBarra = percentualUso > 100 ? '#dc3545' : (percentualUso > 80 ? '#ffc107' : '#198754');
+        let htmlAportes = "";
+        if (dados.temAtivoFGC) {
+            const anosVencimento = new Set(); dados.ativos.forEach(a => { const dt = parseDataBR(a.dataVencimento); if (dt && dt >= hoje) anosVencimento.add(dt.getFullYear()); });
+            const anosOrdenados = Array.from(anosVencimento).sort();
+            if (anosOrdenados.length > 0) {
+                htmlAportes += `<div style="margin-top: 8px; border-top: 1px dashed #eee; padding-top: 6px;">`; htmlAportes += `<p style="margin: 0 0 4px 0; font-size: 0.8em; font-weight: bold; color: #555;">Potencial de Aporte Hoje (Simulação):</p>`;
+                anosOrdenados.forEach(ano => {
+                    let dataAlvo = new Date(ano, 0, 1); dados.ativos.forEach(a => { const dt = parseDataBR(a.dataVencimento); if (dt && dt.getFullYear() === ano && dt > dataAlvo) dataAlvo = dt; });
+                    let dataCheck = new Date(hoje); dataCheck.setDate(1); let minAporteAllowed = 999999999;
+                    while (dataCheck <= dataAlvo) {
+                        let saldoProjetado = 0; dados.ativos.forEach(a => { if (TIPOS_FGC.some(t => a.tipo.toUpperCase().includes(t))) { const dtVenc = parseDataBR(a.dataVencimento); if (dtVenc > dataCheck) { const mesesCrescimento = Math.max(0, (dataCheck - hoje) / (1000 * 60 * 60 * 24 * 30)); const taxaMensalAtivo = Math.pow(1 + estimarTaxaAnual(a.taxa), 1/12) - 1; saldoProjetado += a.valorLiquido * Math.pow(1 + taxaMensalAtivo, mesesCrescimento); } } });
+                        const gap = Math.max(0, LIMITE_FGC - saldoProjetado); const mesesTotal = Math.max(0, (dataCheck - hoje) / (1000 * 60 * 60 * 24 * 30)); const aportePossivelHoje = gap / Math.pow(1 + taxaSimulacaoMensal, mesesTotal); if (aportePossivelHoje < minAporteAllowed) minAporteAllowed = aportePossivelHoje; dataCheck.setMonth(dataCheck.getMonth() + 6);
+                    }
+                    let aporteMsg = ""; if (minAporteAllowed <= 100) aporteMsg = `<span style="color:#dc3545; font-size:0.8em;">${ano}: Teto Atingido</span>`; else aporteMsg = `<span style="color:#198754; font-size:0.8em;">${ano}: +${formatCurrency(minAporteAllowed)}</span>`; htmlAportes += `<div style="display:inline-block; margin-right:10px;">${aporteMsg}</div>`;
+                }); htmlAportes += `</div>`;
             }
-            const valorFuturo = calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA);
-            emissoresFuturo[ativo.banco] += valorFuturo;
         }
+        html += `<div class="emissor-item"><div class="emissor-header"><span>${banco}</span><span>Total: ${formatCurrency(dados.total)}</span></div><div class="emissor-info"><span>Utilizado FGC: ${formatCurrency(dados.totalFGC)} (${percentualUso.toFixed(1)}%)</span></div><div class="fgc-bar-bg"><div class="fgc-bar-fill" style="width: ${percentualUso}%; background-color: ${corBarra};"></div></div>${htmlAportes}</div>`;
     });
-
-    for (const [emissor, valorProjetado] of Object.entries(emissoresFuturo)) {
-        if (valorProjetado > 250000) {
-             insightsHTML += `<li><span style="color: #dc3545; font-weight: bold;">Risco FGC Futuro:</span> O valor total projetado para o emissor <strong>${emissor}</strong> atingirá <strong>${formatCurrency(valorProjetado)}</strong>, ultrapassando a garantia de R$ 250 mil. <strong><a href="#" onclick="document.getElementById('contact-btn').click(); return false;">Fale com um especialista</a></strong> para reestruturar sua carteira.</li>`;
-        }
-    }
-    
-    const bancosData = {};
-    ativos.forEach(ativo => {
-        bancosData[ativo.banco] = (bancosData[ativo.banco] || 0) + ativo.valorLiquido;
-    });
-
-    if (Object.keys(bancosData).length > 0) {
-        const [maiorEmissor, valorMaiorEmissor] = Object.entries(bancosData).reduce((a, b) => a[1] > b[1] ? a : b);
-        const percentualConcentracao = (valorMaiorEmissor / totalValor) * 100;
-        
-        if (percentualConcentracao > 50 && Object.keys(bancosData).length > 1) {
-            insightsHTML += `<li><span style="color: #ffc107; font-weight: bold;">Ponto de Atenção:</span> ${percentualConcentracao.toFixed(0)}% da carteira está concentrada no emissor <strong>${maiorEmissor}</strong>. Considere diversificar.</li>`;
-        }
-    }
-    
-    const indexadoresData = {};
-    ativos.forEach(ativo => {
-        const categoria = categorizarPorIndexador(ativo.taxa);
-        indexadoresData[categoria] = (indexadoresData[categoria] || 0) + ativo.valorLiquido;
-    });
-
-    if(Object.keys(indexadoresData).length > 0){
-        const [maiorIndexador, valorMaiorIndexador] = Object.entries(indexadoresData).reduce((a,b) => a[1] > b[1] ? a : b);
-        const percentualIndexador = (valorMaiorIndexador / totalValor) * 100;
-
-        if(percentualIndexador >= 90){
-             insightsHTML += `<li><span style="color: #0d6efd; font-weight: bold;">Oportunidade:</span> ${percentualIndexador.toFixed(0)}% da sua carteira está atrelada a <strong>${maiorIndexador}</strong>. Diversificar os indexadores pode proteger seu patrimônio. <strong><a href="#" onclick="document.getElementById('contact-btn').click(); return false;">Converse conosco</a></strong>.</li>`;
-        }
-    }
-
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const proximoAtivo = ativos
-        .map(a => ({ ...a, dataVencObj: new Date(a.dataVencimento.split('/').reverse().join('-')) }))
-        .filter(a => a.dataVencObj >= hoje)
-        .sort((a, b) => a.dataVencObj - b.dataVencObj)[0];
-
-    if (proximoAtivo) {
-        insightsHTML += `<li>Seu próximo vencimento é em <strong>${proximoAtivo.dataVencimento}</strong> (${proximoAtivo.produto}). Planeje o reinvestimento.</li>`;
-    }
-
-    insightsHTML += `<li>Análise de <strong>${ativos.length}</strong> ativos, somando <strong>${formatCurrency(totalValor)}</strong> (valor líquido atual).</li>`;
-    
-    insightsHTML += '</ul>';
-    insightsContainer.innerHTML = insightsHTML;
-}
-
-
-function desenharGraficoVencimentos(ativos) {
-    const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
-    const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
-    const vencimentosData = {};
-
-    ativos.forEach(ativo => {
-        const valorFinal = calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA);
-        vencimentosData[ativo.dataVencimento] = (vencimentosData[ativo.dataVencimento] || 0) + valorFinal;
-    });
-
-    const labels = Object.keys(vencimentosData).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
-    const data = labels.map(label => vencimentosData[label]);
-
-    if (vencimentosChart) vencimentosChart.destroy();
-    vencimentosChart = new Chart(vencimentosChartCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Valor Final no Vencimento (R$)', data: data, backgroundColor: '#6f42c1' }] }, options: { scales: { y: { beginAtZero: true } } } });
-}
-
-function desenharGraficoBancos(ativos) {
-    const bancosData = {};
-    ativos.forEach(ativo => {
-        bancosData[ativo.banco] = (bancosData[ativo.banco] || 0) + ativo.valorLiquido;
-    });
-    const labels = Object.keys(bancosData);
-    const data = labels.map(label => bancosData[label]);
-
-    if (bancosChart) bancosChart.destroy();
-    bancosChart = new Chart(bancosChartCtx, { type: 'doughnut', data: { labels: labels, datasets: [{ label: 'Distribuição por Emissor', data: data, backgroundColor: ['#0d6efd', '#dc3545', '#ffc107', '#198754', '#6f42c1', '#fd7e14'] }] } });
+    listaEmissoresContainer.innerHTML = html;
 }
 
 function criarGraficoFluxoCaixa(ativos) {
-    const projecaoCDI = parseFloat(document.getElementById('projecao-cdi').value) / 100;
-    const projecaoIPCA = parseFloat(document.getElementById('projecao-ipca').value) / 100;
-    const fluxoPorAno = {};
-
-    ativos.forEach(ativo => {
-        const anoVencimento = ativo.dataVencimento.split('/')[2];
-        const valorFinal = calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA);
-        fluxoPorAno[anoVencimento] = (fluxoPorAno[anoVencimento] || 0) + valorFinal;
-    });
-
-    const labels = Object.keys(fluxoPorAno).sort();
-    const data = labels.map(ano => fluxoPorAno[ano]);
-
-    if (fluxoCaixaChart) fluxoCaixaChart.destroy();
-    fluxoCaixaChart = new Chart(fluxoCaixaChartCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Valor Final a Vencer no Ano (R$)', data: data, backgroundColor: '#fd7e14' }] }, options: { indexAxis: 'y', scales: { x: { beginAtZero: true } } } });
+    const dadosMap = {}; let minDate = new Date(3000, 0, 1); let maxDate = new Date(2000, 0, 1);
+    ativos.forEach(at => { const dt = parseDataBR(at.dataVencimento); if (!dt) return; if (dt < minDate) minDate = dt; if (dt > maxDate) maxDate = dt; let key = fluxoCaixaMode === 'ano' ? dt.getFullYear().toString() : `${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()}`; dadosMap[key] = (dadosMap[key] || 0) + at.valorLiquido; });
+    const labels = []; const data = []; if (fluxoCaixaMode === 'ano') { for (let y = minDate.getFullYear(); y <= maxDate.getFullYear(); y++) { labels.push(y.toString()); data.push(dadosMap[y.toString()] || 0); } } else { let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1); while (curr <= maxDate) { const key = `${(curr.getMonth()+1).toString().padStart(2,'0')}/${curr.getFullYear()}`; labels.push(key); data.push(dadosMap[key] || 0); curr.setMonth(curr.getMonth()+1); } }
+    if (fluxoCaixaChart) fluxoCaixaChart.destroy(); fluxoCaixaChart = new Chart(fluxoCaixaChartCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Vencimentos (R$)', data: data, backgroundColor: '#fd7e14' }] }, options: { scales: { y: { beginAtZero: true } } } });
 }
-
-function criarGraficoProjecao(ativos) {
-    const vencimentosAgrupados = {};
-    ativos.forEach(ativo => {
-        const dataVenc = ativo.dataVencimento;
-        if (!vencimentosAgrupados[dataVenc]) {
-            vencimentosAgrupados[dataVenc] = 0;
-        }
-        vencimentosAgrupados[dataVenc] += ativo.valorAplicado; 
-    });
-
-    const datasOrdenadas = Object.keys(vencimentosAgrupados).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
-    
-    let patrimonioAplicado = ativos.reduce((sum, ativo) => sum + ativo.valorLiquido, 0);
-    
-    const labelsLinhaDoTempo = ['Hoje'];
-    const dadosLinhaDoTempo = [patrimonioAplicado];
-
-    datasOrdenadas.forEach(data => {
-        labelsLinhaDoTempo.push(data);
-        const principalQueVence = vencimentosAgrupados[data];
-        patrimonioAplicado -= principalQueVence;
-        dadosLinhaDoTempo.push(Math.max(0, patrimonioAplicado)); 
-    });
-
-    desenharGraficoLinhaDoTempo(labelsLinhaDoTempo, dadosLinhaDoTempo);
+function criarGraficoProjecaoPatrimonio(ativos) {
+    const hoje = new Date(); hoje.setDate(1); hoje.setHours(0,0,0,0); let maxDate = hoje; ativos.forEach(at => { const dt = parseDataBR(at.dataVencimento); if (dt && dt > maxDate) maxDate = dt; });
+    const labels = []; const dataInvestido = []; let ativosSimulados = ativos.map(a => { const isCupom = a.produto.toUpperCase().includes("JUROS MENSAIS")||a.produto.toUpperCase().includes("JURO MENSAL")||a.produto.toUpperCase().includes("CUPOM"); return { ...a, vencimentoDt: parseDataBR(a.dataVencimento), valorAtual: a.valorLiquido, taxaMensal: isCupom ? 0 : (Math.pow(1 + estimarTaxaAnual(a.taxa), 1/12) - 1) }; });
+    let cursor = new Date(hoje); while (cursor <= maxDate) { labels.push(`${(cursor.getMonth()+1).toString().padStart(2,'0')}/${cursor.getFullYear()}`); let totalMes = 0; ativosSimulados.forEach(ativo => { if (ativo.vencimentoDt > cursor) { ativo.valorAtual = ativo.valorAtual * (1 + ativo.taxaMensal); totalMes += ativo.valorAtual; } }); dataInvestido.push(totalMes); cursor.setMonth(cursor.getMonth() + 1); }
+    if (projecaoChart) projecaoChart.destroy(); projecaoChart = new Chart(projecaoChartCtx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Patrimônio Investido (R$)', data: dataInvestido, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, pointRadius: 0, borderWidth: 2 }] }, options: { interaction: { intersect: false, mode: 'index' }, scales: { y: { beginAtZero: true } }, plugins: { tooltip: { callbacks: { label: function(context) { return formatCurrency(context.raw); } } } } } });
 }
-
-function calcularValorFuturo(ativo, projecaoCDI, projecaoIPCA) {
-    /**
-     * Helper para converter datas nos formatos DD/MM/YY ou DD/MM/YYYY para um objeto Date.
-     * Isso corrige o problema de anos com 2 dígitos.
-     */
-    const parseDataCorretamente = (strData) => {
-        const partes = strData.split('/');
-        let ano = parseInt(partes[2], 10);
-        
-        // Converte anos de 2 dígitos para 4 dígitos (ex: 25 -> 2025)
-        if (ano < 100) {
-            ano += 2000;
-        }
-        
-        const mes = parseInt(partes[1], 10) - 1; // Mês no JavaScript é de 0 a 11
-        const dia = parseInt(partes[0], 10);
-        
-        return new Date(ano, mes, dia);
-    };
-
-    const projecaoSelic = parseFloat(projecaoSelicInput.value) / 100;
-    const projecaoIGPM = parseFloat(projecaoIgpmInput.value) / 100;
-    const nomeProduto = ativo.produto.toUpperCase();
-    const taxaStr = ativo.taxa.toUpperCase();
-
-    if (nomeProduto.includes('JUROS MENSAIS') || nomeProduto.includes('JURO MENSAL')) {
-        return ativo.valorAplicado;
-    }
-    
-    const hoje = new Date();
-    // Usa nossa nova função para garantir que a data seja lida corretamente
-    const dataVenc = parseDataCorretamente(ativo.dataVencimento);
-    const diffTime = dataVenc - hoje;
-
-    // Ativos já vencidos não entram na projeção futura
-    if (diffTime <= 0) {
-        return ativo.valorLiquido;
-    }
-
-    const diffAnos = diffTime / (1000 * 60 * 60 * 24 * 365.25);
-    const valorPresente = ativo.valorLiquido;
-    let taxaAnual = 0;
-
-    const extrairJurosDaTaxa = (str) => {
-        const apenasNumeros = str.replace(/[^\d,.]/g, '');
-        if (apenasNumeros) {
-            return parseFloat(apenasNumeros.replace(',', '.')) / 100;
-        }
-        return 0;
-    };
-
-    if (taxaStr.includes('CDI')) {
-        const percentualCDI = extrairJurosDaTaxa(taxaStr);
-        taxaAnual = percentualCDI * projecaoCDI;
-
-    } else if (taxaStr.includes('IPCA')) {
-        const jurosReais = extrairJurosDaTaxa(taxaStr);
-        taxaAnual = (1 + projecaoIPCA) * (1 + jurosReais) - 1;
-
-    } else if (taxaStr.includes('LFT') || taxaStr.includes('SELIC') || taxaStr.includes('OVER')) {
-        const jurosAdicionais = extrairJurosDaTaxa(taxaStr);
-        if (taxaStr.includes('-')) {
-            taxaAnual = projecaoSelic - jurosAdicionais;
-        } else {
-            taxaAnual = projecaoSelic + jurosAdicionais;
-        }
-
-    } else if (taxaStr.includes('IGPM')) {
-        const jurosReais = extrairJurosDaTaxa(taxaStr);
-        taxaAnual = (1 + projecaoIGPM) * (1 + jurosReais) - 1;
-
-    } else { 
-        const taxaPre = extrairJurosDaTaxa(taxaStr);
-        if (taxaPre > 0) {
-            taxaAnual = taxaPre;
-        } else {
-            // Se não for possível calcular, retorna o valor atual para não quebrar o gráfico
-            return valorPresente;
-        }
-    }
-    
-    return valorPresente * Math.pow((1 + taxaAnual), diffAnos);
-}
-
-function desenharGraficoLinhaDoTempo(labels, data) {
-    if (projecaoChart) projecaoChart.destroy();
-    projecaoChart = new Chart(projecaoChartCtx, { 
-        type: 'line', 
-        data: { 
-            labels: labels, 
-            datasets: [{ 
-                label: 'Patrimônio Aplicado (R$)',
-                data: data, 
-                borderColor: '#198754', 
-                backgroundColor: 'rgba(25, 135, 84, 0.1)', 
-                fill: true, 
-                stepped: true 
-            }] 
-        }, 
-        options: { 
-            scales: { y: { beginAtZero: false } } 
-        } 
-    });
-}
-
-function desenharGraficoIndexadores(ativos) {
-    const indexadoresData = {};
-    ativos.forEach(ativo => {
-        const categoria = categorizarPorIndexador(ativo.taxa);
-        indexadoresData[categoria] = (indexadoresData[categoria] || 0) + ativo.valorLiquido;
-    });
-
-    const labels = Object.keys(indexadoresData);
-    const data = Object.values(indexadoresData);
-
-    if (indexadoresChart) {
-        indexadoresChart.destroy();
-    }
-    indexadoresChart = new Chart(indexadoresChartCtx, {
-        type: 'pie',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Distribuição por Indexador',
-                data: data,
-                backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#dc3545', '#6f42c1']
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                }
-            }
-        }
-    });
-}
+function desenharGraficoIndexadores(ativos) { const dataPoints = {}; ativos.forEach(at => { const idx = categorizarPorIndexador(at); dataPoints[idx] = (dataPoints[idx] || 0) + at.valorLiquido; }); if (indexadoresChart) indexadoresChart.destroy(); indexadoresChart = new Chart(indexadoresChartCtx, { type: 'pie', data: { labels: Object.keys(dataPoints), datasets: [{ data: Object.values(dataPoints), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#198754'] }] } }); }

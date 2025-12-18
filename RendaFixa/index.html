@@ -3,11 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Renda Fixa</title>
+    <title>Relatório de Alocação e Risco</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="header">
+    <div class="print-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
+            <img src="logo.png" alt="Logo" style="height: 50px;">
+            <div style="text-align: right;">
+                <h2 style="margin: 0; font-size: 1.2em;">Relatório Analítico de Renda Fixa</h2>
+                <p style="margin: 5px 0 0 0; font-size: 0.9em; font-weight: bold;">Assessor: MATEUS PALERMO</p>
+                <p style="margin: 0; font-size: 0.8em; color: #666;" id="data-relatorio">Data: --/--/----</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="header no-print">
         <div class="logo-container">
             <img src="logo.png" alt="Logo da Marca" class="logo">
             <h1>Dashboard de Renda Fixa</h1>
@@ -16,117 +27,95 @@
     </div>
 
     <div class="container">
-        <div id="contact-modal" class="modal">
+        <div id="contact-modal" class="modal no-print">
             <div class="modal-content">
                 <span class="close-button">&times;</span>
                 <h2>Fale Conosco</h2>
-                <p>Preencha seus dados para que nossa equipe possa entrar em contato.</p>
                 <form id="contact-form">
-                    <div class="form-group">
-                        <label for="nome">Nome Completo:</label>
-                        <input type="text" id="nome" name="nome" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="telefone">Telefone (com DDD):</label>
-                        <input type="tel" id="telefone" name="telefone" required>
-                    </div>
+                    <div class="form-group"><label for="nome">Nome:</label><input type="text" id="nome" required></div>
+                    <div class="form-group"><label for="telefone">Telefone:</label><input type="tel" id="telefone" required></div>
                     <button type="submit" id="submit-form-btn" class="button">Enviar</button>
                     <div id="form-status"></div>
                 </form>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card no-print">
             <p>Faça o upload do seu extrato de Posição Consolidada (PDF) para começar a análise.</p>
             <input type="file" id="pdf-upload" accept=".pdf">
-            <div class="disclaimer-text">
-                <p><strong>Aviso de Privacidade e Responsabilidade:</strong> Seus dados são processados localmente no seu navegador. Nenhum documento é enviado para nossos servidores. As análises e projeções são baseadas em dados extraídos automaticamente e podem conter imprecisões. Esta ferramenta não constitui uma recomendação de investimento.</p>
-            </div>
         </div>
 
         <div id="report-container" style="display: none;">
-           <div class="controls-container">
+           
+           <div class="controls-container no-print">
                 <div>
-                    <label for="filtro-emissor">Filtrar por Emissor:</label>
+                    <label>Filtrar Emissor:</label>
                     <select id="filtro-emissor"></select>
                 </div>
-                <div>
-                    <label for="projecao-cdi">Projeção CDI (anual):</label>
-                    <div class="input-group">
-                        <input type="number" id="projecao-cdi" value="10.5" step="0.1">
-                        <span>%</span>
-                    </div>
-                </div>
-                <div>
-                    <label for="projecao-ipca">Projeção IPCA (anual):</label>
-                    <div class="input-group">
-                        <input type="number" id="projecao-ipca" value="4.5" step="0.1">
-                        <span>%</span>
-                    </div>
-                </div>
-                <div>
-                    <label for="projecao-selic">Projeção Selic (anual):</label>
-                    <div class="input-group">
-                        <input type="number" id="projecao-selic" value="10.5" step="0.1">
-                        <span>%</span>
-                    </div>
-                </div>
-                <div>
-                    <label for="projecao-igpm">Projeção IGP-M (anual):</label>
-                    <div class="input-group">
-                        <input type="number" id="projecao-igpm" value="5.0" step="0.1">
-                        <span>%</span>
-                    </div>
-                </div>
+                <div><label>CDI (%):</label><div class="input-group"><input type="number" id="projecao-cdi" value="10.5" step="0.1"></div></div>
+                <div><label>IPCA (%):</label><div class="input-group"><input type="number" id="projecao-ipca" value="4.5" step="0.1"></div></div>
                 <div>
                     <label>&nbsp;</label> 
-                    <button id="recalcular-btn" class="button">Recalcular</button>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="recalcular-btn" class="button">🔄 Recalcular</button>
+                        <button id="btn-print-pdf" class="button btn-secondary">📄 Gerar PDF</button>
+                        <button id="btn-copy-summary" class="button btn-secondary">📋 Copiar Resumo</button>
+                    </div>
                 </div>
+                <div style="border-left: 2px solid #ddd; padding-left: 15px;">
+                    <label style="color: #0d6efd; font-weight: bold;">Taxa Simulação Aporte:</label>
+                    <div class="input-group"><input type="number" id="taxa-simulacao" value="12.0" step="0.1"><span>%</span></div>
+                </div>
+                <input type="hidden" id="projecao-selic" value="10.5">
+                <input type="hidden" id="projecao-igpm" value="5.0">
             </div>
 
             <div class="dashboard-grid">
-                
                 <div class="main-column">
                     <div class="card">
-                        <h2>Projeção de Patrimônio Aplicado</h2>
-                        <canvas id="projecao-patrimonio-chart"></canvas>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h2>Fluxo de Caixa (Vencimentos)</h2>
+                            <button id="toggle-fluxo-btn" class="small-button no-print">Ver Mensal</button>
+                        </div>
+                        <canvas id="fluxo-caixa-chart"></canvas>
                     </div>
-
                     <div class="card">
-                        <h2>Vencimentos (Próximas Datas)</h2>
-                        <canvas id="vencimentos-chart"></canvas>
+                        <h2>PROJEÇÃO DE EXPOSIÇÃO (Curva de Desinvestimento)</h2>
+                        <canvas id="projecao-patrimonio-chart"></canvas>
+                        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">*Considera reinvestimento até o vencimento. Ativos com juros mensais não reinvestem.</p>
                     </div>
-
                     <div class="card">
                         <h2>Detalhes dos Ativos</h2>
                         <div id="table-container"></div>
                     </div>
-                    
-                    <div class="card">
-                        <h2>Fluxo de Caixa Anual</h2>
-                        <canvas id="fluxo-caixa-chart"></canvas>
-                    </div>
                 </div>
 
                 <div class="sidebar-column">
-                    <div class="card">
-                        <h2>Insights e Oportunidades</h2>
+                    <div class="card warning-card">
+                        <h2>⚠️ Insights e Avisos</h2>
                         <div id="insights-container"></div>
                     </div>
-                    
                     <div class="card">
-                        <h2>Previsão de Rendimentos Mensais</h2>
-                        <div id="rendimentos-mensais-container"></div>
+                        <h2>Exposição por Emissor (Risco FGC)</h2>
+                        <p style="font-size:0.8em; color:#666; margin-bottom:15px;">*Considerando apenas CDB, LCI, LCA, LC, RDB, LCD.</p>
+                        <div id="lista-emissores-container"></div>
                     </div>
                     <div class="card">
-                        <h2>Distribuição por Emissor</h2>
-                        <canvas id="bancos-chart"></canvas>
+                        <h2>Previsão de Rendimento</h2>
+                        <div id="rendimentos-mensais-container"></div>
                     </div>
                     <div class="card">
                         <h2>Distribuição por Indexador</h2>
                         <canvas id="indexadores-chart"></canvas>
                     </div>
                 </div>
+            </div>
+
+            <div class="print-footer">
+                <div style="margin-top: 50px; border-top: 1px solid #000; width: 40%; padding-top: 10px;">
+                    MATEUS PALERMO
+                </div>
+                <p style="font-size: 0.7em; color: #666; margin-top: 10px;">Relatório gerado automaticamente para fins de estudo de alocação. Não constitui recomendação de investimento.</p>
             </div>
         </div>
     </div>
