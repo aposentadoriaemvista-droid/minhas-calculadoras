@@ -1,8 +1,9 @@
-// script.js (VERSÃO FINAL 5.1: NOMES CORRIGIDOS + TÍTULOS AJUSTADOS)
+// script.js (VERSÃO FINAL 6.0: NOME DO CLIENTE + BLINDAGEM)
 
 // --- Variáveis Globais ---
 let todosOsAtivos = [];
 let fluxoCaixaMode = 'ano'; 
+let nomeClienteGlobal = "Cliente"; // Variável para guardar o nome
 const LIMITE_FGC = 250000;
 const TIPOS_FGC = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB']; 
 
@@ -19,14 +20,22 @@ const btnToggleFluxo = document.getElementById('toggle-fluxo-btn');
 const btnPrint = document.getElementById('btn-print-pdf');
 const btnCopy = document.getElementById('btn-copy-summary');
 
-// Charts
-const fluxoCaixaChartCtx = document.getElementById('fluxo-caixa-chart').getContext('2d');
-const projecaoChartCtx = document.getElementById('projecao-patrimonio-chart').getContext('2d');
-const indexadoresChartCtx = document.getElementById('indexadores-chart').getContext('2d');
-
+// Charts Contexts (Inicialização Segura)
 let fluxoCaixaChart = null;
 let projecaoChart = null;
 let indexadoresChart = null;
+let fluxoCaixaChartCtx = null;
+let projecaoChartCtx = null;
+let indexadoresChartCtx = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const c1 = document.getElementById('fluxo-caixa-chart');
+    const c2 = document.getElementById('projecao-patrimonio-chart');
+    const c3 = document.getElementById('indexadores-chart');
+    if(c1) fluxoCaixaChartCtx = c1.getContext('2d');
+    if(c2) projecaoChartCtx = c2.getContext('2d');
+    if(c3) indexadoresChartCtx = c3.getContext('2d');
+});
 
 // Modal
 const contactBtn = document.getElementById('contact-btn');
@@ -68,8 +77,8 @@ btnCopy.addEventListener('click', () => {
 
 // --- FUNÇÕES UTILITÁRIAS ---
 function categorizarPorIndexador(ativo) {
-    const taxaLimpa = ativo.taxa ? ativo.taxa.toUpperCase().replace(/\s/g, '') : "";
-    const produtoLimpo = ativo.produto ? ativo.produto.toUpperCase().replace(/\s/g, '') : "";
+    const taxaLimpa = ativo.taxa ? ativo.taxa.toUpperCase().replace(/[\s-]/g, '') : "";
+    const produtoLimpo = ativo.produto ? ativo.produto.toUpperCase().replace(/[\s-]/g, '') : "";
     if (taxaLimpa.includes('IPCA') || taxaLimpa.includes('IPC-A') || taxaLimpa.includes('IMAB') || produtoLimpo.includes('NTNB') || produtoLimpo.includes('IPCA')) return 'Híbrido (Inflação)';
     if (taxaLimpa.includes('CDI') || produtoLimpo.includes('LFT') || taxaLimpa.includes('SELIC')) return taxaLimpa.includes('CDI') ? 'Pós-fixado (CDI)' : 'Pós-fixado (Selic)';
     if (taxaLimpa.includes('IGPM') || taxaLimpa.includes('IGP-M')) return 'Híbrido (Inflação)';
@@ -93,30 +102,19 @@ function estimarTaxaAnual(taxaStr) {
     let val = parseFloat(t.replace('%', '')); if (!isNaN(val)) return val/100; return 0;
 }
 
-// --- PARSERS E LIMPEZA DE NOMES ---
+// --- PARSERS ---
 const regexBTG = /(BACEN - BANCO CENTRAL DO BRASIL\s*-\s*RJ)\s+(LFT|LTN|NTNB(?: - P)?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:SELIC|OVER|IPCA)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+(?:[\d.,]+|-)\s+-\s+([\d.,]+)|(BANCO BTG PACTUAL S A)\s+(LCA\s*-\s*.*?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:IPCA|CDI)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+-\s+-\s+([\d.,]+)/g;
 const regexXP = /(CDB|LCI|LCA|CRI|CRA|DEB|LIG|CDCA|NTN\s*-?\s*B)([\s\S]*?)(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})[\s\S]*?(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})[\s\S]*?((?:[A-Za-z\s-]+\+)?\s*-?\s*[\d.,\s]+%(?:\s*[A-Za-z]+)?|[\d.,\s]+%[\s\S]*?CDI)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)/g;
 
 function limparDataXP(str) { if (!str) return ""; return str.replace(/\s/g, ''); }
 function limparNumeroXP(str) { if (!str) return 0; let limpo = str.replace(/\./g, '').replace(/\s/g, ''); limpo = limpo.replace(',', '.'); return parseFloat(limpo); }
 
-// EXTRAÇÃO DE BANCO MELHORADA (CORRIGE BANCO BBC / REDE D'OR)
 function extrairBanco(nome) { 
     const nomeUpper = nome.toUpperCase();
-    
-    // Casos Especiais de Agrupamento
     if (nomeUpper.includes("NTN") || nomeUpper.includes("LTN") || nomeUpper.includes("TESOURO")) return "Tesouro Nacional";
-    if (nomeUpper.includes("MASTER") || nomeUpper.includes("WILL FINANCEIRA")) return "Banco Master";
-    
-    // Limpeza de sufixos de data e pontuação final
-    let nomeLimpo = nome.replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '') // Remove "- DEZ/2029"
-                        .replace(/\s+-\s+$/, '') // Remove traço solto no final
-                        .trim();
-
-    // RETORNA O NOME COMPLETO LIMPO
-    // Isso corrige "BANCO C6 CONSIGNADO" e "REDE D'OR"
-    if (nomeLimpo.length < 2) return "Outros"; // Proteção contra nomes vazios
-    
+    if (nomeUpper.includes("MASTER")) return "Banco Master";
+    let nomeLimpo = nome.replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '').replace(/\s+-\s+$/, '').trim();
+    if (nomeLimpo.length < 2) return "Outros"; 
     return nomeLimpo; 
 }
 
@@ -137,13 +135,7 @@ function parseXPMatch(match) {
     if (nomeBruto.includes("T00:00:00")||nomeBruto.length > 150) return null;
     const matchAno = taxaBruta.match(/^(20\d{2})\s+([\d.,]+.*)/); if (matchAno) taxaBruta = matchAno[2];
     taxaBruta = taxaBruta.replace(/(\d)\s+([.,])\s+(\d)/g, '$1$2$3');
-    
-    // Limpeza mais agressiva para remover datas do nome
-    nomeBruto = nomeBruto.replace(/Garantia|Posição|Disponível|Vencimento|Título|Preço|Total/g, '')
-                         .replace(/R\s*\$\s*[\d.,]+/g, '')
-                         .replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '') // Remove JAN/2025 do nome
-                         .trim();
-                         
+    nomeBruto = nomeBruto.replace(/Garantia|Posição|Disponível|Vencimento|Título|Preço|Total/g, '').replace(/R\s*\$\s*[\d.,]+/g, '').replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '').trim();
     if (tipoAtivo.includes("NTN")) { nomeBruto = nomeBruto.replace(/^-/, '').trim(); if(nomeBruto.length < 5) nomeBruto = "IPCA+"; tipoAtivo = "Tesouro IPCA+ (NTN-B)"; }
     return { tipo: tipoAtivo, banco: extrairBanco(nomeBruto), produto: `${tipoAtivo} ${nomeBruto}`, dataAplicacao: limparDataXP(match[3]), dataVencimento: limparDataXP(match[4]), taxa: taxaBruta, valorAplicado: limparNumeroXP(match[6]), valorLiquido: limparNumeroXP(match[9]) };
 }
@@ -158,8 +150,22 @@ async function lerPDF(file) {
         } catch (error) { alert("Erro ao ler PDF."); }
     }; reader.readAsArrayBuffer(file);
 }
+
 function processarTextoDoPDF(text) {
-    let ativos = []; text = text.replace(/Posição Consolidada\s+Data de referência\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4}/gi, ' ');
+    let ativos = [];
+    
+    // EXTRAÇÃO DO NOME DO CLIENTE
+    const matchNome = text.match(/Cliente:?\s*([^\n\r]+?)(?:\s+Conta|\s+Perfil|$)/i);
+    if (matchNome && matchNome[1]) {
+        nomeClienteGlobal = matchNome[1].trim();
+        // Atualiza na tela
+        document.getElementById('cliente-nome-tela').textContent = `Cliente: ${nomeClienteGlobal}`;
+        document.getElementById('cliente-nome-print').textContent = `Cliente: ${nomeClienteGlobal}`;
+        // Atualiza Título da Aba
+        document.title = `Relatório - ${nomeClienteGlobal}`;
+    }
+
+    text = text.replace(/Posição Consolidada\s+Data de referência\s*:\s*\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4}/gi, ' ');
     const regexCorte = /P\s*R\s*[ÓO]\s*X\s*I\s*M\s*O\s*S\s*[\s\S]*?V\s*E\s*N\s*C\s*I\s*M\s*E\s*N\s*T\s*O\s*S/i;
     const matchCorte = text.match(regexCorte); if (matchCorte && matchCorte.index) text = text.substring(0, matchCorte.index);
     text = text.replace(/Posição Consolidada/gi, ' '); 
@@ -177,11 +183,10 @@ function criarRelatorio(ativos) {
 function gerarResumoClipboard() {
     const total = todosOsAtivos.reduce((acc, at) => acc + at.valorLiquido, 0);
     const qtd = todosOsAtivos.length;
-    const bancos = [...new Set(todosOsAtivos.map(a => a.banco))].join(', ');
     
-    let text = `📊 *Resumo de Carteira - Renda Fixa*\n`;
+    let text = `📊 *Resumo de Carteira - ${nomeClienteGlobal}*\n`; // Adiciona nome no resumo
     text += `💰 Total: ${formatCurrency(total)}\n`;
-    text += `📄 Ativos: ${qtd}\n`;
+    text += `📄 Ativos: ${qtd}\n\n`;
     text += `⚠️ *Avisos de Risco (FGC):*\n`;
     
     const porBanco = {};
@@ -246,6 +251,6 @@ function criarGraficoProjecaoPatrimonio(ativos) {
     const hoje = new Date(); hoje.setDate(1); hoje.setHours(0,0,0,0); let maxDate = hoje; ativos.forEach(at => { const dt = parseDataBR(at.dataVencimento); if (dt && dt > maxDate) maxDate = dt; });
     const labels = []; const dataInvestido = []; let ativosSimulados = ativos.map(a => { const isCupom = a.produto.toUpperCase().includes("JUROS MENSAIS")||a.produto.toUpperCase().includes("JURO MENSAL")||a.produto.toUpperCase().includes("CUPOM"); return { ...a, vencimentoDt: parseDataBR(a.dataVencimento), valorAtual: a.valorLiquido, taxaMensal: isCupom ? 0 : (Math.pow(1 + estimarTaxaAnual(a.taxa), 1/12) - 1) }; });
     let cursor = new Date(hoje); while (cursor <= maxDate) { labels.push(`${(cursor.getMonth()+1).toString().padStart(2,'0')}/${cursor.getFullYear()}`); let totalMes = 0; ativosSimulados.forEach(ativo => { if (ativo.vencimentoDt > cursor) { ativo.valorAtual = ativo.valorAtual * (1 + ativo.taxaMensal); totalMes += ativo.valorAtual; } }); dataInvestido.push(totalMes); cursor.setMonth(cursor.getMonth() + 1); }
-    if (projecaoChart) projecaoChart.destroy(); projecaoChart = new Chart(projecaoChartCtx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Patrimônio Investido (R$)', data: dataInvestido, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, pointRadius: 0, borderWidth: 2 }] }, options: { interaction: { intersect: false, mode: 'index' }, scales: { y: { beginAtZero: true } }, plugins: { tooltip: { callbacks: { label: function(context) { return formatCurrency(context.raw); } } } } } });
+    if (projecaoChart) projecaoChart.destroy(); projecaoChart = new Chart(projecaoChartCtx, { type: 'line', data: { labels: labels, datasets: [{ label: 'PROJEÇÃO DE EXPOSIÇÃO (R$)', data: dataInvestido, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, pointRadius: 0, borderWidth: 2 }] }, options: { interaction: { intersect: false, mode: 'index' }, scales: { y: { beginAtZero: true } }, plugins: { tooltip: { callbacks: { label: function(context) { return formatCurrency(context.raw); } } } } } });
 }
 function desenharGraficoIndexadores(ativos) { const dataPoints = {}; ativos.forEach(at => { const idx = categorizarPorIndexador(at); dataPoints[idx] = (dataPoints[idx] || 0) + at.valorLiquido; }); if (indexadoresChart) indexadoresChart.destroy(); indexadoresChart = new Chart(indexadoresChartCtx, { type: 'pie', data: { labels: Object.keys(dataPoints), datasets: [{ data: Object.values(dataPoints), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#198754'] }] } }); }

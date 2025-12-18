@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório de Alocação e Risco</title>
+    <title>Dashboard de Renda Fixa</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,6 +12,7 @@
             <img src="logo.png" alt="Logo" style="height: 50px;">
             <div style="text-align: right;">
                 <h2 style="margin: 0; font-size: 1.2em;">Relatório Analítico de Renda Fixa</h2>
+                <h3 id="cliente-nome-print" style="margin: 5px 0; font-size: 1.1em; color: #000;">Cliente: -</h3>
                 <p style="margin: 5px 0 0 0; font-size: 0.9em; font-weight: bold;">Assessor: MATEUS PALERMO</p>
                 <p style="margin: 0; font-size: 0.8em; color: #666;" id="data-relatorio">Data: --/--/----</p>
             </div>
@@ -21,7 +22,10 @@
     <div class="header no-print">
         <div class="logo-container">
             <img src="logo.png" alt="Logo da Marca" class="logo">
-            <h1>Dashboard de Renda Fixa</h1>
+            <div>
+                <h1 style="font-size: 1.2em;">Dashboard de Renda Fixa</h1>
+                <span id="cliente-nome-tela" style="font-size: 0.9em; color: #666; font-weight: normal;"></span>
+            </div>
         </div>
         <button id="contact-btn" class="button">Entre em Contato</button>
     </div>
@@ -43,6 +47,9 @@
         <div class="card no-print">
             <p>Faça o upload do seu extrato de Posição Consolidada (PDF) para começar a análise.</p>
             <input type="file" id="pdf-upload" accept=".pdf">
+            <div class="disclaimer-text">
+                <p><strong>Aviso de Privacidade:</strong> Seus dados são processados localmente. Nenhuma informação é enviada para servidores externos.</p>
+            </div>
         </div>
 
         <div id="report-container" style="display: none;">
