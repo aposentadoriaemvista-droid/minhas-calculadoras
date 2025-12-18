@@ -33,7 +33,7 @@
     <div class="container">
         <div id="contact-modal" class="modal no-print">
             <div class="modal-content">
-                <span class="close-button">&times;</span>
+                <span class="close-button" id="close-contact">&times;</span>
                 <h2>Fale Conosco</h2>
                 <form id="contact-form">
                     <div class="form-group"><label for="nome">Nome:</label><input type="text" id="nome" required></div>
@@ -44,23 +44,37 @@
             </div>
         </div>
 
+        <div id="modal-fluxo" class="modal no-print">
+            <div class="modal-content large-modal">
+                <span class="close-button" id="close-fluxo">&times;</span>
+                <h2>Fluxo de Caixa Mensal Detalhado</h2>
+                <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Role horizontalmente para ver todos os meses futuros.</p>
+                
+                <div class="chart-scroll-wrapper">
+                    <div class="chart-scroll-inner">
+                        <canvas id="fluxo-mensal-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card no-print">
             <p>Faça o upload do seu extrato de Posição Consolidada (PDF) para começar a análise.</p>
             <input type="file" id="pdf-upload" accept=".pdf">
             <div class="disclaimer-text">
-                <p><strong>Aviso de Privacidade:</strong> Seus dados são processados localmente. Nenhuma informação é enviada para servidores externos.</p>
+                <p><strong>Aviso de Privacidade:</strong> Seus dados são processados localmente.</p>
             </div>
         </div>
 
         <div id="report-container" style="display: none;">
-           
            <div class="controls-container no-print">
                 <div>
                     <label>Filtrar Emissor:</label>
                     <select id="filtro-emissor"></select>
                 </div>
-                <div><label>CDI (%):</label><div class="input-group"><input type="number" id="projecao-cdi" value="10.5" step="0.1"></div></div>
-                <div><label>IPCA (%):</label><div class="input-group"><input type="number" id="projecao-ipca" value="4.5" step="0.1"></div></div>
+                <div><label>CDI (%):</label><div class="input-group"><input type="number" id="projecao-cdi" class="auto-calc" value="10.5" step="0.1"></div></div>
+                <div><label>IPCA (%):</label><div class="input-group"><input type="number" id="projecao-ipca" class="auto-calc" value="4.5" step="0.1"></div></div>
+                
                 <div>
                     <label>&nbsp;</label> 
                     <div style="display: flex; gap: 10px;">
@@ -69,28 +83,40 @@
                         <button id="btn-copy-summary" class="button btn-secondary">📋 Copiar Resumo</button>
                     </div>
                 </div>
+                
                 <div style="border-left: 2px solid #ddd; padding-left: 15px;">
                     <label style="color: #0d6efd; font-weight: bold;">Taxa Simulação Aporte:</label>
-                    <div class="input-group"><input type="number" id="taxa-simulacao" value="12.0" step="0.1"><span>%</span></div>
+                    <div class="input-group"><input type="number" id="taxa-simulacao" class="auto-calc" value="12.0" step="0.1" style="border-color: #0d6efd;"><span>%</span></div>
                 </div>
-                <input type="hidden" id="projecao-selic" value="10.5">
-                <input type="hidden" id="projecao-igpm" value="5.0">
+                
+                <input type="hidden" id="projecao-selic" class="auto-calc" value="10.5">
+                <input type="hidden" id="projecao-igpm" class="auto-calc" value="5.0">
             </div>
 
             <div class="dashboard-grid">
                 <div class="main-column">
                     <div class="card">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h2>Fluxo de Caixa (Vencimentos)</h2>
-                            <button id="toggle-fluxo-btn" class="small-button no-print">Ver Mensal</button>
+                            <h2>Fluxo de Caixa (Visão Anual)</h2>
+                            <button id="btn-open-fluxo-mensal" class="small-button no-print">🔍 Ver Detalhe Mensal</button>
                         </div>
                         <canvas id="fluxo-caixa-chart"></canvas>
                     </div>
+                    
                     <div class="card">
                         <h2>PROJEÇÃO DE EXPOSIÇÃO (Curva de Desinvestimento)</h2>
                         <canvas id="projecao-patrimonio-chart"></canvas>
-                        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">*Considera reinvestimento até o vencimento. Ativos com juros mensais não reinvestem.</p>
+                        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">*Considera reinvestimento até o vencimento. Juros mensais não reinvestem.</p>
                     </div>
+
+                    <div class="card">
+                        <h2>Exposição Tributária</h2>
+                        <div style="height: 100px; width: 100%;">
+                            <canvas id="tributacao-chart"></canvas>
+                        </div>
+                        <p style="font-size: 0.8em; color: #666; margin-top: 5px; text-align: center;">Comparativo de Alocação</p>
+                    </div>
+
                     <div class="card">
                         <h2>Detalhes dos Ativos</h2>
                         <div id="table-container"></div>
@@ -102,15 +128,18 @@
                         <h2>⚠️ Insights e Avisos</h2>
                         <div id="insights-container"></div>
                     </div>
+                    
                     <div class="card">
                         <h2>Exposição por Emissor (Risco FGC)</h2>
-                        <p style="font-size:0.8em; color:#666; margin-bottom:15px;">*Considerando apenas CDB, LCI, LCA, LC, RDB, LCD.</p>
+                        <p style="font-size:0.8em; color:#666; margin-bottom:15px;">*Apenas ativos elegíveis (CDB, LCI, LCA, LC, RDB, LCD).</p>
                         <div id="lista-emissores-container"></div>
                     </div>
+                    
                     <div class="card">
                         <h2>Previsão de Rendimento</h2>
                         <div id="rendimentos-mensais-container"></div>
                     </div>
+                    
                     <div class="card">
                         <h2>Distribuição por Indexador</h2>
                         <canvas id="indexadores-chart"></canvas>
@@ -122,7 +151,7 @@
                 <div style="margin-top: 50px; border-top: 1px solid #000; width: 40%; padding-top: 10px;">
                     MATEUS PALERMO
                 </div>
-                <p style="font-size: 0.7em; color: #666; margin-top: 10px;">Relatório gerado automaticamente para fins de estudo de alocação. Não constitui recomendação de investimento.</p>
+                <p style="font-size: 0.7em; color: #666; margin-top: 10px;">Relatório gerado automaticamente para fins de estudo.</p>
             </div>
         </div>
     </div>
