@@ -1,0 +1,164 @@
+:root {
+    --primary: #1b4043;
+    --accent: #2a5d61;
+    --gold: #c5a059;
+    --bg: #f0f2f5;
+    --white: #ffffff;
+    --success: #10b981;
+    --danger: #ef4444;
+}
+
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; }
+.app-shell { display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar { width: 280px; background: var(--primary); color: white; padding: 25px; }
+.brand { font-size: 1.5rem; font-weight: bold; margin-bottom: 40px; }
+.brand span { color: var(--gold); }
+.sidebar-section { margin-bottom: 30px; }
+.sidebar h3 { font-size: 0.9rem; text-transform: uppercase; color: #8fc9cc; margin-bottom: 15px; }
+
+/* Estilização dos Inputs de Arquivo */
+.btn-upload { 
+    display: block; background: var(--accent); color: white; padding: 12px; 
+    border-radius: 6px; text-align: center; cursor: pointer; margin-bottom: 10px; font-weight: 500;
+}
+.btn-upload:hover { background: #357276; }
+.btn-upload.secondary { background: transparent; border: 1px solid #8fc9cc; }
+
+/* Dashboard */
+.main-content { flex: 1; padding: 30px; display: flex; flex-direction: column; gap: 25px; }
+.top-stats { display: flex; gap: 20px; }
+.stat-card { background: white; padding: 20px; border-radius: 12px; flex: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+.stat-card label { font-size: 0.8rem; color: #64748b; font-weight: 600; }
+
+.visual-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 25px; min-height: 400px; }
+.card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+
+/* Fix do Gráfico */
+.chart-wrapper { position: relative; height: 350px; width: 100%; }
+
+/* Tabelas */
+.data-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+.data-table th { text-align: left; color: #94a3b8; font-size: 0.75rem; padding: 10px; text-transform: uppercase; }
+.data-table td { padding: 12px 10px; border-top: 1px solid #f1f5f9; font-size: 0.9rem; }
+
+/* Rebalanceamento */
+.buy { color: var(--success); font-weight: bold; }
+.sell { color: var(--danger); font-weight: bold; }
+
+/* Lista de Ativos */
+.acc-item { background: white; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+.acc-header { padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; background: #fff; }
+.acc-header:hover { background: #f8fafb; }
+.acc-content { display: none; padding: 0 15px 15px; background: #fafafa; border-top: 1px solid #f1f5f9; }
+
+/* ... (estilos anteriores) */
+
+.target-grid-modern {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.target-card {
+    background: rgba(255,255,255,0.05);
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid rgba(143, 201, 204, 0.2);
+}
+
+.target-card span { font-size: 0.8rem; font-weight: 500; color: #8fc9cc; }
+
+.target-card input {
+    width: 50px;
+    background: var(--primary);
+    border: 1px solid #8fc9cc;
+    color: white;
+    padding: 4px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Melhoria na Tabela de Ativos */
+.asset-table {
+    width: 100%;
+    border-spacing: 0;
+    font-size: 0.85rem;
+}
+.asset-table td { padding: 8px 0; border-bottom: 1px solid #eee; }
+.asset-table tr:last-child td { border-bottom: none; }
+.asset-val { text-align: right; font-family: monospace; font-weight: 600; color: var(--primary); }
+
+/* Botão de Análise Estilizado */
+.btn-analyze {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #8fc9cc 0%, #7eb2b5 100%);
+    color: #1b4043; /* Texto escuro para contraste com o fundo claro */
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-analyze:hover {
+    background: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(143, 201, 204, 0.3);
+}
+
+.btn-analyze:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Adicionando um brilho sutil ao passar o mouse */
+.btn-analyze::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,0.1);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.btn-analyze:hover::after {
+    opacity: 1;
+}
+/* Estado de Sucesso para os Botões de Upload */
+.btn-upload.loaded {
+    background: #10b981 !important; /* Verde Sucesso */
+    color: white !important;
+    border-color: #059669 !important;
+}
+
+.btn-upload.loaded::before {
+    content: '✓ ';
+    font-weight: bold;
+}
+
+/* Pequena animação de "pulo" ao carregar */
+@keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.loaded {
+    animation: pop 0.3s ease-out;
+}
