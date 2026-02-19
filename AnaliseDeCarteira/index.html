@@ -9,78 +9,89 @@
 </head>
 <body>
     <div class="app-shell">
-      <aside class="sidebar">
-    <div class="brand">AEV <span>Analisador de Carteira</span></div>
-    
-    <div class="sidebar-section">
-        <h3>Importar Dados</h3>
-        <div class="upload-wrapper">
-            <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" hidden>
-            <label for="excelFile" class="btn-upload">📁 Relatório Excel</label>
+        <aside class="sidebar">
+            <div class="brand">XP <span>Analyzer</span></div>
             
-            <input type="file" id="glossaryFile" accept=".txt" hidden>
-            <label for="glossaryFile" class="btn-upload secondary">📖 Manual De Ativos</label>
-        </div>
-    </div>
-
-    <div class="sidebar-section">
-        <h3>Painel de Objetivos (%)</h3>
-        <div class="target-grid-modern">
-            <div class="target-card"><span>RV Brasil</span><input type="number" class="target-input" data-cat="Renda Variavel Brasil" value="0"></div>
-            <div class="target-card"><span>RF Brasil</span><input type="number" class="target-input" data-cat="Renda Fixa Brasil" value="0"></div>
-            <div class="target-card"><span>Multimercado</span><input type="number" class="target-input" data-cat="Multimercado" value="0"></div>
-            <div class="target-card"><span>RV Global</span><input type="number" class="target-input" data-cat="Renda Variavel Global" value="0"></div>
-            <div class="target-card"><span>RF Global</span><input type="number" class="target-input" data-cat="Renda Fixa Global" value="0"></div>
-            <div class="target-card"><span>Alternativo</span><input type="number" class="target-input" data-cat="Alternativo" value="0"></div>
-            <div class="target-card"><span>Caixa</span><input type="number" class="target-input" data-cat="Caixa" value="0"></div>
-        </div>
-        <button class="btn-analyze" onclick="processarPlanilha()">Gerar Rebalanceamento</button>
-    </div>
-</aside>
-<main class="main-content">
-    <div class="top-stats">
-        <div class="stat-card">
-            <label>Patrimônio Total</label>
-            <h2 id="txtTotal">R$ 0,00</h2>
-        </div>
-        <div class="stat-card">
-            <label>Conta XP</label>
-            <h2 id="clientName">---</h2>
-        </div>
-    </div>
-
-    <div class="visual-row">
-        <div class="card chart-card">
-            <h3>Estratégia Atual</h3>
-            <div class="chart-wrapper">
-                <canvas id="chartEstrategia"></canvas>
+            <div class="sidebar-section">
+                <h3>1. Dados e Glossário</h3>
+                <div class="upload-wrapper">
+                    <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" hidden>
+                    <label for="excelFile" class="btn-upload">📁 Relatório Excel</label>
+                    
+                    <input type="file" id="glossaryFile" accept=".txt" hidden>
+                    <label for="glossaryFile" class="btn-upload secondary">📖 Glossário (T;C;S)</label>
+                </div>
             </div>
-        </div>
-        <div class="card chart-card">
-            <h3>Exposição por Classe (XP)</h3>
-            <div class="chart-wrapper">
-                <canvas id="chartClasses"></canvas>
+
+            <div class="sidebar-section">
+                <h3>2. Simulação de Aporte</h3>
+                <div class="target-card aporte-box">
+                    <span>Valor do Aporte (R$)</span>
+                    <input type="number" id="valorAporte" value="0" step="1000">
+                </div>
             </div>
+
+            <div class="sidebar-section">
+                <h3>3. Alocação Alvo (%)</h3>
+                <div class="target-grid-modern">
+                    <div class="target-card"><span>RV Brasil</span><input type="number" class="target-input" data-cat="Renda Variavel Brasil" value="0"></div>
+                    <div class="target-card"><span>RF Brasil</span><input type="number" class="target-input" data-cat="Renda Fixa Brasil" value="0"></div>
+                    <div class="target-card"><span>Multimercado</span><input type="number" class="target-input" data-cat="Multimercado" value="0"></div>
+                    <div class="target-card"><span>RV Global</span><input type="number" class="target-input" data-cat="Renda Variavel Global" value="0"></div>
+                    <div class="target-card"><span>RF Global</span><input type="number" class="target-input" data-cat="Renda Fixa Global" value="0"></div>
+                    <div class="target-card"><span>Alternativo</span><input type="number" class="target-input" data-cat="Alternativo" value="0"></div>
+                    <div class="target-card"><span>Caixa</span><input type="number" class="target-input" data-cat="Caixa" value="0"></div>
+                </div>
+                <button class="btn-analyze" onclick="processarPlanilha()">⚡ Analisar e Rebalancear</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="top-stats">
+                <div class="stat-card">
+                    <label>Patrimônio Total</label>
+                    <h2 id="txtTotal">R$ 0,00</h2>
+                </div>
+                <div class="stat-card">
+                    <label>Conta XP</label>
+                    <h2 id="clientName">---</h2> </div>
+            </div>
+
+            <div class="visual-row single-chart">
+                <div class="card chart-card">
+                    <h3>Estratégia de Alocação Atual</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chartEstrategia"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card rebalance-card">
+    <h3>Plano de Execução Estratégico</h3>
+    <table class="data-table modern-action-table">
+        <thead>
+            <tr>
+                <th>Categoria</th>
+                <th>Atual %</th>
+                <th>Alvo %</th>
+                <th>Ações Sugeridas</th>
+            </tr>
+        </thead>
+        <tbody id="rebalanceBody"></tbody>
+    </table>
+    <div id="aporteSummary" class="aporte-summary-box">
         </div>
-    </div>
+</div>
+            </div>
 
-    <div class="card rebalance-card">
-        <h3>Sugestão de Rebalanceamento</h3>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Categoria</th>
-                    <th>Atual %</th>
-                    <th>Alvo %</th>
-                    <th>Movimento</th>
-                </tr>
-            </thead>
-            <tbody id="rebalanceBody"></tbody>
-        </table>
-    </div>
+            <div id="accordionAtivos" class="asset-grid"></div>
 
-    <div id="accordionAtivos" class="asset-grid"></div>
-</main>
+            <div class="card subclass-card">
+                <h3>Exposição por Subclasse (Indexadores)</h3>
+                <div class="chart-wrapper-bar">
+                    <canvas id="chartSubclasses"></canvas>
+                </div>
+            </div>
+        </main>
     </div>
     <script src="script.js"></script>
 </body>

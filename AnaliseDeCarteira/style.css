@@ -162,3 +162,61 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); ma
 .loaded {
     animation: pop 0.3s ease-out;
 }
+
+/* ... (estilos anteriores permanecem) */
+
+.single-chart {
+    grid-template-columns: 1fr 1.2fr !important;
+}
+
+/* Cores Primárias para o gráfico */
+.gold-text { color: #c5a059; font-weight: bold; }
+
+
+.aporte-box input {
+    width: 100px !important;
+    background: #1b4043;
+    border: 1px solid #8fc9cc;
+    color: #10b981;
+    font-weight: bold;
+    text-align: center;
+    border-radius: 4px;
+}
+
+.subclass-card {
+    margin-top: 25px;
+    background: white;
+}
+
+.chart-wrapper-bar {
+    height: 300px;
+}
+
+.loaded {
+    background: #10b981 !important;
+    color: white !important;
+}
+/* Badges de Ação */
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.badge-aporte { background-color: #10b981; color: white; } /* Verde */
+.badge-ajuste { background-color: #f1c40f; color: #1b4043; } /* Amarelo/Ouro */
+.badge-venda { background-color: #ef4444; color: white; } /* Vermelho */
+
+.action-text { font-size: 0.85rem; display: block; margin-top: 4px; }
+
+.aporte-summary-box {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8fafb;
+    border-radius: 8px;
+    border-left: 5px solid #10b981;
+    font-size: 0.9rem;
+}
