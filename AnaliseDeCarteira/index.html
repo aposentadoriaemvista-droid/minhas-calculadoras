@@ -18,8 +18,8 @@
                     <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" hidden>
                     <label for="excelFile" class="btn-upload">📁 Relatório Excel</label>
                     
-                    <input type="file" id="glossaryFile" accept=".txt" hidden>
-                    <label for="glossaryFile" class="btn-upload secondary">📖 Glossário (T;C;S)</label>
+                    <input type="file" id="glossaryFile" accept=".xlsx, .xls, .csv" hidden>
+                    <label for="glossaryFile" class="btn-upload secondary">📊 Glossário Excel</label>
                 </div>
             </div>
 
@@ -54,7 +54,8 @@
                 </div>
                 <div class="stat-card">
                     <label>Conta XP</label>
-                    <h2 id="clientName">---</h2> </div>
+                    <h2 id="clientName">---</h2>
+                </div>
             </div>
 
             <div class="visual-row single-chart">
@@ -66,21 +67,20 @@
                 </div>
                 
                 <div class="card rebalance-card">
-    <h3>Plano de Execução Estratégico</h3>
-    <table class="data-table modern-action-table">
-        <thead>
-            <tr>
-                <th>Categoria</th>
-                <th>Atual %</th>
-                <th>Alvo %</th>
-                <th>Ações Sugeridas</th>
-            </tr>
-        </thead>
-        <tbody id="rebalanceBody"></tbody>
-    </table>
-    <div id="aporteSummary" class="aporte-summary-box">
-        </div>
-</div>
+                    <h3>Plano de Execução Estratégico</h3>
+                    <table class="data-table modern-action-table">
+                        <thead>
+                            <tr>
+                                <th>Categoria</th>
+                                <th>Atual %</th>
+                                <th>Alvo %</th>
+                                <th>Ações Sugeridas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rebalanceBody"></tbody>
+                    </table>
+                    <div id="aporteSummary" class="aporte-summary-box"></div>
+                </div>
             </div>
 
             <div id="accordionAtivos" class="asset-grid"></div>
