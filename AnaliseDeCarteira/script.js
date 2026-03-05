@@ -15,8 +15,7 @@ const mapToSeven = (subclasseXp, ativo) => {
 
     if (a.includes("IVVB11") || a.includes("NASD11") || a.includes("WRLD11") || a.includes("BNDX11")) return "Renda Variavel Global";
     if (s.includes("ações") || s.includes("variável brasil") || s.includes("renda variável")) return "Renda Variavel Brasil";
-    // "Prefixada" contém "fixa", o que ajuda no mapeamento automático
-    if (s.includes("pós-fixado") || s.includes("inflação") || s.includes("fixa") || s.includes("prefixada")) return "Renda Fixa Brasil";
+    if (s.includes("pós-fixado") || s.includes("inflação") || s.includes("fixa") || s.includes("renda fixa") || s.includes("prefixada") || s.includes("tesouro")) return "Renda Fixa Brasil";
     if (s.includes("multimercado")) return "Multimercado";
     if (s.includes("alternativo") || s.includes("fii") || s.includes("imobiliário")) return "Alternativo";
     return "Caixa"; 
@@ -43,7 +42,6 @@ async function processarPlanilha() {
 async function loadGlossaryExcel() {
     const file = document.getElementById('glossaryFile').files[0];
     if (!file) return {};
-    
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -51,7 +49,6 @@ async function loadGlossaryExcel() {
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const json = XLSX.utils.sheet_to_json(sheet);
-            
             const dict = {};
             json.forEach(row => {
                 const ativo = norm(row["Ativos"] || row["ATIVOS"] || row["Ativo"]);
@@ -84,42 +81,48 @@ function analisarCarteira(matrix, glossary) {
     matrix.forEach(row => {
         if(!row || row.length === 0) return;
         
-        // 1. Detectar Categoria (procura em qualquer célula, geralmente na primeira)
-        const catCell = row.find(c => c && c.toString().includes("|"));
-        if (catCell) {
-            currentXpCategory = catCell.toString().split("|")[1].trim();
-            // NÃO damos return aqui, pois a mesma linha pode conter os títulos das colunas
+        // 1. Detectar Categoria (procuramos o símbolo |)
+        const tituloSeccao = row.find(c => c && c.toString().includes("|"));
+        if (tituloSeccao) {
+            currentXpCategory = tituloSeccao.toString().split("|")[1].trim();
+            colPosicaoIdx = -1; // Resetamos para buscar o novo cabeçalho da seção
         }
 
         const rowStr = row.map(c => norm(c));
 
-        // 2. Localizar coluna de Valor (Posição / Financeiro / Valor aplicado)
-        const foundValueIdx = rowStr.findIndex(c => 
-            ["Posição", "Valor líquido", "Financeiro", "Valor aplicado"].includes(c)
-        );
-
-        if (foundValueIdx !== -1) {
-            colPosicaoIdx = foundValueIdx;
-            return; // Linha de cabeçalho identificada, passamos para a próxima (que é dado)
+        // 2. Localizar coluna de Valor por PRIORIDADE (Resolve o erro da Renda Fixa)
+        const priorityOptions = ["Posição", "Valor líquido", "Financeiro", "Valor aplicado"];
+        let foundIdx = -1;
+        
+        for (let option of priorityOptions) {
+            let idx = rowStr.indexOf(option);
+            if (idx !== -1) {
+                foundIdx = idx;
+                break; // Para na primeira opção de maior prioridade encontrada
+            }
         }
 
-        // 3. Ignorar seções desnecessárias
+        if (foundIdx !== -1) {
+            colPosicaoIdx = foundIdx;
+            return; // Linha de cabeçalho identificada
+        }
+
+        // Pular seções de ruído
         if (ignorarCategorias.some(cat => currentXpCategory.includes(cat))) return;
 
-        // 4. Processar Ativo
+        // 3. Processar Ativos (Nome está sempre na coluna 0)
         if (colPosicaoIdx !== -1) {
             const nomeAtivo = norm(row[0]);
             const valor = cleanV(row[colPosicaoIdx]);
 
-            // Filtrar palavras que são cabeçalhos ou ruído
-            const headerKeywords = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota"];
+            const noise = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota", "Total", "Subtotal"];
             
-            if (nomeAtivo && !headerKeywords.includes(nomeAtivo) && !nomeAtivo.includes("|") && valor > 0.01) {
+            if (nomeAtivo && !noise.includes(nomeAtivo) && !nomeAtivo.includes("|") && valor > 0.01) {
                 const gData = glossary[nomeAtivo];
                 const topico = (gData && gData.cat) ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
                 const sub = (gData && gData.sub !== "Outros") ? gData.sub : currentXpCategory;
 
-                estrategiaMap[topico] = (estrategiaMap[topico] || 0) + valor;
+                estrategiaMap[topico] += valor;
                 subclassesMap[sub] = (subclassesMap[sub] || 0) + valor;
 
                 if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
@@ -131,10 +134,10 @@ function analisarCarteira(matrix, glossary) {
         }
     });
 
-    // Saldo em Conta / Projetado
-    const saldoRow = matrix.find(r => r && r[0] && r[0].toString().includes("Saldo projetado"));
+    // Saldo em Conta Especial (Saldo Projetado)
+    const saldoRow = matrix.find(r => r && r.some(c => c && c.toString().includes("Saldo Projetado")));
     if (saldoRow) {
-        const saldoVal = cleanV(saldoRow[11] || saldoRow[10] || saldoRow[2]);
+        const saldoVal = cleanV(saldoRow.find(c => !isNaN(cleanV(c)) && cleanV(c) > 0));
         if (saldoVal > 0) {
             estrategiaMap["Caixa"] += saldoVal;
             totalPatrimonio += saldoVal;
@@ -147,7 +150,6 @@ function analisarCarteira(matrix, glossary) {
 function renderDashboard(estrategia, subclasses, detalhe) {
     const valorAporte = parseFloat(document.getElementById('valorAporte').value) || 0;
     const totalFuturo = totalPatrimonio + valorAporte;
-
     document.getElementById('txtTotal').innerText = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 
     const labels1 = Object.keys(estrategia).filter(k => estrategia[k] > 0);
@@ -191,9 +193,7 @@ function renderSubclassChart(subclasses) {
 
 function renderRebalanceTable(estrategia, aporteTotal, totalFuturo) {
     const body = document.getElementById('rebalanceBody');
-    const summary = document.getElementById('aporteSummary');
     body.innerHTML = "";
-    
     Object.keys(estrategia).forEach(cat => {
         const targetInput = document.querySelector(`.target-input[data-cat="${cat}"]`);
         if (!targetInput) return;
@@ -210,7 +210,6 @@ function renderRebalanceTable(estrategia, aporteTotal, totalFuturo) {
         } else if (diff < -0.01) {
             htmlAcao = `<span class="badge badge-venda">EXCEDENTE</span> <span class="action-text">Reduzir <strong>R$ ${Math.abs(diff).toLocaleString('pt-BR')}</strong></span>`;
         } else { htmlAcao = "✓ OK"; }
-
         body.innerHTML += `<tr><td><strong>${cat}</strong></td><td>${atualPerc.toFixed(1)}%</td><td>${targetPerc}%</td><td>${htmlAcao}</td></tr>`;
     });
 }
