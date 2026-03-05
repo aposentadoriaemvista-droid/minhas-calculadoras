@@ -3,11 +3,18 @@ let chartSubclasses = null;
 let currentPortfolio = {};
 let totalPatrimonio = 0;
 
-// 1. Mapeamento Inteligente
+// 1. Mapeamento Inteligente com 8 Categorias
+// 1. Mapeamento Inteligente com 8 Categorias (Prioridade para FIIs)
+// 1. Mapeamento Inteligente com 8 Categorias
 const mapToSeven = (subclasseXp, ativo) => {
     const s = subclasseXp.toLowerCase();
     const a = ativo.toUpperCase();
     
+    // PRIORIDADE 1: Fundos Imobiliários (HGLG11 e outros listados)
+    if (s.includes("fii") || s.includes("imobiliário") || s.includes("listados")) {
+        return "Fundos Imobiliários";
+    }
+
     const categoriasBase = ["Renda Variavel Brasil", "Renda Fixa Brasil", "Multimercado", "Renda Variavel Global", "Renda Fixa Global", "Alternativo", "Caixa"];
     if (categoriasBase.some(c => c.toLowerCase() === s)) {
         return categoriasBase.find(c => c.toLowerCase() === s);
@@ -15,12 +22,12 @@ const mapToSeven = (subclasseXp, ativo) => {
 
     if (a.includes("IVVB11") || a.includes("NASD11") || a.includes("WRLD11") || a.includes("BNDX11")) return "Renda Variavel Global";
     if (s.includes("ações") || s.includes("variável brasil") || s.includes("renda variável")) return "Renda Variavel Brasil";
-    if (s.includes("pós-fixado") || s.includes("inflação") || s.includes("fixa") || s.includes("renda fixa") || s.includes("prefixada") || s.includes("tesouro")) return "Renda Fixa Brasil";
+    // Mapeia Renda Fixa, Pós, Inflação e Prefixados
+    if (s.includes("pós-fixado") || s.includes("inflação") || s.includes("fixa") || s.includes("renda fixa") || s.includes("prefixada")) return "Renda Fixa Brasil";
     if (s.includes("multimercado")) return "Multimercado";
-    if (s.includes("alternativo") || s.includes("fii") || s.includes("imobiliário")) return "Alternativo";
+    if (s.includes("alternativo")) return "Alternativo";
     return "Caixa"; 
 };
-
 const norm = (txt) => txt ? txt.toString().replace(/\s+/g, ' ').trim() : "";
 
 async function processarPlanilha() {
@@ -42,6 +49,7 @@ async function processarPlanilha() {
 async function loadGlossaryExcel() {
     const file = document.getElementById('glossaryFile').files[0];
     if (!file) return {};
+    
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -49,14 +57,17 @@ async function loadGlossaryExcel() {
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const json = XLSX.utils.sheet_to_json(sheet);
+            
             const dict = {};
             json.forEach(row => {
                 const ativo = norm(row["Ativos"] || row["ATIVOS"] || row["Ativo"]);
                 const classe = row["Classe"] || row["CLASSE"];
+                // Garantimos que salvamos um OBJETO e não apenas uma string
                 if (ativo) {
                     dict[ativo] = {
                         cat: classe ? classe.toString().trim() : "",
-                        sub: row["Subclasse"] || "Outros"
+                        // Se não houver coluna 'Subclasse', usamos 'Outros'
+                        subclasse: row["Subclasse"] || row["SUBCLASSE"] || "Outros"
                     };
                 }
             });
@@ -68,83 +79,94 @@ async function loadGlossaryExcel() {
 }
 
 function analisarCarteira(matrix, glossary) {
-    const estrategiaMap = { "Renda Variavel Brasil": 0, "Renda Fixa Brasil": 0, "Multimercado": 0, "Renda Variavel Global": 0, "Renda Fixa Global": 0, "Alternativo": 0, "Caixa": 0 };
+    const estrategiaMap = { 
+        "Renda Variavel Brasil": 0, "Renda Fixa Brasil": 0, "Multimercado": 0, 
+        "Renda Variavel Global": 0, "Renda Fixa Global": 0, "Alternativo": 0, 
+        "Fundos Imobiliários": 0, "Caixa": 0 
+    };
     const subclassesMap = {};
     const detalheMap = {};
-    
     totalPatrimonio = 0;
     let currentXpCategory = "Caixa";
     let colPosicaoIdx = -1;
 
-    const ignorarCategorias = ["Proventos", "Aluguel", "Custódia remunerada", "Garantias"];
-
     matrix.forEach(row => {
         if(!row || row.length === 0) return;
         
-        // 1. Detectar Categoria (procuramos o símbolo |)
+        const rowStr = row.map(c => norm(c));
+
+        // 1. Detectar Categoria (Símbolo |)
         const tituloSeccao = row.find(c => c && c.toString().includes("|"));
         if (tituloSeccao) {
             currentXpCategory = tituloSeccao.toString().split("|")[1].trim();
-            colPosicaoIdx = -1; // Resetamos para buscar o novo cabeçalho da seção
         }
 
-        const rowStr = row.map(c => norm(c));
+        // 2. Localizar coluna de Valor (Prioridade: Posição > Líquido > Financeiro)
+        const headValor = ["Posição", "Posição a mercado", "Valor líquido", "Financeiro", "Valor aplicado", "Provisionado"];
+        let foundValor = -1;
+        for (let v of headValor) {
+            let idx = rowStr.indexOf(v);
+            if (idx !== -1) { foundValor = idx; break; }
+        }
 
-        // 2. Localizar coluna de Valor por PRIORIDADE (Resolve o erro da Renda Fixa)
-        const priorityOptions = ["Posição", "Valor líquido", "Financeiro", "Valor aplicado"];
-        let foundIdx = -1;
+        if (foundValor !== -1) {
+            colPosicaoIdx = foundValor;
+            return; // Linha de cabeçalho identificada, não processamos como dado
+        }
+
+        // 3. Filtro Anti-Duplicidade (Ignora Proventos e Custódia)
+        const lowCat = currentXpCategory.toLowerCase();
+        if (lowCat.includes("proventos") || lowCat.includes("custódia") || lowCat.includes("distribuições")) return;
+
+        // 4. Processar Ativo (Nome está SEMPRE na coluna 0 para evitar o erro de datas)
+       if (colPosicaoIdx !== -1) {
+    const nomeAtivo = norm(row[0]);
+    const valor = cleanV(row[colPosicaoIdx]);
+    
+    const noise = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota", "Total", "Subtotal"];
+    if (nomeAtivo && valor > 0.01 && !noise.includes(nomeAtivo) && !nomeAtivo.includes("|")) {
         
-        for (let option of priorityOptions) {
-            let idx = rowStr.indexOf(option);
-            if (idx !== -1) {
-                foundIdx = idx;
-                break; // Para na primeira opção de maior prioridade encontrada
-            }
-        }
+        const gData = glossary[nomeAtivo];
+        
+        // CORREÇÃO: Verificamos se gData é um objeto antes de pegar .cat
+        const topico = (gData && typeof gData === 'object') ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
+        
+        // CORREÇÃO: Usamos o novo nome 'subclasse' definido no loadGlossary
+        const subclasseNome = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
 
-        if (foundIdx !== -1) {
-            colPosicaoIdx = foundIdx;
-            return; // Linha de cabeçalho identificada
-        }
+        estrategiaMap[topico] += valor;
+        totalPatrimonio += valor;
 
-        // Pular seções de ruído
-        if (ignorarCategorias.some(cat => currentXpCategory.includes(cat))) return;
+        // Gráfico de Subclasses (agora com o nome correto)
+        subclassesMap[subclasseNome] = (subclassesMap[subclasseNome] || 0) + valor;
 
-        // 3. Processar Ativos (Nome está sempre na coluna 0)
-        if (colPosicaoIdx !== -1) {
-            const nomeAtivo = norm(row[0]);
-            const valor = cleanV(row[colPosicaoIdx]);
-
-            const noise = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota", "Total", "Subtotal"];
-            
-            if (nomeAtivo && !noise.includes(nomeAtivo) && !nomeAtivo.includes("|") && valor > 0.01) {
-                const gData = glossary[nomeAtivo];
-                const topico = (gData && gData.cat) ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
-                const sub = (gData && gData.sub !== "Outros") ? gData.sub : currentXpCategory;
-
-                estrategiaMap[topico] += valor;
-                subclassesMap[sub] = (subclassesMap[sub] || 0) + valor;
-
-                if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
-                detalheMap[topico].total += valor;
-                detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor });
-
-                totalPatrimonio += valor;
-            }
-        }
+        if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
+        detalheMap[topico].total += valor;
+        detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor });
+    }
+}
     });
 
-    // Saldo em Conta Especial (Saldo Projetado)
-    const saldoRow = matrix.find(r => r && r.some(c => c && c.toString().includes("Saldo Projetado")));
-    if (saldoRow) {
-        const saldoVal = cleanV(saldoRow.find(c => !isNaN(cleanV(c)) && cleanV(c) > 0));
-        if (saldoVal > 0) {
+    // 5. Captura de Saldo Projetado
+    const headerRow = matrix.find(r => r && r.some(c => norm(c) === "Saldo projetado"));
+    if (headerRow) {
+        const colSaldoIdx = headerRow.findIndex(c => norm(c) === "Saldo projetado");
+        const valorRow = matrix[matrix.indexOf(headerRow) + 1];
+        if (valorRow) {
+            const saldoVal = cleanV(valorRow[colSaldoIdx]);
             estrategiaMap["Caixa"] += saldoVal;
             totalPatrimonio += saldoVal;
         }
     }
 
     renderDashboard(estrategiaMap, subclassesMap, detalheMap);
+}
+// ... (Funções de Renderização e Auxiliares permanecem as mesmas)
+function cleanV(v) {
+    if (v === undefined || v === null) return 0;
+    if (typeof v === 'number') return v;
+    let s = v.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+    return parseFloat(s) || 0;
 }
 
 function renderDashboard(estrategia, subclasses, detalhe) {
@@ -153,35 +175,26 @@ function renderDashboard(estrategia, subclasses, detalhe) {
     document.getElementById('txtTotal').innerText = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 
     const labels1 = Object.keys(estrategia).filter(k => estrategia[k] > 0);
-    const data1 = labels1.map(k => ((estrategia[k] / totalPatrimonio) * 100).toFixed(1));
+    const data1 = labels1.map(k => ((estrategia[k] / (totalPatrimonio || 1)) * 100).toFixed(1));
     
-    renderEstrategiaChart(labels1, data1);
-    renderSubclassChart(subclasses);
-    renderRebalanceTable(estrategia, valorAporte, totalFuturo);
-    renderAssetAccordion(detalhe);
-}
-
-function renderEstrategiaChart(labels, data) {
-    const ctx = document.getElementById('chartEstrategia').getContext('2d');
+    const ctx1 = document.getElementById('chartEstrategia').getContext('2d');
     if (chartEstrategia) chartEstrategia.destroy();
-    chartEstrategia = new Chart(ctx, {
+    chartEstrategia = new Chart(ctx1, {
         type: 'doughnut',
         data: {
-            labels: labels.map((l, i) => `${l} (${data[i]}%)`),
+            labels: labels1.map((l, i) => `${l} (${data1[i]}%)`),
             datasets: [{
-                data: data,
-                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF'],
+                data: data1,
+                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF'],
                 borderWidth: 0
             }]
         },
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
-}
 
-function renderSubclassChart(subclasses) {
-    const ctx = document.getElementById('chartSubclasses').getContext('2d');
+    const ctx2 = document.getElementById('chartSubclasses').getContext('2d');
     if (chartSubclasses) chartSubclasses.destroy();
-    chartSubclasses = new Chart(ctx, {
+    chartSubclasses = new Chart(ctx2, {
         type: 'bar',
         data: {
             labels: Object.keys(subclasses),
@@ -189,6 +202,9 @@ function renderSubclassChart(subclasses) {
         },
         options: { indexAxis: 'y', maintainAspectRatio: false }
     });
+
+    renderRebalanceTable(estrategia, valorAporte, totalFuturo);
+    renderAssetAccordion(detalhe);
 }
 
 function renderRebalanceTable(estrategia, aporteTotal, totalFuturo) {
@@ -221,13 +237,6 @@ function renderAssetAccordion(detalhe) {
     sortedCats.forEach(cat => {
         container.innerHTML += `<div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span>${cat}</span><span style="color:#c5a059">R$ ${detalhe[cat].total.toLocaleString('pt-BR')}</span></div><div class="acc-content"><table class="data-table">${detalhe[cat].assets.map(a => `<tr><td>${a.nome}</td><td style="text-align:right">R$ ${a.valor.toLocaleString('pt-BR')}</td></tr>`).join('')}</table></div></div>`;
     });
-}
-
-function cleanV(v) {
-    if (v === undefined || v === null) return 0;
-    if (typeof v === 'number') return v;
-    let s = v.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-    return parseFloat(s) || 0;
 }
 
 function toggleAcc(el) {
