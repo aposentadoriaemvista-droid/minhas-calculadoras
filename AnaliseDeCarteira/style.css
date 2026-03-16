@@ -220,3 +220,11 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); ma
     border-left: 5px solid #10b981;
     font-size: 0.9rem;
 }
+
+
+.simulation-card { margin-top: 30px; border-top: 4px solid #3498db; }
+.simulation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; }
+.sim-input-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 5px; background: #f9f9f9; border-radius: 4px; }
+.sim-input-row label { font-size: 0.85rem; font-weight: bold; }
+.sim-input-row input { width: 120px; border: 1px solid #ddd; padding: 5px; border-radius: 4px; text-align: right; }
+.sim-total-box { margin-top: 15px; font-weight: bold; text-align: right; font-size: 1.1rem; color: #1b4043; }

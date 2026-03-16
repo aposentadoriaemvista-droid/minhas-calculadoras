@@ -1,16 +1,14 @@
 let chartEstrategia = null;
 let chartSubclasses = null;
-let currentPortfolio = {};
+let chartSimulacao = null;
+let currentPortfolio = {}; // Guardará a foto da carteira para a simulação
 let totalPatrimonio = 0;
 
-// 1. Mapeamento Inteligente com 8 Categorias
-// 1. Mapeamento Inteligente com 8 Categorias (Prioridade para FIIs)
 // 1. Mapeamento Inteligente com 8 Categorias
 const mapToSeven = (subclasseXp, ativo) => {
     const s = subclasseXp.toLowerCase();
     const a = ativo.toUpperCase();
     
-    // PRIORIDADE 1: Fundos Imobiliários (HGLG11 e outros listados)
     if (s.includes("fii") || s.includes("imobiliário") || s.includes("listados")) {
         return "Fundos Imobiliários";
     }
@@ -22,12 +20,12 @@ const mapToSeven = (subclasseXp, ativo) => {
 
     if (a.includes("IVVB11") || a.includes("NASD11") || a.includes("WRLD11") || a.includes("BNDX11")) return "Renda Variavel Global";
     if (s.includes("ações") || s.includes("variável brasil") || s.includes("renda variável")) return "Renda Variavel Brasil";
-    // Mapeia Renda Fixa, Pós, Inflação e Prefixados
     if (s.includes("pós-fixado") || s.includes("inflação") || s.includes("fixa") || s.includes("renda fixa") || s.includes("prefixada")) return "Renda Fixa Brasil";
     if (s.includes("multimercado")) return "Multimercado";
     if (s.includes("alternativo")) return "Alternativo";
     return "Caixa"; 
 };
+
 const norm = (txt) => txt ? txt.toString().replace(/\s+/g, ' ').trim() : "";
 
 async function processarPlanilha() {
@@ -62,12 +60,10 @@ async function loadGlossaryExcel() {
             json.forEach(row => {
                 const ativo = norm(row["Ativos"] || row["ATIVOS"] || row["Ativo"]);
                 const classe = row["Classe"] || row["CLASSE"];
-                // Garantimos que salvamos um OBJETO e não apenas uma string
                 if (ativo) {
                     dict[ativo] = {
                         cat: classe ? classe.toString().trim() : "",
-                        // Se não houver coluna 'Subclasse', usamos 'Outros'
-                        subclasse: row["Subclasse"] || row["SUBCLASSE"] || "Outros"
+                        subclasse: row["Subclasse"] || row["SUBCLASSE"] || row["Exposição"] || "Outros"
                     };
                 }
             });
@@ -92,16 +88,13 @@ function analisarCarteira(matrix, glossary) {
 
     matrix.forEach(row => {
         if(!row || row.length === 0) return;
-        
         const rowStr = row.map(c => norm(c));
 
-        // 1. Detectar Categoria (Símbolo |)
         const tituloSeccao = row.find(c => c && c.toString().includes("|"));
         if (tituloSeccao) {
             currentXpCategory = tituloSeccao.toString().split("|")[1].trim();
         }
 
-        // 2. Localizar coluna de Valor (Prioridade: Posição > Líquido > Financeiro)
         const headValor = ["Posição", "Posição a mercado", "Valor líquido", "Financeiro", "Valor aplicado", "Provisionado"];
         let foundValor = -1;
         for (let v of headValor) {
@@ -111,43 +104,34 @@ function analisarCarteira(matrix, glossary) {
 
         if (foundValor !== -1) {
             colPosicaoIdx = foundValor;
-            return; // Linha de cabeçalho identificada, não processamos como dado
+            return;
         }
 
-        // 3. Filtro Anti-Duplicidade (Ignora Proventos e Custódia)
         const lowCat = currentXpCategory.toLowerCase();
         if (lowCat.includes("proventos") || lowCat.includes("custódia") || lowCat.includes("distribuições")) return;
 
-        // 4. Processar Ativo (Nome está SEMPRE na coluna 0 para evitar o erro de datas)
-       if (colPosicaoIdx !== -1) {
-    const nomeAtivo = norm(row[0]);
-    const valor = cleanV(row[colPosicaoIdx]);
-    
-    const noise = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota", "Total", "Subtotal"];
-    if (nomeAtivo && valor > 0.01 && !noise.includes(nomeAtivo) && !nomeAtivo.includes("|")) {
-        
-        const gData = glossary[nomeAtivo];
-        
-        // CORREÇÃO: Verificamos se gData é um objeto antes de pegar .cat
-        const topico = (gData && typeof gData === 'object') ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
-        
-        // CORREÇÃO: Usamos o novo nome 'subclasse' definido no loadGlossary
-        const subclasseNome = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
+        if (colPosicaoIdx !== -1) {
+            const nomeAtivo = norm(row[0]);
+            const valor = cleanV(row[colPosicaoIdx]);
+            const noise = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota", "Total", "Subtotal"];
+            
+            if (nomeAtivo && valor > 0.01 && !noise.includes(nomeAtivo) && !nomeAtivo.includes("|")) {
+                const gData = glossary[nomeAtivo];
+                const topico = (gData && typeof gData === 'object') ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
+                const subclasseNome = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
 
-        estrategiaMap[topico] += valor;
-        totalPatrimonio += valor;
+                estrategiaMap[topico] += valor;
+                totalPatrimonio += valor;
+                subclassesMap[subclasseNome] = (subclassesMap[subclasseNome] || 0) + valor;
 
-        // Gráfico de Subclasses (agora com o nome correto)
-        subclassesMap[subclasseNome] = (subclassesMap[subclasseNome] || 0) + valor;
-
-        if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
-        detalheMap[topico].total += valor;
-        detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor });
-    }
-}
+                if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
+                detalheMap[topico].total += valor;
+                detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor });
+            }
+        }
     });
 
-    // 5. Captura de Saldo Projetado
+    // Captura de Saldo Projetado
     const headerRow = matrix.find(r => r && r.some(c => norm(c) === "Saldo projetado"));
     if (headerRow) {
         const colSaldoIdx = headerRow.findIndex(c => norm(c) === "Saldo projetado");
@@ -159,14 +143,10 @@ function analisarCarteira(matrix, glossary) {
         }
     }
 
+    // SALVA A CARTEIRA ATUAL PARA A SIMULAÇÃO
+    currentPortfolio = { ...estrategiaMap };
+    
     renderDashboard(estrategiaMap, subclassesMap, detalheMap);
-}
-// ... (Funções de Renderização e Auxiliares permanecem as mesmas)
-function cleanV(v) {
-    if (v === undefined || v === null) return 0;
-    if (typeof v === 'number') return v;
-    let s = v.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-    return parseFloat(s) || 0;
 }
 
 function renderDashboard(estrategia, subclasses, detalhe) {
@@ -177,21 +157,33 @@ function renderDashboard(estrategia, subclasses, detalhe) {
     const labels1 = Object.keys(estrategia).filter(k => estrategia[k] > 0);
     const data1 = labels1.map(k => ((estrategia[k] / (totalPatrimonio || 1)) * 100).toFixed(1));
     
+    renderEstrategiaChart(labels1, data1);
+    renderSubclassChart(subclasses);
+    renderRebalanceTable(estrategia, valorAporte, totalFuturo);
+    renderAssetAccordion(detalhe);
+    
+    // ATIVA A SIMULAÇÃO INTERATIVA
+    renderInteractiveSimulation(estrategia);
+}
+
+function renderEstrategiaChart(labels, data) {
     const ctx1 = document.getElementById('chartEstrategia').getContext('2d');
     if (chartEstrategia) chartEstrategia.destroy();
     chartEstrategia = new Chart(ctx1, {
         type: 'doughnut',
         data: {
-            labels: labels1.map((l, i) => `${l} (${data1[i]}%)`),
+            labels: labels.map((l, i) => `${l} (${data[i]}%)`),
             datasets: [{
-                data: data1,
+                data: data,
                 backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF'],
                 borderWidth: 0
             }]
         },
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
+}
 
+function renderSubclassChart(subclasses) {
     const ctx2 = document.getElementById('chartSubclasses').getContext('2d');
     if (chartSubclasses) chartSubclasses.destroy();
     chartSubclasses = new Chart(ctx2, {
@@ -202,9 +194,6 @@ function renderDashboard(estrategia, subclasses, detalhe) {
         },
         options: { indexAxis: 'y', maintainAspectRatio: false }
     });
-
-    renderRebalanceTable(estrategia, valorAporte, totalFuturo);
-    renderAssetAccordion(detalhe);
 }
 
 function renderRebalanceTable(estrategia, aporteTotal, totalFuturo) {
@@ -239,6 +228,73 @@ function renderAssetAccordion(detalhe) {
     });
 }
 
+// FUNÇÕES DA SIMULAÇÃO INTERATIVA
+function renderInteractiveSimulation(estrategia) {
+    const container = document.getElementById('simInputContainer');
+    if (!container) return;
+    container.innerHTML = "";
+    
+    Object.keys(estrategia).forEach(cat => {
+        const div = document.createElement('div');
+        div.className = 'sim-input-row';
+        div.innerHTML = `
+            <label>${cat}</label>
+            <input type="number" class="sim-input" data-cat="${cat}" value="0" step="1000" oninput="updateSimulation()">
+        `;
+        container.appendChild(div);
+    });
+    updateSimulation();
+}
+
+function updateSimulation() {
+    const inputs = document.querySelectorAll('.sim-input');
+    let aporteSimuladoTotal = 0;
+    const novosValores = {};
+    
+    inputs.forEach(input => {
+        const cat = input.dataset.cat;
+        const val = parseFloat(input.value) || 0;
+        novosValores[cat] = (currentPortfolio[cat] || 0) + val;
+        aporteSimuladoTotal += val;
+    });
+
+    const totalSimulado = totalPatrimonio + aporteSimuladoTotal;
+    const txtTotalSim = document.getElementById('txtTotalSimulado');
+    if (txtTotalSim) txtTotalSim.innerText = `R$ ${totalSimulado.toLocaleString('pt-BR')}`;
+
+    renderSimChart(novosValores, totalSimulado);
+}
+
+function renderSimChart(dados, total) {
+    const canvas = document.getElementById('chartSimulacao');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (chartSimulacao) chartSimulacao.destroy();
+    
+    const labels = Object.keys(dados).filter(k => dados[k] > 0);
+    const valores = labels.map(k => ((dados[k] / total) * 100).toFixed(1));
+
+    chartSimulacao = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels.map((l, i) => `${l} (${valores[i]}%)`),
+            datasets: [{
+                data: valores,
+                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF']
+            }]
+        },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+    });
+}
+
+// AUXILIARES
+function cleanV(v) {
+    if (v === undefined || v === null) return 0;
+    if (typeof v === 'number') return v;
+    let s = v.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+    return parseFloat(s) || 0;
+}
+
 function toggleAcc(el) {
     const content = el.nextElementSibling;
     content.style.display = content.style.display === 'block' ? 'none' : 'block';
@@ -250,6 +306,7 @@ document.getElementById('excelFile').addEventListener('change', function() {
         document.querySelector('label[for="excelFile"]').innerText = "✓ Planilha OK";
     }
 });
+
 document.getElementById('glossaryFile').addEventListener('change', function() {
     if (this.files.length > 0) {
         document.querySelector('label[for="glossaryFile"]').classList.add('loaded');
