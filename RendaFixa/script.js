@@ -215,7 +215,12 @@ function normalizarAtivo(ativo) {
 
 // Regex Parsers
 const regexBTG = /(BACEN - BANCO CENTRAL DO BRASIL\s*-\s*RJ)\s+(LFT|LTN|NTNB(?: - P)?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:SELIC|OVER|IPCA)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+(?:[\d.,]+|-)\s+-\s+([\d.,]+)|(BANCO BTG PACTUAL S A)\s+(LCA\s*-\s*.*?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(\d{2}\/\d{2}\/\d{2,4})[\s\S]*?((?:IPCA|CDI)\s*\+\s*[\d,]+\s*%)[\s\S]*?([\d.,]+)\s+-\s+-\s+([\d.,]+)/g;
-const regexXP = /(CDB|LCI|LCA|LCD|LC|RDB|CRI|CRA|DEB|LIG|CDCA|NTN\s*-?\s*B)([\s\S]*?)(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})[\s\S]*?(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})[\s\S]*?((?:[A-Za-z\s-]+\+)?\s*-?\s*[\d.,\s]+%(?:\s*[A-Za-z]+)?|[\d.,\s]+%[\s\S]*?CDI)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)/g;
+// --- REGEX ATUALIZADO (Evita capturar o ano na taxa e inclui Tesouro da Renda Fixa) ---
+// script.js
+
+// Adicionei uma verificação de que o ativo deve estar em uma linha que parece 
+// com a tabela de Renda Fixa (que tem datas de aplicação e carência próximas)
+const regexXP = /(CDB|LCI|LCA|LCD|LC|RDB|CRI|CRA|DEB|LIG|CDCA|LF|NTN\s*-?\s*[BF]|LTN|LFT|NTNB\s*PRINC)([\s\S]{1,100}?)(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})\s+(\d{2}\s*\/\s*\d{2}\s*\/\s*\d{4})\s+(\d{2}\s*\/\s*\d{2}\s*\/\s*20\d{2})\s*[\s\S]*?((?:[A-Za-z\s-]+\+)?\s*-?\s*[\d.,\s]+%(?:\s*[A-Za-z]+)?|[\d.,\s]+%[\s\S]*?CDI)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)[\s\S]*?R\s*\$\s*([\d.,\s]+)/g;
 
 function parseBTGMatch(match) {
     const emissor = match[1]||match[8]; const produto = match[2]||match[9]; const dataVencimento = match[4]||match[11]; const taxa = match[5]||match[12]; const valorLiquidoStr = match[7]||match[14]; const valorLiquido = parseFloat(valorLiquidoStr.replace(/\./g, '').replace(',', '.'));
@@ -223,22 +228,43 @@ function parseBTGMatch(match) {
 }
 
 function parseXPMatch(match) {
-    let tipoAtivo = match[1]; let nomeBruto = match[2].replace(/\n/g, ' ').trim(); let taxaBruta = match[5].replace(/\s+/g, ' ').trim();
-    if (nomeBruto.includes("T00:00:00")||nomeBruto.length > 150) return null;
-    const matchAno = taxaBruta.match(/^(20\d{2})\s+([\d.,]+.*)/); if (matchAno) taxaBruta = matchAno[2];
-    taxaBruta = taxaBruta.replace(/(\d)\s+([.,])\s+(\d)/g, '$1$2$3');
-    nomeBruto = nomeBruto.replace(/Garantia|Posição|Disponível|Vencimento|Título|Preço|Total/g, '').replace(/R\s*\$\s*[\d.,]+/g, '').replace(/-?\s*[A-Z]{3}\/\d{4}/gi, '').trim();
-    if (tipoAtivo.includes("NTN")) { nomeBruto = nomeBruto.replace(/^-/, '').trim(); if(nomeBruto.length < 5) nomeBruto = "IPCA+"; tipoAtivo = "Tesouro IPCA+ (NTN-B)"; }
+    let tipoAtivo = match[1].trim();
+    let nomeBruto = match[2].replace(/\n/g, ' ').trim();
+    // No novo Regex: match[3] = Aplicação, match[4] = Carência, match[5] = Vencimento, match[6] = Taxa
+    let taxaBruta = match[6].replace(/\s+/g, ' ').trim();
     
-    // match[7] = Valor Aplicado, match[8] = Valor Bruto (Mercado)
+    // Limpeza de ano grudado na taxa (ex: 202692,00%)
+    taxaBruta = taxaBruta.replace(/^(202\d|203\d)/, '');
+
+    // Filtro rigoroso: Se for Tesouro (NTN/LTN/LFT), SÓ aceita se a taxa for explícita
+    const tiposTesouro = ["NTN", "LTN", "LFT", "TESOURO"];
+    if (tiposTesouro.some(t => tipoAtivo.toUpperCase().includes(t))) {
+        // Se a taxa capturada for apenas um número sem % ou +, ou se for vazia, descarta
+        if (!taxaBruta.includes("%") && !taxaBruta.includes("+")) return null;
+    }
+
+    // Bloqueio de Proventos e lixo de outras seções
+    const nomeUpper = nomeBruto.toUpperCase();
+    if (nomeUpper.includes("RENDIMENTO") || nomeUpper.includes("PROVENTOS") || nomeUpper.includes("ÚLTIMA COTAÇÃO")) return null;
+
+    const valorLiquido = limparNumeroXP(match[9]); // O valor líquido agora está no match[9]
+    if (valorLiquido < 10) return null;
+
     return { 
-        tipo: tipoAtivo, banco: extrairBanco(nomeBruto), produto: `${tipoAtivo} ${nomeBruto}`, 
-        dataAplicacao: limparDataXP(match[3]), dataVencimento: limparDataXP(match[4]), 
-        taxa: taxaBruta, valorAplicado: limparNumeroXP(match[7]), valorLiquido: limparNumeroXP(match[8]) 
+        tipo: tipoAtivo, 
+        banco: extrairBanco(nomeBruto), 
+        produto: `${tipoAtivo} ${nomeBruto}`, 
+        dataAplicacao: limparDataXP(match[3]), 
+        dataVencimento: limparDataXP(match[5]), // Usamos o Vencimento real
+        taxa: taxaBruta, 
+        valorAplicado: limparNumeroXP(match[8]), 
+        valorLiquido: valorLiquido 
     };
 }
-const BIBLIOTECA_DE_PARSERS = [ { nomeCorretora: 'BTG Pactual', regex: regexBTG, funcaoDeExtracao: parseBTGMatch }, { nomeCorretora: 'XP Investimentos', regex: regexXP, funcaoDeExtracao: parseXPMatch } ];
-
+const BIBLIOTECA_DE_PARSERS = [
+    { nomeCorretora: 'XP Investimentos', regex: regexXP, funcaoDeExtracao: parseXPMatch },
+    { nomeCorretora: 'BTG Pactual', regex: regexBTG, funcaoDeExtracao: parseBTGMatch }
+];
 // --- LEITURA PDF ---
 async function lerPDF(file) {
     const reader = new FileReader(); reader.onload = async function() {
@@ -263,7 +289,10 @@ function processarTextoDoPDF(text) {
     const regexCorte = /P\s*R\s*[ÓO]\s*X\s*I\s*M\s*O\s*S\s*[\s\S]*?V\s*E\s*N\s*C\s*I\s*M\s*E\s*N\s*T\s*O\s*S/i;
     const matchCorte = text.match(regexCorte); if (matchCorte && matchCorte.index) text = text.substring(0, matchCorte.index);
     text = text.replace(/Posição Consolidada/gi, ' '); 
-    for (const parser of BIBLIOTECA_DE_PARSERS) { let match; parser.regex.lastIndex = 0; while ((match = parser.regex.exec(text)) !== null) { try { const ativoBruto = parser.funcaoDeExtracao(match); if (!ativoBruto) continue; if (ativoBruto.produto.toUpperCase().includes("PRE DU ")||ativoBruto.produto.toUpperCase().includes("POS DU ")) continue; ativos.push(normalizarAtivo(ativoBruto)); } catch (e) {} } }
+    for (const parser of BIBLIOTECA_DE_PARSERS) { let match; parser.regex.lastIndex = 0; while ((match = parser.regex.exec(text)) !== null) { try { const ativoBruto = parser.funcaoDeExtracao(match); if (!ativoBruto) continue; if (ativoBruto.produto.toUpperCase().includes("PRE DU ")||ativoBruto.produto.toUpperCase().includes("POS DU ")) continue; // Agora:
+const ativoComId = normalizarAtivo(ativoBruto);
+ativoComId.id = Math.random(); // Atribui ID aos ativos do PDF
+ativos.push(ativoComId); } catch (e) {} } }
     if (ativos.length > 0) { reportContainer.style.display = 'block'; todosOsAtivos = ativos; popularFiltros(todosOsAtivos); aplicarFiltros(); } else { alert("Nenhum ativo encontrado."); }
 }
 
@@ -291,7 +320,27 @@ function gerarGraficoTributacao(ativos) {
 }
 
 function gerarResumoClipboard() { const total = todosOsAtivos.reduce((acc, at) => acc + at.valorLiquido, 0); const qtd = todosOsAtivos.length; let text = `📊 *Resumo de Carteira - ${nomeClienteGlobal}*\n💰 Total: ${formatCurrency(total)}\n📄 Ativos: ${qtd}\n\n⚠️ *Avisos de Risco (FGC):*\n`; const porBanco = {}; todosOsAtivos.forEach(at => { if (!porBanco[at.banco]) porBanco[at.banco] = 0; if (TIPOS_FGC.some(t => at.tipo.toUpperCase().includes(t))) porBanco[at.banco] += at.valorLiquido; }); let riscoEncontrado = false; for (const [banco, valor] of Object.entries(porBanco)) { if (valor > LIMITE_FGC * 0.9) { text += `- ${banco}: ${formatCurrency(valor)} (Atenção!)\n`; riscoEncontrado = true; } } if (!riscoEncontrado) text += "Nenhum emissor próximo do teto FGC (R$ 250k).\n"; text += `\n📅 Gerado em: ${new Date().toLocaleDateString()}`; navigator.clipboard.writeText(text).then(() => { alert("Resumo copiado!"); }).catch(err => alert("Erro ao copiar.")); }
-function criarTabelaDetalhada(ativos) { let tableHTML = '<table><thead><tr><th>Emissor/Produto</th><th>Vencimento</th><th>Taxa</th><th>Valor Bruto (Mercado)</th></tr></thead><tbody>'; ativos.forEach(ativo => { tableHTML += `<tr><td>${ativo.produto}</td><td>${ativo.dataVencimento}</td><td>${ativo.taxa}</td><td>${formatCurrency(ativo.valorLiquido)}</td></tr>`; }); tableHTML += '</tbody></table>'; tableContainer.innerHTML = tableHTML; }
+
+
+function criarTabelaDetalhada(ativos) {
+    let tableHTML = '<table><thead><tr><th>Emissor/Produto</th><th>Vencimento</th><th>Taxa</th><th>Valor Bruto</th><th class="no-print">Ações</th></tr></thead><tbody>';
+    ativos.forEach(ativo => {
+        tableHTML += `<tr>
+            <td>${ativo.produto}</td>
+            <td>${ativo.dataVencimento}</td>
+            <td>${ativo.taxa}</td>
+            <td>${formatCurrency(ativo.valorLiquido)}</td>
+            <td class="no-print">
+                <button onclick="excluirAtivo(${ativo.id})" style="background:none; border:none; color:red; cursor:pointer;">🗑️</button>
+            </td>
+        </tr>`;
+    });
+    tableHTML += '</tbody></table>';
+    tableContainer.innerHTML = tableHTML;
+}
+
+
+
 function gerarPrevisaoRendimentos(ativos) { const ativosComJuros = ativos.filter(ativo => isAtivoCupom(ativo)); if (ativosComJuros.length === 0) { rendimentosMensaisContainer.innerHTML = '<p>Nenhum ativo com juros mensais.</p>'; return; } let totalMensal = 0; let html = '<ul>'; ativosComJuros.forEach(ativo => { const taxaAnual = estimarTaxaAnual(ativo.taxa); const rendaMensalBruta = (ativo.valorLiquido * taxaAnual) / 12; const rendaMensalLiq = rendaMensalBruta * 0.85; totalMensal += rendaMensalLiq; html += `<li><strong>${ativo.produto}:</strong> ~${formatCurrency(rendaMensalLiq)}</li>`; }); html += '</ul>'; html += `<hr><p><strong>Total Estimado: ${formatCurrency(totalMensal)}/mês</strong></p>`; rendimentosMensaisContainer.innerHTML = html; }
 function gerarInsights(ativos) { if (ativos.length === 0) return; const total = ativos.reduce((acc, at) => acc + at.valorLiquido, 0); const hoje = new Date(); hoje.setHours(0,0,0,0); const proximo = ativos.map(a => ({...a, dt: parseDataBR(a.dataVencimento)})).filter(a => a.dt && a.dt >= hoje).sort((a,b) => a.dt - b.dt)[0]; const porEmissor = {}; ativos.forEach(a => porEmissor[a.banco] = (porEmissor[a.banco] || 0) + a.valorLiquido); const maiorEmissor = Object.keys(porEmissor).reduce((a, b) => porEmissor[a] > porEmissor[b] ? a : b); let html = `<ul><li><strong>Quantidade de Ativos:</strong> ${ativos.length}</li><li><strong>Total Patrimônio:</strong> ${formatCurrency(total)}</li><li><strong>Próximo Vencimento:</strong> ${proximo ? proximo.dataVencimento + " (" + proximo.produto + ")" : "Nenhum"}</li><li><strong>Maior Concentração:</strong> ${maiorEmissor} (${formatCurrency(porEmissor[maiorEmissor])})</li></ul>`; insightsContainer.innerHTML = html; }
 
@@ -472,3 +521,47 @@ function criarGraficoProjecaoPatrimonio(ativos) {
 }
 
 function desenharGraficoIndexadores(ativos) { const dataPoints = {}; ativos.forEach(at => { const idx = categorizarPorIndexador(at); dataPoints[idx] = (dataPoints[idx] || 0) + at.valorLiquido; }); if (indexadoresChart) indexadoresChart.destroy(); indexadoresChart = new Chart(indexadoresChartCtx, { type: 'pie', data: { labels: Object.keys(dataPoints), datasets: [{ data: Object.values(dataPoints), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#198754'] }] } }); }
+// --- FUNÇÕES DE MANIPULAÇÃO MANUAL ---
+
+// 1. Função para Adicionar
+document.getElementById('btn-add-manual').addEventListener('click', () => {
+    const nome = document.getElementById('add-nome').value;
+    const vencimento = document.getElementById('add-vencimento').value;
+    const taxa = document.getElementById('add-taxa').value;
+    const valor = parseFloat(document.getElementById('add-valor').value);
+
+    if (!nome || !vencimento || !taxa || isNaN(valor)) {
+        alert("Preencha todos os campos corretamente.");
+        return;
+    }
+
+    const novoAtivo = {
+        id: Date.now(), // ID único para exclusão
+        tipo: nome.split(' ')[0].toUpperCase(),
+        banco: extrairBanco(nome),
+        produto: nome,
+        dataAplicacao: new Date().toLocaleDateString('pt-BR'),
+        dataVencimento: vencimento,
+        taxa: taxa,
+        valorAplicado: valor,
+        valorLiquido: valor
+    };
+
+    todosOsAtivos.push(normalizarAtivo(novoAtivo));
+    reportContainer.style.display = 'block'; // Garante que o dashboard apareça
+    aplicarFiltros(); // Atualiza tudo
+    
+    // Limpa os campos
+    document.getElementById('add-nome').value = '';
+    document.getElementById('add-vencimento').value = '';
+    document.getElementById('add-taxa').value = '';
+    document.getElementById('add-valor').value = '';
+});
+
+// 2. Função para Excluir
+function excluirAtivo(id) {
+    if (confirm("Deseja realmente remover este ativo da análise?")) {
+        todosOsAtivos = todosOsAtivos.filter(a => a.id !== id);
+        aplicarFiltros();
+    }
+}
