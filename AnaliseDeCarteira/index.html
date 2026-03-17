@@ -94,19 +94,25 @@
             </div>
 
             <div class="card simulation-card">
-    <h3>🧪 Laboratório de Simulação (Brincar com Aportes)</h3>
-    <p class="description">Insira valores abaixo para ver como a carteira se transforma em tempo real.</p>
-    
-    <div class="simulation-grid">
-        <div class="sim-inputs">
-            <div id="simInputContainer"></div>
+    <h3>🧪 Simulador Estratégico Iterativo</h3>
+    <div class="simulation-layout">
+        <div class="sim-controls">
+            
+            <div id="simSliderContainer"></div>
+            <div class="sim-total-footer">
+                <strong>Aporte Total:</strong> <span id="txtAporteSimulado">R$ 0,00</span><br>
+                <strong>Patrimônio Final:</strong> <span id="txtTotalSimulado">R$ 0,00</span>
+            </div>
         </div>
-        <div class="sim-chart">
-            <canvas id="chartSimulacao"></canvas>
+        
+        <div class="sim-visuals">
+            <div class="sim-chart-item">
+                <canvas id="chartSimEstrategia"></canvas>
+            </div>
+            <div class="sim-chart-item">
+                <canvas id="chartSimSubclasses"></canvas>
+            </div>
         </div>
-    </div>
-    <div id="simSummary" class="sim-total-box">
-        Total Simulado: <span id="txtTotalSimulado">R$ 0,00</span>
     </div>
 </div>
 

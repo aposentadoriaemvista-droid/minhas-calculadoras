@@ -3,6 +3,9 @@ let chartSubclasses = null;
 let chartSimulacao = null;
 let currentPortfolio = {}; // Guardará a foto da carteira para a simulação
 let totalPatrimonio = 0;
+let chartSimEstrategia = null;
+let chartSimSubclasses = null;
+
 
 // 1. Mapeamento Inteligente com 8 Categorias
 const mapToSeven = (subclasseXp, ativo) => {
@@ -228,18 +231,20 @@ function renderAssetAccordion(detalhe) {
     });
 }
 
-// FUNÇÕES DA SIMULAÇÃO INTERATIVA
 function renderInteractiveSimulation(estrategia) {
-    const container = document.getElementById('simInputContainer');
+    const container = document.getElementById('simSliderContainer');
     if (!container) return;
     container.innerHTML = "";
     
+    // Criar um slider para cada uma das 8 categorias
     Object.keys(estrategia).forEach(cat => {
         const div = document.createElement('div');
-        div.className = 'sim-input-row';
+        div.className = 'sim-slider-row';
         div.innerHTML = `
-            <label>${cat}</label>
-            <input type="number" class="sim-input" data-cat="${cat}" value="0" step="1000" oninput="updateSimulation()">
+            <label>${cat} <span class="val-display" id="val-${cat}">R$ 0</span></label>
+            <input type="range" class="modern-slider sim-range" 
+                   data-cat="${cat}" min="0" max="5000000" step="5000" value="0" 
+                   oninput="updateSimulation()">
         `;
         container.appendChild(div);
     });
@@ -247,43 +252,79 @@ function renderInteractiveSimulation(estrategia) {
 }
 
 function updateSimulation() {
-    const inputs = document.querySelectorAll('.sim-input');
-    let aporteSimuladoTotal = 0;
+    const sliders = document.querySelectorAll('.sim-range');
+    let aporteSimTotal = 0;
     const novosValores = {};
-    
-    inputs.forEach(input => {
-        const cat = input.dataset.cat;
-        const val = parseFloat(input.value) || 0;
-        novosValores[cat] = (currentPortfolio[cat] || 0) + val;
-        aporteSimuladoTotal += val;
+    const labels = [];
+    const baseData = [];
+    const simData = [];
+
+    sliders.forEach(slider => {
+        const cat = slider.dataset.cat;
+        const aporte = parseFloat(slider.value) || 0;
+        
+        // Atualizar display de texto do slider
+        document.getElementById(`val-${cat}`).innerText = `+ R$ ${aporte.toLocaleString('pt-BR')}`;
+        
+        const valorOriginal = currentPortfolio[cat] || 0;
+        const valorFinal = valorOriginal + aporte;
+        
+        labels.push(cat);
+        baseData.push(valorOriginal);
+        simData.push(valorFinal);
+        aporteSimTotal += aporte;
     });
 
-    const totalSimulado = totalPatrimonio + aporteSimuladoTotal;
-    const txtTotalSim = document.getElementById('txtTotalSimulado');
-    if (txtTotalSim) txtTotalSim.innerText = `R$ ${totalSimulado.toLocaleString('pt-BR')}`;
+    const totalSimulado = totalPatrimonio + aporteSimTotal;
+    document.getElementById('txtAporteSimulado').innerText = `R$ ${aporteSimTotal.toLocaleString('pt-BR')}`;
+    document.getElementById('txtTotalSimulado').innerText = `R$ ${totalSimulado.toLocaleString('pt-BR')}`;
 
-    renderSimChart(novosValores, totalSimulado);
+    renderSimComparisonCharts(labels, baseData, simData);
 }
 
-function renderSimChart(dados, total) {
-    const canvas = document.getElementById('chartSimulacao');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (chartSimulacao) chartSimulacao.destroy();
+function renderSimComparisonCharts(labels, original, simulado) {
+    // 1. Gráfico de Barras Vertical (Estratégia)
+    const ctx1 = document.getElementById('chartSimEstrategia').getContext('2d');
+    if (chartSimEstrategia) chartSimEstrategia.destroy();
     
-    const labels = Object.keys(dados).filter(k => dados[k] > 0);
-    const valores = labels.map(k => ((dados[k] / total) * 100).toFixed(1));
-
-    chartSimulacao = new Chart(ctx, {
-        type: 'pie',
+    chartSimEstrategia = new Chart(ctx1, {
+        type: 'bar',
         data: {
-            labels: labels.map((l, i) => `${l} (${valores[i]}%)`),
+            labels: labels,
+            datasets: [
+                { label: 'Atual', data: original, backgroundColor: '#d1d8db' },
+                { label: 'Simulado', data: simulado, backgroundColor: '#10b981' }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { title: { display: true, text: 'Comparativo de Alocação (R$)' } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    // 2. Gráfico de Linha (Evolução das Subclasses/Indexadores)
+    const ctx2 = document.getElementById('chartSimSubclasses').getContext('2d');
+    if (chartSimSubclasses) chartSimSubclasses.destroy();
+    
+    // Para simplificar a evolução, mostramos o delta de crescimento por categoria
+    chartSimSubclasses = new Chart(ctx2, {
+        type: 'line',
+        data: {
+            labels: labels,
             datasets: [{
-                data: valores,
-                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF']
+                label: 'Curva de Concentração Simulada',
+                data: simulado,
+                borderColor: '#c5a059',
+                backgroundColor: 'rgba(197, 160, 89, 0.1)',
+                fill: true,
+                tension: 0.4
             }]
         },
-        options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        options: {
+            maintainAspectRatio: false,
+            plugins: { title: { display: true, text: 'Curva de Exposição Pós-Aporte' } }
+        }
     });
 }
 

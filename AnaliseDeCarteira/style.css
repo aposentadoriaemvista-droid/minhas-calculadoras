@@ -228,3 +228,32 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); ma
 .sim-input-row label { font-size: 0.85rem; font-weight: bold; }
 .sim-input-row input { width: 120px; border: 1px solid #ddd; padding: 5px; border-radius: 4px; text-align: right; }
 .sim-total-box { margin-top: 15px; font-weight: bold; text-align: right; font-size: 1.1rem; color: #1b4043; }
+
+.simulation-layout { display: grid; grid-template-columns: 350px 1fr; gap: 30px; margin-top: 20px; }
+.sim-controls { background: #f8fafb; padding: 20px; border-radius: 8px; }
+.sim-slider-row { margin-bottom: 20px; }
+.sim-slider-row label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 8px; color: #1b4043; }
+
+/* Estilização do Slider */
+.modern-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #d1d8db;
+    border-radius: 5px;
+    outline: none;
+}
+.modern-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #c5a059;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.modern-slider::-webkit-slider-thumb:hover { transform: scale(1.2); background: #1b4043; }
+
+.val-display { font-family: monospace; font-size: 0.85rem; color: #10b981; float: right; }
+.sim-visuals { display: grid; grid-template-rows: 1fr 1fr; gap: 20px; }
+.sim-chart-item { height: 250px; }
