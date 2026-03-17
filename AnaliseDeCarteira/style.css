@@ -257,3 +257,23 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); ma
 .val-display { font-family: monospace; font-size: 0.85rem; color: #10b981; float: right; }
 .sim-visuals { display: grid; grid-template-rows: 1fr 1fr; gap: 20px; }
 .sim-chart-item { height: 250px; }
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-content {
+    background: white; padding: 30px; border-radius: 12px; width: 400px; display: flex; flex-direction: column; gap: 15px;
+}
+.modal-content input, .modal-content select {
+    padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;
+}
+.modal-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+/* Botão Excluir no Ativo */
+.btn-delete {
+    background: none; border: none; color: #ef4444; cursor: pointer;
+    font-weight: bold; padding: 0 10px; font-size: 1.1rem;
+}
+.btn-delete:hover { color: #b91c1c; }

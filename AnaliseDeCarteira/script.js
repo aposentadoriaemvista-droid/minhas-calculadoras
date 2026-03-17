@@ -5,6 +5,8 @@ let currentPortfolio = {}; // Guardará a foto da carteira para a simulação
 let totalPatrimonio = 0;
 let chartSimEstrategia = null;
 let chartSimSubclasses = null;
+let globalDetalheMap = {}; // Guardará os ativos atuais
+let globalSubclassesMap = {};
 
 
 // 1. Mapeamento Inteligente com 8 Categorias
@@ -129,7 +131,11 @@ function analisarCarteira(matrix, glossary) {
 
                 if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
                 detalheMap[topico].total += valor;
-                detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor });
+                detalheMap[topico].assets.push({ 
+                nome: nomeAtivo, 
+                valor: valor, 
+                sub: (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory 
+});
             }
         }
     });
@@ -222,15 +228,39 @@ function renderRebalanceTable(estrategia, aporteTotal, totalFuturo) {
     });
 }
 
+// AJUSTE: Atualize a função renderAssetAccordion para incluir o botão de lixeira
 function renderAssetAccordion(detalhe) {
+    globalDetalheMap = detalhe; // Salva para uso global
     const container = document.getElementById('accordionAtivos');
     container.innerHTML = "<h3>Detalhamento por Ativo</h3>";
+    
     const sortedCats = Object.keys(detalhe).sort((a, b) => detalhe[b].total - detalhe[a].total);
+    
     sortedCats.forEach(cat => {
-        container.innerHTML += `<div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span>${cat}</span><span style="color:#c5a059">R$ ${detalhe[cat].total.toLocaleString('pt-BR')}</span></div><div class="acc-content"><table class="data-table">${detalhe[cat].assets.map(a => `<tr><td>${a.nome}</td><td style="text-align:right">R$ ${a.valor.toLocaleString('pt-BR')}</td></tr>`).join('')}</table></div></div>`;
+        if (detalhe[cat].total <= 0) return;
+        
+        let assetsHtml = detalhe[cat].assets.map((a, index) => `
+            <tr>
+                <td>${a.nome}</td>
+                <td style="text-align:right">
+                    R$ ${a.valor.toLocaleString('pt-BR')}
+                    <button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})">×</button>
+                </td>
+            </tr>
+        `).join('');
+
+        container.innerHTML += `
+            <div class="acc-item">
+                <div class="acc-header" onclick="toggleAcc(this)">
+                    <span>${cat}</span>
+                    <span style="color:#c5a059">R$ ${detalhe[cat].total.toLocaleString('pt-BR')}</span>
+                </div>
+                <div class="acc-content">
+                    <table class="data-table">${assetsHtml}</table>
+                </div>
+            </div>`;
     });
 }
-
 function renderInteractiveSimulation(estrategia) {
     const container = document.getElementById('simSliderContainer');
     if (!container) return;
@@ -354,3 +384,76 @@ document.getElementById('glossaryFile').addEventListener('change', function() {
         document.querySelector('label[for="glossaryFile"]').innerText = "✓ Glossário OK";
     }
 });
+// Função para Adicionar Manualmente
+function adicionarAtivoManual() {
+    const nome = document.getElementById('manNome').value;
+    const classe = document.getElementById('manClasse').value;
+    const sub = document.getElementById('manSub').value || "Manual";
+    const valor = parseFloat(document.getElementById('manValor').value) || 0;
+
+    if (!nome || valor <= 0) return alert("Preencha o nome e o valor corretamente.");
+
+    // Adiciona ao mapa de detalhes
+    if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
+    globalDetalheMap[classe].total += valor;
+    globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub });
+
+    // Atualiza subclasses
+    globalSubclassesMap[sub] = (globalSubclassesMap[sub] || 0) + valor;
+
+    // Recalcula o total geral e atualiza os mapas de estratégia
+    recalcularTudoERenderizar();
+    
+    // Limpa e fecha modal
+    document.getElementById('manNome').value = "";
+    document.getElementById('manValor').value = "";
+    document.getElementById('modalAtivo').style.display = 'none';
+}
+
+function excluirAtivo(classe, index) {
+    if (!confirm("Deseja realmente excluir este ativo?")) return;
+
+    // Remove do detalhe global
+    globalDetalheMap[classe].assets.splice(index, 1);
+    
+    // Recalcula o total da categoria
+    globalDetalheMap[classe].total = globalDetalheMap[classe].assets.reduce((sum, a) => sum + a.valor, 0);
+
+    // Se a categoria ficou vazia, podemos zerar o total dela
+    if (globalDetalheMap[classe].assets.length === 0) {
+        globalDetalheMap[classe].total = 0;
+    }
+
+    recalcularTudoERenderizar();
+}
+
+// Função de Recálculo Total (Reconstrói estratégia e subclasses do zero)
+function recalcularTudoERenderizar() {
+    const novaEstrategia = { 
+        "Renda Variavel Brasil": 0, "Renda Fixa Brasil": 0, "Multimercado": 0, 
+        "Renda Variavel Global": 0, "Renda Fixa Global": 0, "Alternativo": 0, 
+        "Fundos Imobiliários": 0, "Caixa": 0 
+    };
+    
+    const novoSubclassesMap = {};
+    totalPatrimonio = 0;
+
+    // Varre todas as categorias e ativos restantes para reconstruir os mapas
+    Object.keys(globalDetalheMap).forEach(cat => {
+        const categoria = globalDetalheMap[cat];
+        novaEstrategia[cat] = categoria.total;
+        totalPatrimonio += categoria.total;
+
+        categoria.assets.forEach(ativo => {
+            const subNome = ativo.sub || "Outros";
+            novoSubclassesMap[subNome] = (novoSubclassesMap[subNome] || 0) + ativo.valor;
+        });
+    });
+
+    // Sincroniza as variáveis globais de simulação
+    currentPortfolio = { ...novaEstrategia };
+    globalSubclassesMap = novoSubclassesMap; // Atualiza o mapa global que o gráfico usa
+
+    // Renderiza o Dashboard com os novos dados limpos
+    renderDashboard(novaEstrategia, novoSubclassesMap, globalDetalheMap);
+}
