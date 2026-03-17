@@ -37,7 +37,7 @@ async function processarPlanilha() {
     const file = document.getElementById('excelFile').files[0];
     if (!file) return alert("Selecione o arquivo Excel da XP.");
 
-    const glossary = await loadGlossaryExcel().catch(() => ({}));
+    const glossary = await  loadGlossaryFromDrive().catch(() => ({}));
     const reader = new FileReader();
 
     reader.onload = function(e) {
@@ -49,34 +49,35 @@ async function processarPlanilha() {
     reader.readAsArrayBuffer(file);
 }
 
-async function loadGlossaryExcel() {
-    const file = document.getElementById('glossaryFile').files[0];
-    if (!file) return {};
-    
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(sheet);
-            
-            const dict = {};
-            json.forEach(row => {
-                const ativo = norm(row["Ativos"] || row["ATIVOS"] || row["Ativo"]);
-                const classe = row["Classe"] || row["CLASSE"];
-                if (ativo) {
-                    dict[ativo] = {
-                        cat: classe ? classe.toString().trim() : "",
-                        subclasse: row["Subclasse"] || row["SUBCLASSE"] || row["Exposição"] || "Outros"
-                    };
-                }
-            });
-            resolve(dict);
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-    });
+async function loadGlossaryFromDrive() {
+    // COLE AQUI O LINK CSV DA SUA PLANILHA (Publicada na Web)
+    const urlDrive = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?output=csv";
+
+    try {
+        const response = await fetch(urlDrive);
+        const data = await response.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+        
+        const dict = {};
+        json.forEach(row => {
+            const ativo = norm(row["Ativos"] || row["ATIVOS"] || row["Ativo"]);
+            const classe = row["Classe"] || row["CLASSE"];
+            if (ativo) {
+                dict[ativo] = {
+                    cat: classe ? classe.toString().trim() : "",
+                    subclasse: row["Subclasse"] || row["SUBCLASSE"] || "Outros"
+                };
+            }
+        });
+        console.log("Glossário online carregado com sucesso!");
+        return dict;
+    } catch (error) {
+        console.error("Erro ao carregar glossário online:", error);
+        alert("Não foi possível carregar o glossário online. Verifique o link ou a conexão.");
+        return {};
+    }
 }
 
 function analisarCarteira(matrix, glossary) {
@@ -193,18 +194,38 @@ function renderEstrategiaChart(labels, data) {
 }
 
 function renderSubclassChart(subclasses) {
-    const ctx2 = document.getElementById('chartSubclasses').getContext('2d');
+    const ctx = document.getElementById('chartSubclasses').getContext('2d');
     if (chartSubclasses) chartSubclasses.destroy();
-    chartSubclasses = new Chart(ctx2, {
+
+    // Criamos os labels já com a porcentagem calculada
+    const labelsComPerc = Object.keys(subclasses).map(k => {
+        const perc = ((subclasses[k] / totalPatrimonio) * 100).toFixed(1);
+        return `${k} (${perc}%)`;
+    });
+
+    chartSubclasses = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: Object.keys(subclasses),
-            datasets: [{ label: 'Volume R$', data: Object.values(subclasses), backgroundColor: '#1b4043' }]
+            labels: labelsComPerc, // Usamos os novos labels aqui
+            datasets: [{ 
+                label: 'Volume R$', 
+                data: Object.values(subclasses), 
+                backgroundColor: '#1b4043' 
+            }]
         },
-        options: { indexAxis: 'y', maintainAspectRatio: false }
+        options: { 
+            indexAxis: 'y', 
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `R$ ${ctx.parsed.x.toLocaleString('pt-BR')}`
+                    }
+                }
+            }
+        }
     });
 }
-
 function renderRebalanceTable(estrategia, aporteTotal, totalFuturo) {
     const body = document.getElementById('rebalanceBody');
     body.innerHTML = "";
@@ -378,12 +399,6 @@ document.getElementById('excelFile').addEventListener('change', function() {
     }
 });
 
-document.getElementById('glossaryFile').addEventListener('change', function() {
-    if (this.files.length > 0) {
-        document.querySelector('label[for="glossaryFile"]').classList.add('loaded');
-        document.querySelector('label[for="glossaryFile"]').innerText = "✓ Glossário OK";
-    }
-});
 // Função para Adicionar Manualmente
 function adicionarAtivoManual() {
     const nome = document.getElementById('manNome').value;
