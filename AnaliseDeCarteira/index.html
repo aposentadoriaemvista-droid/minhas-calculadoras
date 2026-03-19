@@ -30,6 +30,8 @@
         
         <input type="file" id="importProject" accept=".json" hidden onchange="importarProjeto(event)">
         <label for="importProject" class="btn-upload secondary">📂 Abrir Carteira Salva</label>
+
+        <button class="btn-upload secondary" style="border-color: #c5a059; color: #c5a059; margin-top: 10px;" onclick="gerarPDF()">📄 Exportar Relatório em PDF</button>
     </div>
 </div>
 
@@ -167,5 +169,6 @@
     </div>
 </div>
     <script src="script.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </body>
 </html>

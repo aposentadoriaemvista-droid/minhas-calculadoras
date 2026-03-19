@@ -9,6 +9,7 @@ let globalDetalheMap = {}; // Guardará os ativos atuais
 let globalSubclassesMap = {};
 
 
+
 // 1. Mapeamento Inteligente com 8 Categorias
 const mapToSeven = (subclasseXp, ativo) => {
     const s = subclasseXp.toLowerCase();
@@ -116,10 +117,8 @@ function analisarCarteira(matrix, glossary) {
                 const topico = (gData && typeof gData === 'object') ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
                 
                 // UPDATE 3: Mapear Global para "Dólar" nas subclasses
-                let subNome = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
-                if (topico === "Renda Variavel Global" || topico === "Renda Fixa Global") {
-                    subNome = "Dólar";
-                }
+              let subRaw = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
+let subNome = padronizarSubclasse(subRaw, topico); // Usa o nosso novo filtro inteligente!
 
                 estrategiaMap[topico] += valor;
                 totalPatrimonio += valor;
@@ -176,26 +175,43 @@ function renderSubclassChart(subclasses) {
     const ctx = document.getElementById('chartSubclasses').getContext('2d');
     if (chartSubclasses) chartSubclasses.destroy();
 
-    // Criamos os labels já com a porcentagem calculada
+    // 1. Criamos os labels com a porcentagem
     const labelsComPerc = Object.keys(subclasses).map(k => {
         const perc = ((subclasses[k] / totalPatrimonio) * 100).toFixed(1);
         return `${k} (${perc}%)`;
     });
 
+    // 2. Mapa de Cores Elegante para as 8 Subclasses
+    const colorMap = {
+        "Pós-fixada": "#1b4043",       // Verde Escuro (Tema)
+        "Prefixada": "#2a5d61",        // Verde Médio (Tema)
+        "Inflação": "#c5a059",         // Dourado (Tema)
+        "Fundo Imobiliário": "#10b981",// Verde Sucesso
+        "Ibov": "#3b82f6",             // Azul
+        "Dólar": "#8fc9cc",            // Azul Claro (Tema)
+        "Multimercado": "#8b5cf6",     // Roxo
+        "Alternativo": "#ef4444"       // Vermelho
+    };
+
+    // 3. Associamos a cor certa a cada barra lida
+    const backgroundColors = Object.keys(subclasses).map(k => colorMap[k] || '#d1d8db');
+
     chartSubclasses = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labelsComPerc, // Usamos os novos labels aqui
+            labels: labelsComPerc, 
             datasets: [{ 
                 label: 'Volume R$', 
                 data: Object.values(subclasses), 
-                backgroundColor: '#1b4043' 
+                backgroundColor: backgroundColors, // Aplica as novas cores
+                borderRadius: 6 // Deixa as barras com as pontas arredondadas
             }]
         },
         options: { 
             indexAxis: 'y', 
             maintainAspectRatio: false,
             plugins: {
+                legend: { display: false }, // Esconde a legenda superior que era redundante
                 tooltip: {
                     callbacks: {
                         label: (ctx) => `R$ ${ctx.parsed.x.toLocaleString('pt-BR')}`
@@ -473,10 +489,9 @@ function recalcularTudoERenderizar() {
         novoTotal += globalDetalheMap[cat].total;
         
         globalDetalheMap[cat].assets.forEach(a => {
-            let finalSub = a.sub;
-            if (cat === "Renda Variavel Global" || cat === "Renda Fixa Global") finalSub = "Dólar";
-            novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor;
-        });
+    let finalSub = padronizarSubclasse(a.sub, cat);
+    novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor;
+});
     });
 
     // Atualiza as referências globais antes de desenhar
@@ -550,4 +565,79 @@ function importarProjeto(event) {
         }
     };
     reader.readAsText(file);
+}
+// Filtro Inteligente para as 8 Subclasses Oficiais
+function padronizarSubclasse(subRaw, categoriaMain) {
+    const s = (subRaw || "").toString().toLowerCase();
+    
+    // 1. Regras de Fundo Imobiliário
+    if (s.includes("fii") || s.includes("imobiliári") || s.includes("imobiliari")) return "Fundo Imobiliário";
+    
+    // 2. Regras de Renda Fixa / Caixa
+    if (s.includes("pós") || s.includes("pos") || s.includes("cdi") || s.includes("selic") || s.includes("di")) return "Pós-fixada";
+    if (s.includes("pré") || s.includes("pre") || s.includes("fixado")) return "Prefixada";
+    if (s.includes("ipca") || s.includes("inflação") || s.includes("inflacao") || s.includes("ima-b")) return "Inflação";
+    
+    // 3. Regras de Renda Variável Brasil
+    if (s.includes("ibov") || s.includes("açõe") || s.includes("acoe") || s.includes("variável") || s.includes("variavel")) return "Ibov";
+    
+    // 4. Regras Globais
+    if (s.includes("dólar") || s.includes("dolar") || s.includes("global") || s.includes("exterior") || s.includes("s&p") || s.includes("nasdaq")) return "Dólar";
+    
+    // 5. Regras Multimercado
+    if (s.includes("multi")) return "Multimercado";
+    
+    // 6. Regras Alternativo
+    if (s.includes("alternativo") || s.includes("cripto") || s.includes("coe")) return "Alternativo";
+
+    // 7. Fallback (Plano B): Se não achou palavras-chave, usa a Categoria Principal para decidir
+    switch (categoriaMain) {
+        case "Fundos Imobiliários": return "Fundo Imobiliário";
+        case "Renda Fixa Brasil": return "Pós-fixada"; 
+        case "Renda Variavel Brasil": return "Ibov";
+        case "Renda Variavel Global": 
+        case "Renda Fixa Global": return "Dólar";
+        case "Multimercado": return "Multimercado";
+        case "Alternativo": return "Alternativo";
+        case "Caixa": return "Pós-fixada";
+        default: return "Pós-fixada"; // Valor seguro padrão
+    }
+}
+// --- FUNÇÃO PARA GERAR O PDF ---
+// --- FUNÇÃO PARA GERAR O PDF ---
+// --- FUNÇÃO PARA GERAR O PDF ---
+function gerarPDF() {
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    // 1. Escondemos a barra lateral temporariamente para o conteúdo ir para a posição zero (esquerda)
+    sidebar.style.display = 'none';
+    
+    // 2. Rolamos a página para o topo absoluto para garantir que não há cortes verticais
+    window.scrollTo(0, 0);
+    
+    const opt = {
+        margin:       10, 
+        filename:     `Relatorio_Estrategico_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true,
+            scrollX: 0, // Garante que a foto começa exatamente no pixel 0
+            scrollY: 0
+        }, 
+        jsPDF:        { 
+            unit: 'mm', 
+            format: 'a3', 
+            orientation: 'landscape' 
+        }
+    };
+
+    alert("Preparando o PDF. Aguarde um momento...");
+    
+    // 3. Geramos o PDF. O .then() garante que o código dentro dele só roda APÓS o PDF estar pronto
+    html2pdf().set(opt).from(mainContent).save().then(() => {
+        // 4. Devolvemos a barra lateral à tela como se nada tivesse acontecido!
+        sidebar.style.display = 'block';
+    });
 }
