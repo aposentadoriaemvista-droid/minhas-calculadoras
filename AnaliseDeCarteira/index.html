@@ -136,7 +136,19 @@
             <option value="Fundos Imobiliários">Fundos Imobiliários</option>
             <option value="Caixa">Caixa</option>
         </select>
-        <input type="text" id="manSub" placeholder="Subclasse (ex: IPCA+, Dividendos)">
+        
+        <select id="manSub">
+            <option value="" disabled selected>Selecione a Subclasse</option>
+            <option value="Prefixada">Prefixada</option>
+            <option value="Pós-fixada">Pós-fixada</option>
+            <option value="Inflação">Inflação</option>
+            <option value="Ibov">Ibov</option>
+            <option value="Dólar">Dólar</option>
+            <option value="Multimercado">Multimercado</option>
+            <option value="Alternativo">Alternativo</option>
+            <option value="Fundo Imobiliário">Fundo Imobiliário</option>
+        </select>
+
         <input type="number" id="manValor" placeholder="Valor (R$)">
         <div class="modal-actions">
             <button class="btn-upload" onclick="adicionarAtivoManual()">Salvar</button>

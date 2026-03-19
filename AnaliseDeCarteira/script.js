@@ -95,11 +95,8 @@ function analisarCarteira(matrix, glossary) {
     matrix.forEach(row => {
         if(!row || row.length === 0) return;
         const rowStr = row.map(c => norm(c));
-
         const tituloSeccao = row.find(c => c && c.toString().includes("|"));
-        if (tituloSeccao) {
-            currentXpCategory = tituloSeccao.toString().split("|")[1].trim();
-        }
+        if (tituloSeccao) currentXpCategory = tituloSeccao.toString().split("|")[1].trim();
 
         const headValor = ["Posição", "Posição a mercado", "Valor líquido", "Financeiro", "Valor aplicado", "Provisionado"];
         let foundValor = -1;
@@ -107,55 +104,37 @@ function analisarCarteira(matrix, glossary) {
             let idx = rowStr.indexOf(v);
             if (idx !== -1) { foundValor = idx; break; }
         }
+        if (foundValor !== -1) { colPosicaoIdx = foundValor; return; }
 
-        if (foundValor !== -1) {
-            colPosicaoIdx = foundValor;
-            return;
-        }
-
-        const lowCat = currentXpCategory.toLowerCase();
-        if (lowCat.includes("proventos") || lowCat.includes("custódia") || lowCat.includes("distribuições")) return;
+        if (currentXpCategory.toLowerCase().includes("proventos")) return;
 
         if (colPosicaoIdx !== -1) {
             const nomeAtivo = norm(row[0]);
             const valor = cleanV(row[colPosicaoIdx]);
-            const noise = ["Ativo", "Aplicação", "Papel", "Produto", "Fundo", "Data cota", "Total", "Subtotal"];
-            
-            if (nomeAtivo && valor > 0.01 && !noise.includes(nomeAtivo) && !nomeAtivo.includes("|")) {
+            if (nomeAtivo && valor > 0.01 && !nomeAtivo.includes("|") && !["Ativo", "Total"].includes(nomeAtivo)) {
                 const gData = glossary[nomeAtivo];
                 const topico = (gData && typeof gData === 'object') ? gData.cat : mapToSeven(currentXpCategory, nomeAtivo);
-                const subclasseNome = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
+                
+                // UPDATE 3: Mapear Global para "Dólar" nas subclasses
+                let subNome = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
+                if (topico === "Renda Variavel Global" || topico === "Renda Fixa Global") {
+                    subNome = "Dólar";
+                }
 
                 estrategiaMap[topico] += valor;
                 totalPatrimonio += valor;
-                subclassesMap[subclasseNome] = (subclassesMap[subclasseNome] || 0) + valor;
+                subclassesMap[subNome] = (subclassesMap[subNome] || 0) + valor;
 
                 if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
                 detalheMap[topico].total += valor;
-                detalheMap[topico].assets.push({ 
-                nome: nomeAtivo, 
-                valor: valor, 
-                sub: (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory 
-});
+                detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor, sub: subNome });
             }
         }
     });
 
-    // Captura de Saldo Projetado
-    const headerRow = matrix.find(r => r && r.some(c => norm(c) === "Saldo projetado"));
-    if (headerRow) {
-        const colSaldoIdx = headerRow.findIndex(c => norm(c) === "Saldo projetado");
-        const valorRow = matrix[matrix.indexOf(headerRow) + 1];
-        if (valorRow) {
-            const saldoVal = cleanV(valorRow[colSaldoIdx]);
-            estrategiaMap["Caixa"] += saldoVal;
-            totalPatrimonio += saldoVal;
-        }
-    }
-
-    // SALVA A CARTEIRA ATUAL PARA A SIMULAÇÃO
+    globalDetalheMap = detalheMap;
+    globalSubclassesMap = subclassesMap;
     currentPortfolio = { ...estrategiaMap };
-    
     renderDashboard(estrategiaMap, subclassesMap, detalheMap);
 }
 
@@ -294,7 +273,7 @@ function renderInteractiveSimulation(estrategia) {
         div.innerHTML = `
             <label>${cat} <span class="val-display" id="val-${cat}">R$ 0</span></label>
             <input type="range" class="modern-slider sim-range" 
-                   data-cat="${cat}" min="0" max="5000000" step="5000" value="0" 
+                   data-cat="${cat}" min="0" max="1000000" step="5000" value="0" 
                    oninput="updateSimulation()">
         `;
         container.appendChild(div);
@@ -403,25 +382,15 @@ document.getElementById('excelFile').addEventListener('change', function() {
 function adicionarAtivoManual() {
     const nome = document.getElementById('manNome').value;
     const classe = document.getElementById('manClasse').value;
-    const sub = document.getElementById('manSub').value || "Manual";
+    const sub = document.getElementById('manSub').value; // UPDATE 2: Agora pega do select
     const valor = parseFloat(document.getElementById('manValor').value) || 0;
 
-    if (!nome || valor <= 0) return alert("Preencha o nome e o valor corretamente.");
+    if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos!");
 
-    // Adiciona ao mapa de detalhes
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
     globalDetalheMap[classe].total += valor;
     globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub });
-
-    // Atualiza subclasses
-    globalSubclassesMap[sub] = (globalSubclassesMap[sub] || 0) + valor;
-
-    // Recalcula o total geral e atualiza os mapas de estratégia
     recalcularTudoERenderizar();
-    
-    // Limpa e fecha modal
-    document.getElementById('manNome').value = "";
-    document.getElementById('manValor').value = "";
     document.getElementById('modalAtivo').style.display = 'none';
 }
 
@@ -471,4 +440,19 @@ function recalcularTudoERenderizar() {
 
     // Renderiza o Dashboard com os novos dados limpos
     renderDashboard(novaEstrategia, novoSubclassesMap, globalDetalheMap);
+}function recalcularTudoERenderizar() {
+    const novaEst = { "Renda Variavel Brasil": 0, "Renda Fixa Brasil": 0, "Multimercado": 0, "Renda Variavel Global": 0, "Renda Fixa Global": 0, "Alternativo": 0, "Fundos Imobiliários": 0, "Caixa": 0 };
+    const novoSub = {};
+    totalPatrimonio = 0;
+    Object.keys(globalDetalheMap).forEach(cat => {
+        novaEst[cat] = globalDetalheMap[cat].total;
+        totalPatrimonio += globalDetalheMap[cat].total;
+        globalDetalheMap[cat].assets.forEach(a => { 
+            // Update 3 repetido no recálculo manual para consistência
+            let finalSub = a.sub;
+            if (cat === "Renda Variavel Global" || cat === "Renda Fixa Global") finalSub = "Dólar";
+            novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor; 
+        });
+    });
+    renderDashboard(novaEst, novoSub, globalDetalheMap);
 }
