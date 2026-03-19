@@ -264,96 +264,144 @@ function renderAssetAccordion(detalhe) {
 function renderInteractiveSimulation(estrategia) {
     const container = document.getElementById('simSliderContainer');
     if (!container) return;
+    
+    // 1. Limpamos o container para não duplicar elementos
     container.innerHTML = "";
     
-    // Criar um slider para cada uma das 8 categorias
+    // 2. Criamos os sliders com o passo corrigido
     Object.keys(estrategia).forEach(cat => {
+        const safeId = cat.replace(/\s+/g,'');
+        const valorOriginal = currentPortfolio[cat] || 0;
+
         const div = document.createElement('div');
         div.className = 'sim-slider-row';
+        
+        // A MÁGICA ACONTECE AQUI: Mudámos o step="1000" para step="1".
+        // Isto permite que o valor inicial "0" seja sempre aceite pelo navegador.
         div.innerHTML = `
-            <label>${cat} <span class="val-display" id="val-${cat}">R$ 0</span></label>
+            <label>${cat} <span class="val-display" id="txt-val-${safeId}">R$ 0,00</span></label>
             <input type="range" class="modern-slider sim-range" 
-                   data-cat="${cat}" min="0" max="1000000" step="5000" value="0" 
-                   oninput="updateSimulation()">
+                   data-cat="${cat}" 
+                   min="${-Math.floor(valorOriginal)}" 
+                   max="1000000" 
+                   step="1" 
+                   value="0"> 
         `;
         container.appendChild(div);
     });
-    updateSimulation();
+
+    // 3. Vinculamos o evento e forçamos o valor a zero via JavaScript
+    const sliders = document.querySelectorAll('.sim-range');
+    sliders.forEach(s => {
+        s.value = 0; // Garantia dupla de que começa em zero
+        s.addEventListener('input', updateSimulation);
+    });
+
+    // 4. Resetamos os textos de resumo para o estado inicial sem simulação
+    if(document.getElementById('txtAporteSimulado')) document.getElementById('txtAporteSimulado').innerText = "R$ 0,00";
+    if(document.getElementById('txtTotalSimulado')) document.getElementById('txtTotalSimulado').innerText = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+    // 5. Chamamos a função apenas para renderizar os gráficos iniciais alinhados
+    updateSimulation(); 
 }
 
 function updateSimulation() {
-    const sliders = document.querySelectorAll('.sim-range');
-    let aporteSimTotal = 0;
+    let aporteRealEfetivo = 0; 
     const novosValores = {};
-    const labels = [];
-    const baseData = [];
-    const simData = [];
+    const sliders = document.querySelectorAll('.sim-range');
 
-    sliders.forEach(slider => {
-        const cat = slider.dataset.cat;
-        const aporte = parseFloat(slider.value) || 0;
-        
-        // Atualizar display de texto do slider
-        document.getElementById(`val-${cat}`).innerText = `+ R$ ${aporte.toLocaleString('pt-BR')}`;
-        
+    sliders.forEach(input => {
+        // Garantimos que o valor do slider é lido corretamente como número
+        const sliderVal = parseFloat(input.value) || 0;
+        const cat = input.dataset.cat;
         const valorOriginal = currentPortfolio[cat] || 0;
-        const valorFinal = valorOriginal + aporte;
         
-        labels.push(cat);
-        baseData.push(valorOriginal);
-        simData.push(valorFinal);
-        aporteSimTotal += aporte;
+        // vFinal é o valor que a categoria terá após a simulação
+        let vFinal = valorOriginal + sliderVal;
+        
+        // Proteção para não ter saldo negativo na simulação
+        if (vFinal < 0) vFinal = 0;
+        
+        novosValores[cat] = vFinal;
+
+        // O aporte real é a soma das variações de todos os sliders
+        aporteRealEfetivo += (vFinal - valorOriginal);
+
+        // Atualiza a etiqueta individual (ex: + R$ 1.000 ou - R$ 500)
+        const safeId = cat.replace(/\s+/g,'');
+        const txtLabel = document.getElementById(`txt-val-${safeId}`);
+        if (txtLabel) {
+            const variacao = vFinal - valorOriginal;
+            txtLabel.innerText = (variacao >= 0 ? "+" : "") + ` R$ ${variacao.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            txtLabel.style.color = variacao > 0 ? "#10b981" : (variacao < 0 ? "#ef4444" : "#64748b");
+        }
     });
 
-    const totalSimulado = totalPatrimonio + aporteSimTotal;
-    document.getElementById('txtAporteSimulado').innerText = `R$ ${aporteSimTotal.toLocaleString('pt-BR')}`;
-    document.getElementById('txtTotalSimulado').innerText = `R$ ${totalSimulado.toLocaleString('pt-BR')}`;
-
-    renderSimComparisonCharts(labels, baseData, simData);
-}
-
-function renderSimComparisonCharts(labels, original, simulado) {
-    // 1. Gráfico de Barras Vertical (Estratégia)
-    const ctx1 = document.getElementById('chartSimEstrategia').getContext('2d');
-    if (chartSimEstrategia) chartSimEstrategia.destroy();
+    const totalSimulado = totalPatrimonio + aporteRealEfetivo;
     
-    chartSimEstrategia = new Chart(ctx1, {
+    // Atualiza os campos de resumo no dashboard
+    const elAporte = document.getElementById('txtAporteSimulado');
+    const elTotal = document.getElementById('txtTotalSimulado');
+    
+    if (elAporte) elAporte.innerText = `R$ ${aporteRealEfetivo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    if (elTotal) elTotal.innerText = `R$ ${totalSimulado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+    renderSimComparisonCharts(novosValores, totalSimulado);
+}
+function renderSimComparisonCharts(novosDados, totalSim) {
+    // 1. Gráfico de Barras: Comparativo de Classes (Atual vs Simulado)
+    const ctxBar = document.getElementById('chartSimEstrategia').getContext('2d');
+    if (chartSimEstrategia) chartSimEstrategia.destroy();
+
+    const labels = Object.keys(novosDados);
+    
+    chartSimEstrategia = new Chart(ctxBar, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [
-                { label: 'Atual', data: original, backgroundColor: '#d1d8db' },
-                { label: 'Simulado', data: simulado, backgroundColor: '#10b981' }
+                {
+                    label: 'Atual',
+                    data: labels.map(l => currentPortfolio[l] || 0),
+                    backgroundColor: '#d1d8db' // Cinza
+                },
+                {
+                    label: 'Simulado',
+                    data: labels.map(l => novosDados[l]),
+                    backgroundColor: '#10b981' // Verde
+                }
             ]
         },
         options: {
             maintainAspectRatio: false,
-            plugins: { title: { display: true, text: 'Comparativo de Alocação (R$)' } },
+            plugins: { title: { display: true, text: 'Equilíbrio de Classes (R$)' } },
             scales: { y: { beginAtZero: true } }
         }
     });
 
-    // 2. Gráfico de Linha (Evolução das Subclasses/Indexadores)
-    const ctx2 = document.getElementById('chartSimSubclasses').getContext('2d');
+    // 2. Gráfico de Rosca: Nova Distribuição %
+    const ctxPie = document.getElementById('chartSimSubclasses').getContext('2d');
     if (chartSimSubclasses) chartSimSubclasses.destroy();
-    
-    // Para simplificar a evolução, mostramos o delta de crescimento por categoria
-    chartSimSubclasses = new Chart(ctx2, {
-        type: 'line',
+
+    const labelsPie = labels.filter(l => novosDados[l] > 0);
+    const dataPie = labelsPie.map(l => ((novosDados[l] / totalSim) * 100).toFixed(1));
+
+    chartSimSubclasses = new Chart(ctxPie, {
+        type: 'doughnut',
         data: {
-            labels: labels,
+            labels: labelsPie.map((l, i) => `${l} (${dataPie[i]}%)`),
             datasets: [{
-                label: 'Curva de Concentração Simulada',
-                data: simulado,
-                borderColor: '#c5a059',
-                backgroundColor: 'rgba(197, 160, 89, 0.1)',
-                fill: true,
-                tension: 0.4
+                data: dataPie,
+                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF'],
+                borderWidth: 0
             }]
         },
         options: {
             maintainAspectRatio: false,
-            plugins: { title: { display: true, text: 'Curva de Exposição Pós-Aporte' } }
+            plugins: { 
+                legend: { position: 'right' },
+                title: { display: true, text: 'Nova Composição (%)' }
+            }
         }
     });
 }
@@ -411,48 +459,95 @@ function excluirAtivo(classe, index) {
     recalcularTudoERenderizar();
 }
 
-// Função de Recálculo Total (Reconstrói estratégia e subclasses do zero)
 function recalcularTudoERenderizar() {
-    const novaEstrategia = { 
+    const novaEst = { 
         "Renda Variavel Brasil": 0, "Renda Fixa Brasil": 0, "Multimercado": 0, 
         "Renda Variavel Global": 0, "Renda Fixa Global": 0, "Alternativo": 0, 
         "Fundos Imobiliários": 0, "Caixa": 0 
     };
-    
-    const novoSubclassesMap = {};
-    totalPatrimonio = 0;
-
-    // Varre todas as categorias e ativos restantes para reconstruir os mapas
-    Object.keys(globalDetalheMap).forEach(cat => {
-        const categoria = globalDetalheMap[cat];
-        novaEstrategia[cat] = categoria.total;
-        totalPatrimonio += categoria.total;
-
-        categoria.assets.forEach(ativo => {
-            const subNome = ativo.sub || "Outros";
-            novoSubclassesMap[subNome] = (novoSubclassesMap[subNome] || 0) + ativo.valor;
-        });
-    });
-
-    // Sincroniza as variáveis globais de simulação
-    currentPortfolio = { ...novaEstrategia };
-    globalSubclassesMap = novoSubclassesMap; // Atualiza o mapa global que o gráfico usa
-
-    // Renderiza o Dashboard com os novos dados limpos
-    renderDashboard(novaEstrategia, novoSubclassesMap, globalDetalheMap);
-}function recalcularTudoERenderizar() {
-    const novaEst = { "Renda Variavel Brasil": 0, "Renda Fixa Brasil": 0, "Multimercado": 0, "Renda Variavel Global": 0, "Renda Fixa Global": 0, "Alternativo": 0, "Fundos Imobiliários": 0, "Caixa": 0 };
     const novoSub = {};
-    totalPatrimonio = 0;
+    let novoTotal = 0;
+
     Object.keys(globalDetalheMap).forEach(cat => {
         novaEst[cat] = globalDetalheMap[cat].total;
-        totalPatrimonio += globalDetalheMap[cat].total;
-        globalDetalheMap[cat].assets.forEach(a => { 
-            // Update 3 repetido no recálculo manual para consistência
+        novoTotal += globalDetalheMap[cat].total;
+        
+        globalDetalheMap[cat].assets.forEach(a => {
             let finalSub = a.sub;
             if (cat === "Renda Variavel Global" || cat === "Renda Fixa Global") finalSub = "Dólar";
-            novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor; 
+            novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor;
         });
     });
+
+    // Atualiza as referências globais antes de desenhar
+    totalPatrimonio = Number(novoTotal.toFixed(2));
+    currentPortfolio = { ...novaEst };
+    globalSubclassesMap = novoSub;
+
     renderDashboard(novaEst, novoSub, globalDetalheMap);
+}
+// --- FUNÇÃO PARA SALVAR A CARTEIRA (EXPORTAR JSON) ---
+function exportarProjeto() {
+    // Pegamos os alvos (targets) da sidebar
+    const targets = {};
+    document.querySelectorAll('.target-input').forEach(input => {
+        targets[input.dataset.cat] = input.value;
+    });
+
+    const projeto = {
+        detalhe: globalDetalheMap,
+        subclasses: globalSubclassesMap,
+        targets: targets,
+        total: totalPatrimonio,
+        portfolioBase: currentPortfolio, // Salva a base para a simulação
+        dataExportacao: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(projeto, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `projeto_carteira_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// --- FUNÇÃO PARA CARREGAR A CARTEIRA (IMPORTAR JSON) ---
+function importarProjeto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            console.log("--- Importando JSON ---");
+            const projeto = JSON.parse(e.target.result);
+            
+            // Sincroniza variáveis globais ANTES de renderizar
+            globalDetalheMap = projeto.detalhe || {};
+            globalSubclassesMap = projeto.subclasses || {};
+            totalPatrimonio = projeto.total || 0;
+            currentPortfolio = { ...projeto.portfolioBase } || {};
+
+            // Atualiza Sidebar
+            if (projeto.targets) {
+                Object.keys(projeto.targets).forEach(cat => {
+                    const input = document.querySelector(`.target-input[data-cat="${cat}"]`);
+                    if (input) input.value = projeto.targets[cat];
+                });
+            }
+
+            // Renderiza tudo (o renderDashboard chamará o renderInteractiveSimulation)
+            recalcularTudoERenderizar();
+            
+            alert("Carteira carregada!");
+            event.target.value = ''; 
+        } catch (err) {
+            console.error("Erro na importação:", err);
+            alert("Erro ao ler o arquivo.");
+        }
+    };
+    reader.readAsText(file);
 }

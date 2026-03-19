@@ -23,20 +23,30 @@
     </div>
 </div>
 
+<div class="sidebar-section">
+    <h3>2. Gestão de Projeto</h3>
+    <div class="upload-wrapper">
+        <button class="btn-upload" onclick="exportarProjeto()">💾 Salvar Carteira</button>
+        
+        <input type="file" id="importProject" accept=".json" hidden onchange="importarProjeto(event)">
+        <label for="importProject" class="btn-upload secondary">📂 Abrir Carteira Salva</label>
+    </div>
+</div>
+
             <div class="sidebar-section">
-                <h3>2. Simulação de Aporte</h3>
+                <h3>3. Simulação de Aporte</h3>
                 <div class="target-card aporte-box">
                     <span>Valor do Aporte (R$)</span>
                     <input type="number" id="valorAporte" value="0" step="1000">
                 </div>
             </div>
             <div class="sidebar-section">
-    <h3>3. Gestão Manual</h3>
+    <h3>4. Gestão Manual</h3>
     <button class="btn-upload secondary" onclick="document.getElementById('modalAtivo').style.display='flex'">➕ Adicionar Ativo</button>
 </div>
 
             <div class="sidebar-section">
-                <h3>4. Alocação Alvo (%)</h3>
+                <h3>5. Alocação Alvo (%)</h3>
                 <div class="target-grid-modern">
                     <div class="target-card"><span>RV Brasil</span><input type="number" class="target-input" data-cat="Renda Variavel Brasil" value="0"></div>
                     <div class="target-card"><span>RF Brasil</span><input type="number" class="target-input" data-cat="Renda Fixa Brasil" value="0"></div>
