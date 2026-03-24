@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Analisador Pro - XP Investor</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">XP <span>Analyzer</span></div>
+            
+            
+         <div class="sidebar-section">
+    <h3>1. Dados e Glossário</h3>
+    <div class="upload-wrapper">
+        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" hidden>
+        <label for="excelFile" class="btn-upload">📁 Relatório Excel</label>
+        
+        <p style="font-size: 0.7rem; color: #8fc9cc; text-align: center;">Glossário Online: ATIVO ✓</p>
+    </div>
+</div>
+
+<div class="sidebar-section">
+    <h3>2. Gestão de Projeto</h3>
+    <div class="upload-wrapper">
+        <button class="btn-upload" onclick="exportarProjeto()">💾 Salvar Carteira</button>
+        
+        <input type="file" id="importProject" accept=".json" hidden onchange="importarProjeto(event)">
+        <label for="importProject" class="btn-upload secondary">📂 Abrir Carteira Salva</label>
+
+        <button class="btn-upload secondary" style="border-color: #c5a059; color: #c5a059; margin-top: 10px;" onclick="gerarPDF()">📄 Exportar Relatório em PDF</button>
+    </div>
+</div>
+
+            <div class="sidebar-section">
+                <h3>3. Simulação de Aporte</h3>
+                <div class="target-card aporte-box">
+                    <span>Valor do Aporte (R$)</span>
+                    <input type="number" id="valorAporte" value="0" step="1000">
+                </div>
+            </div>
+            <div class="sidebar-section">
+    <h3>4. Gestão Manual</h3>
+    <button class="btn-upload secondary" onclick="document.getElementById('modalAtivo').style.display='flex'">➕ Adicionar Ativo</button>
+</div>
+
+            <div class="sidebar-section">
+                <h3>5. Alocação Alvo (%)</h3>
+                <div class="target-grid-modern">
+                    <div class="target-card"><span>RV Brasil</span><input type="number" class="target-input" data-cat="Renda Variavel Brasil" value="0"></div>
+                    <div class="target-card"><span>RF Brasil</span><input type="number" class="target-input" data-cat="Renda Fixa Brasil" value="0"></div>
+                    <div class="target-card"><span>Multimercado</span><input type="number" class="target-input" data-cat="Multimercado" value="0"></div>
+                    <div class="target-card"><span>RV Global</span><input type="number" class="target-input" data-cat="Renda Variavel Global" value="0"></div>
+                    <div class="target-card"><span>RF Global</span><input type="number" class="target-input" data-cat="Renda Fixa Global" value="0"></div>
+                    <div class="target-card"><span>Alternativo</span><input type="number" class="target-input" data-cat="Alternativo" value="0"></div>
+                    <div class="target-card"><span>FIIs</span><input type="number" class="target-input" data-cat="Fundos Imobiliários" value="0"></div>
+                    <div class="target-card"><span>Caixa</span><input type="number" class="target-input" data-cat="Caixa" value="0"></div>
+                </div>
+                <button class="btn-analyze" onclick="processarPlanilha()"> Analisar e Rebalancear</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="top-stats">
+                <div class="stat-card">
+                    <label>Patrimônio Total</label>
+                    <h2 id="txtTotal">R$ 0,00</h2>
+                </div>
+                <div class="stat-card">
+                    <label>Conta XP</label>
+                    <h2 id="clientName">---</h2>
+                </div>
+            </div>
+
+            <div class="visual-row single-chart">
+                <div class="card chart-card">
+                    <h3>Estratégia de Alocação Atual</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chartEstrategia"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card rebalance-card">
+                    <h3>Plano de Execução Estratégico</h3>
+                    <table class="data-table modern-action-table">
+                        <thead>
+                            <tr>
+                                <th>Categoria</th>
+                                <th>Atual %</th>
+                                <th>Alvo %</th>
+                                <th>Ações Sugeridas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rebalanceBody"></tbody>
+                    </table>
+                    <div id="aporteSummary" class="aporte-summary-box"></div>
+                </div>
+            </div>
+
+            <div id="accordionAtivos" class="asset-grid"></div>
+
+            <div class="card subclass-card">
+                <h3>Exposição por Subclasse (Indexadores)</h3>
+                <div class="chart-wrapper-bar">
+                    <canvas id="chartSubclasses"></canvas>
+                </div>
+            </div>
+
+            <div class="card simulation-card">
+    <h3>🧪 Simulador Estratégico Iterativo</h3>
+    <div class="simulation-layout">
+        <div class="sim-controls">
+            
+            <div id="simSliderContainer"></div>
+            <div class="sim-total-footer">
+                <strong>Aporte Total:</strong> <span id="txtAporteSimulado">R$ 0,00</span><br>
+                <strong>Patrimônio Final:</strong> <span id="txtTotalSimulado">R$ 0,00</span>
+            </div>
+        </div>
+        
+        <div class="sim-visuals">
+            <div class="sim-chart-item">
+                <canvas id="chartSimEstrategia"></canvas>
+            </div>
+            <div class="sim-chart-item">
+                <canvas id="chartSimSubclasses"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+        </main>
+    </div>
+    <div id="modalAtivo" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h3>Adicionar Ativo Manual</h3>
+        <input type="text" id="manNome" placeholder="Nome do Ativo (ex: PETR4)">
+        <select id="manClasse">
+            <option value="Renda Variavel Brasil">Renda Variavel Brasil</option>
+            <option value="Renda Fixa Brasil">Renda Fixa Brasil</option>
+            <option value="Multimercado">Multimercado</option>
+            <option value="Renda Variavel Global">Renda Variavel Global</option>
+            <option value="Renda Fixa Global">Renda Fixa Global</option>
+            <option value="Alternativo">Alternativo</option>
+            <option value="Fundos Imobiliários">Fundos Imobiliários</option>
+            <option value="Caixa">Caixa</option>
+        </select>
+        
+        <select id="manSub">
+            <option value="" disabled selected>Selecione a Subclasse</option>
+            <option value="Prefixada">Prefixada</option>
+            <option value="Pós-fixada">Pós-fixada</option>
+            <option value="Inflação">Inflação</option>
+            <option value="Ibov">Ibov</option>
+            <option value="Dólar">Dólar</option>
+            <option value="Multimercado">Multimercado</option>
+            <option value="Alternativo">Alternativo</option>
+            <option value="Fundo Imobiliário">Fundo Imobiliário</option>
+        </select>
+
+        <input type="number" id="manValor" placeholder="Valor (R$)">
+        <div class="modal-actions">
+            <button class="btn-upload" onclick="adicionarAtivoManual()">Salvar</button>
+            <button class="btn-upload danger" onclick="document.getElementById('modalAtivo').style.display='none'">Cancelar</button>
+        </div>
+    </div>
+</div>
+<div id="modalEmailOverlay" class="modal-overlay-block" style="display:none;">
+        <div class="modal-content-email">
+            <h2 style="color: #1b4043; text-align: center;">Acesso Exclusivo</h2>
+            <p style="text-align: center; color: #64748b; font-size: 0.9rem;">Para continuar utilizando o Analisador Pro gratuitamente, insira seu melhor e-mail.</p>
+            
+            <input type="email" id="userEmailInput" placeholder="Ex: joao@email.com" required>
+            
+            <button id="btnSubmitEmail" class="btn-analyze" onclick="verificarEmail()">Continuar Acesso</button>
+            <p id="emailStatusMsg" style="text-align: center; margin-top: 10px; font-size: 0.85rem; font-weight: bold;"></p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</body>
+</html>
