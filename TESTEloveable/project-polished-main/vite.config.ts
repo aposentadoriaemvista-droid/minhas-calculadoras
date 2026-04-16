@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // ADICIONE A LINHA ABAIXO COM O NOME DO SEU REPOSITÓRIO:
+  base: "https://github.com/aposentadoriaemvista-droid/minhas-calculadoras.git",
   server: {
     host: "::",
     port: 8080,
