@@ -239,7 +239,16 @@ function renderEstrategiaChart(labels, data) {
             labels: labels.map((l, i) => `${l} (${data[i]}%)`),
             datasets: [{
                 data: data,
-                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF'],
+               backgroundColor: [
+    '#c5a059', // Dourado
+    '#00d4ff', // Ciano
+    '#10b981', // Esmeralda
+    '#8b5cf6', // Roxo
+    '#f43f5e', // Rosa/Vermelho
+    '#fbbf24', // Âmbar
+    '#3b82f6', // Azul
+    '#94a3b8'  // Cinza
+],
                 borderWidth: 0
             }]
         },

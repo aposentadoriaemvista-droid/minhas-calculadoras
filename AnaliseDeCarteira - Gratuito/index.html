@@ -26,12 +26,13 @@
 <div class="sidebar-section">
     <h3>2. Gestão de Projeto</h3>
     <div class="upload-wrapper">
-        <button class="btn-upload" onclick="exportarProjeto()">💾 Salvar Carteira</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn-upload" onclick="exportarProjeto()">💾 Salvar</button>
+            <label for="importProject" class="btn-upload">📂 Abrir</label>
+            <input type="file" id="importProject" accept=".json" hidden onchange="importarProjeto(event)">
+        </div>
         
-        <input type="file" id="importProject" accept=".json" hidden onchange="importarProjeto(event)">
-        <label for="importProject" class="btn-upload secondary">📂 Abrir Carteira Salva</label>
-
-        <button class="btn-upload secondary" style="border-color: #c5a059; color: #c5a059; margin-top: 10px;" onclick="gerarPDF()">📄 Exportar Relatório em PDF</button>
+        <button class="btn-upload secondary" onclick="gerarPDF()">📄 Exportar PDF</button>
     </div>
 </div>
 
