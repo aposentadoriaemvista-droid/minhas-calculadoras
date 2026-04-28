@@ -942,15 +942,24 @@ function renderChartGestoras(dadosGestoras) {
 
     if (chartGestorasFII) chartGestorasFII.destroy();
 
-    const labels = Object.keys(dadosGestoras);
-    const data = Object.values(dadosGestoras);
+    const labelsRaw = Object.keys(dadosGestoras);
+    const dataRaw = Object.values(dadosGestoras);
+
+    // 1. Calcula o total somando todos os valores
+    const totalGestoras = dataRaw.reduce((acc, val) => acc + val, 0);
+
+    // 2. Cria os labels já com a porcentagem calculada ao lado do nome
+    const labelsComPerc = labelsRaw.map((nome, index) => {
+        const perc = ((dataRaw[index] / totalGestoras) * 100).toFixed(1);
+        return `${nome} (${perc}%)`;
+    });
 
     chartGestorasFII = new Chart(ctx.getContext('2d'), {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels: labelsComPerc, // Usando os novos labels textuais
             datasets: [{
-                data: data,
+                data: dataRaw,
                 backgroundColor: [
                     '#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', 
                     '#ef4444', '#ec4899', '#6366f1', '#14b8a6'
