@@ -93,6 +93,8 @@ async function loadGlossaryFromDrive() {
                 
                 const ativo = norm(row[0]); // Coluna 1 (Índice 0) é o Nome do Ativo
                 if (ativo) {
+
+                    if (ativo) console.log(`🕵️ Achou FII: [${ativo}] -> Classe: ${row[3]} | Gestora: ${row[4]} | Indexador: ${row[5]}`);
                     // Se o ativo não veio da aba geral, criamos ele agora
                     if (!dict[ativo]) {
                         dict[ativo] = { cat: "Fundos Imobiliários", subclasse: "Fundo Imobiliário", extras: {} };
