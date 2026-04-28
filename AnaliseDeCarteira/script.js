@@ -7,6 +7,7 @@ let chartSimEstrategia = null;
 let chartSimSubclasses = null;
 let globalDetalheMap = {}; // Guardará os ativos atuais
 let globalSubclassesMap = {};
+let chartGestorasFII = null;
 
 
 
@@ -835,24 +836,28 @@ function renderizarAbaPadrao(cat, dadosCat, tabEl) {
     tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, `<th>Ativo</th><th>Subclasse</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso na Classe</th><th style="text-align: right;">Ação</th>`, rowsHtml);
 }
 
+// --- CONSTRUTOR ESPECÍFICO DE FIIs (Com Mini-Dashboard Duplo) ---
 function renderizarAbaFII(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
     
-    // 1. Lógica do Mini-Dashboard: Somar valores por "Classe de FII"
+    // 1. Lógica do Mini-Dashboard: Somar valores por "Classe" e por "Gestora"
     const resumoClasses = {};
+    const resumoGestoras = {};
+
     assets.forEach(a => {
-        // Se não tiver classe definida, agrupamos em "Não Classificado"
         const classeFii = (a.extras && a.extras.classeFii && a.extras.classeFii !== "-") ? a.extras.classeFii : "Não Classificado";
         resumoClasses[classeFii] = (resumoClasses[classeFii] || 0) + a.valor;
+
+        const gestora = (a.extras && a.extras.gestora && a.extras.gestora !== "-") ? a.extras.gestora : "Outras";
+        resumoGestoras[gestora] = (resumoGestoras[gestora] || 0) + a.valor;
     });
 
-    // 2. Montar o HTML dos Cartões de Resumo
-    let resumoHtml = `<div class="fii-summary-grid">`;
-    // Ordena do maior valor para o menor
+    // 2. Montar o HTML dos Cartões de Resumo (Lado Esquerdo)
+    let cardsClassesHtml = `<div class="fii-summary-grid">`;
     Object.keys(resumoClasses).sort((a,b) => resumoClasses[b] - resumoClasses[a]).forEach(c => {
         const val = resumoClasses[c];
         const perc = ((val / dadosCat.total) * 100).toFixed(1);
-        resumoHtml += `
+        cardsClassesHtml += `
             <div class="fii-summary-card">
                 <span class="fii-class-label">${c}</span>
                 <span class="fii-class-value">R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
@@ -860,9 +865,27 @@ function renderizarAbaFII(cat, dadosCat, tabEl) {
             </div>
         `;
     });
-    resumoHtml += `</div>`;
+    cardsClassesHtml += `</div>`;
 
-    // 3. Montar as Linhas da Tabela
+    // 3. Montar o Container do Gráfico de Gestoras (Lado Direito)
+    const graficoGestoraHtml = `
+        <div class="fii-gestora-chart-container card">
+            <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Gestora</h4>
+            <div style="position: relative; height: 160px; width: 100%;">
+                <canvas id="chartGestoras"></canvas>
+            </div>
+        </div>
+    `;
+
+    // Junta os dois num Painel Flexível
+    const topoHtml = `
+        <div class="fii-top-panels">
+            ${cardsClassesHtml}
+            ${graficoGestoraHtml}
+        </div>
+    `;
+
+    // 4. Montar as Linhas da Tabela
     let rowsHtml = assets.map((a, index) => {
         const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
         const classe = a.extras?.classeFii || '-';
@@ -885,8 +908,11 @@ function renderizarAbaFII(cat, dadosCat, tabEl) {
 
     const cabecalhoEspecial = `<th>Ativo</th><th>Subclasse</th><th>Classe</th><th>Gestora</th><th>Indexador</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
     
-    // Passamos o resumoHtml como 5º parâmetro
-    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, resumoHtml);
+    // Injeta o HTML na aba
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, topoHtml);
+
+    // 5. IMPORTANTE: Desenha o gráfico *depois* que o HTML já está na tela
+    renderChartGestoras(resumoGestoras);
 }
 
 // Função Auxiliar Modificada (Agora aceita um HTML extra para o topo)
@@ -909,4 +935,38 @@ function htmlTabelaBase(titulo, total, thsHTML, trsHTML, topExtraHTML = "") {
             </table>
         </div>
     `;
+}
+function renderChartGestoras(dadosGestoras) {
+    const ctx = document.getElementById('chartGestoras');
+    if (!ctx) return;
+
+    if (chartGestorasFII) chartGestorasFII.destroy();
+
+    const labels = Object.keys(dadosGestoras);
+    const data = Object.values(dadosGestoras);
+
+    chartGestorasFII = new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: [
+                    '#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', 
+                    '#ef4444', '#ec4899', '#6366f1', '#14b8a6'
+                ],
+                borderColor: '#1f2937',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    position: 'right',
+                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } }
+                }
+            }
+        }
+    });
 }
