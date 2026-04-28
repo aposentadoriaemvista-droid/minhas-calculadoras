@@ -54,16 +54,17 @@ async function loadGlossaryFromDrive() {
     // URL 1: Aba Geral
     const urlGeral = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?output=csv";
     
-    // URL 2: Nova Aba de FIIs (COLE SEU LINK AQUI)
-    const urlFIIs = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv"; 
+    // URL 2: Nova Aba de FIIs
+    // Lembre-se de colar o seu link com o GID real aqui
+    const urlFIIs = "COLE_AQUI_O_SEU_LINK_COM_GID"; 
 
     const dict = {};
 
     try {
-        console.log("1. Buscando Aba Geral...");
-        const resGeral = await fetch(urlGeral, { cache: 'no-store' }); // Força ignorar cache
-        const dataGeral = await resGeral.arrayBuffer();
-        const wbGeral = XLSX.read(dataGeral, { type: 'array' });
+        // 1. CARREGA A ABA GERAL (Com correção de acentuação)
+        const resGeral = await fetch(urlGeral, { cache: 'no-store' });
+        const textGeral = await resGeral.text(); // O navegador resolve o UTF-8 (Acentos) sozinho
+        const wbGeral = XLSX.read(textGeral, { type: 'string' });
         const jsonGeral = XLSX.utils.sheet_to_json(wbGeral.Sheets[wbGeral.SheetNames[0]]);
         
         jsonGeral.forEach(row => {
@@ -76,43 +77,36 @@ async function loadGlossaryFromDrive() {
                 };
             }
         });
-        console.log("2. Aba Geral carregada. Ativos encontrados:", Object.keys(dict).length);
 
-        // --- MODO DETETIVE PARA FIIS ---
-        console.log("3. Iniciando busca da Aba FIIs...");
-        console.log("Link FIIs sendo usado:", urlFIIs.substring(0, 50) + "..."); // Mostra só o começo pra não poluir
+        // 2. CARREGA A ABA FIIS (Com correção de acentuação)
+        if (urlFIIs !== "COLE_AQUI_O_SEU_LINK_COM_GID") {
+            const resFIIs = await fetch(urlFIIs, { cache: 'no-store' });
+            const textFIIs = await resFIIs.text(); // O navegador resolve o UTF-8 (Acentos) sozinho
+            const wbFIIs = XLSX.read(textFIIs, { type: 'string' });
+            const matrixFIIs = XLSX.utils.sheet_to_json(wbFIIs.Sheets[wbFIIs.SheetNames[0]], { header: 1 });
 
-        const resFIIs = await fetch(urlFIIs, { cache: 'no-store' });
-        console.log("4. Status do Download FIIs:", resFIIs.status); // Tem que ser 200
-
-        const dataFIIs = await resFIIs.arrayBuffer();
-        const wbFIIs = XLSX.read(dataFIIs, { type: 'array' });
-        
-        const matrixFIIs = XLSX.utils.sheet_to_json(wbFIIs.Sheets[wbFIIs.SheetNames[0]], { header: 1 });
-        console.log("5. Planilha FIIs convertida. Total de Linhas:", matrixFIIs.length);
-
-        for (let i = 1; i < matrixFIIs.length; i++) { 
-            const row = matrixFIIs[i];
-            if (!row || row.length === 0) continue;
-            
-            const ativo = norm(row[0]); 
-            if (ativo) {
-                console.log(`- Lendo FII: ${ativo} | Classe: ${row[3]} | Gestora: ${row[4]}`);
-                if (!dict[ativo]) {
-                    dict[ativo] = { cat: "Fundos Imobiliários", subclasse: "Fundo Imobiliário", extras: {} };
+            for (let i = 1; i < matrixFIIs.length; i++) { 
+                const row = matrixFIIs[i];
+                if (!row || row.length === 0) continue;
+                
+                const ativo = norm(row[0]); 
+                if (ativo) {
+                    if (!dict[ativo]) {
+                        dict[ativo] = { cat: "Fundos Imobiliários", subclasse: "Fundo Imobiliário", extras: {} };
+                    }
+                    dict[ativo].extras = {
+                        classeFii: row[3] || "-", 
+                        gestora: row[4] || "-",   
+                        indexador: row[5] || "-"  
+                    };
                 }
-                dict[ativo].extras = {
-                    classeFii: row[3] || "-", 
-                    gestora: row[4] || "-",   
-                    indexador: row[5] || "-"  
-                };
             }
         }
 
-        console.log("Glossário online (Geral + Específicos) carregado com sucesso!");
+        console.log("Glossário online carregado com sucesso (Acentos corrigidos)!");
         return dict;
     } catch (error) {
-        console.error("ERRO FATAL NA LEITURA DO GLOSSÁRIO:", error);
+        console.error("Erro ao carregar glossário online:", error);
         return dict; 
     }
 }
