@@ -51,33 +51,68 @@ async function processarPlanilha() {
 }
 
 async function loadGlossaryFromDrive() {
-    // COLE AQUI O LINK CSV DA SUA PLANILHA (Publicada na Web)
-    const urlDrive = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?output=csv";
+    // URL 1: Aba Geral (Já existente)
+    const urlGeral = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?output=csv";
+    
+    // URL 2: Nova Aba de FIIs 
+    // ATENÇÃO: Cole aqui o link CSV específico da aba de FIIs (certifique-se de que termina com "output=csv")
+    const urlFIIs = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv"; 
+
+    const dict = {};
 
     try {
-        const response = await fetch(urlDrive);
-        const data = await response.arrayBuffer();
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet);
+        // 1. CARREGA A ABA GERAL
+        const resGeral = await fetch(urlGeral);
+        const dataGeral = await resGeral.arrayBuffer();
+        const wbGeral = XLSX.read(dataGeral, { type: 'array' });
+        const jsonGeral = XLSX.utils.sheet_to_json(wbGeral.Sheets[wbGeral.SheetNames[0]]);
         
-        const dict = {};
-        json.forEach(row => {
+        jsonGeral.forEach(row => {
             const ativo = norm(row["Ativos"] || row["ATIVOS"] || row["Ativo"]);
-            const classe = row["Classe"] || row["CLASSE"];
             if (ativo) {
                 dict[ativo] = {
-                    cat: classe ? classe.toString().trim() : "",
-                    subclasse: row["Subclasse"] || row["SUBCLASSE"] || "Outros"
+                    cat: row["Classe"] || row["CLASSE"] || "",
+                    subclasse: row["Subclasse"] || row["SUBCLASSE"] || "Outros",
+                    extras: {} // Prepara o terreno para os dados extras
                 };
             }
         });
-        console.log("Glossário online carregado com sucesso!");
+
+        // 2. CARREGA A ABA DE FIIs (Se o link foi configurado)
+        if (urlFIIs !== "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv") {
+            const resFIIs = await fetch(urlFIIs);
+            const dataFIIs = await resFIIs.arrayBuffer();
+            const wbFIIs = XLSX.read(dataFIIs, { type: 'array' });
+            
+            // Lemos a aba de FIIs como matriz (header: 1) para garantir as posições exatas das colunas
+            const matrixFIIs = XLSX.utils.sheet_to_json(wbFIIs.Sheets[wbFIIs.SheetNames[0]], { header: 1 });
+            
+            for (let i = 1; i < matrixFIIs.length; i++) { // Começa do 1 para pular a linha de cabeçalho
+                const row = matrixFIIs[i];
+                if (!row || row.length === 0) continue;
+                
+                const ativo = norm(row[0]); // Coluna 1 (Índice 0) é o Nome do Ativo
+                if (ativo) {
+                    // Se o ativo não veio da aba geral, criamos ele agora
+                    if (!dict[ativo]) {
+                        dict[ativo] = { cat: "Fundos Imobiliários", subclasse: "Fundo Imobiliário", extras: {} };
+                    }
+                    
+                    // Adiciona as colunas específicas lendo pelas posições que você definiu:
+                    dict[ativo].extras = {
+                        classeFii: row[3] || "-", // Coluna 4 (Índice 3)
+                        gestora: row[4] || "-",   // Coluna 5 (Índice 4)
+                        indexador: row[5] || "-"  // Coluna 6 (Índice 5)
+                    };
+                }
+            }
+        }
+
+        console.log("Glossário online (Geral + Específicos) carregado com sucesso!");
         return dict;
     } catch (error) {
         console.error("Erro ao carregar glossário online:", error);
-        alert("Não foi possível carregar o glossário online. Verifique o link ou a conexão.");
-        return {};
+        return dict; // Se der erro numa aba, retorna o que já conseguiu ler
     }
 }
 
@@ -118,7 +153,10 @@ function analisarCarteira(matrix, glossary) {
                 
                 // UPDATE 3: Mapear Global para "Dólar" nas subclasses
               let subRaw = (gData && typeof gData === 'object' && gData.subclasse) ? gData.subclasse : currentXpCategory;
-let subNome = padronizarSubclasse(subRaw, topico); // Usa o nosso novo filtro inteligente!
+                let subNome = padronizarSubclasse(subRaw, topico); // Usa o nosso novo filtro inteligente!
+                
+                // NOVO: Captura os extras do glossário se existirem
+                let extrasAtivo = (gData && gData.extras) ? gData.extras : {};
 
                 estrategiaMap[topico] += valor;
                 totalPatrimonio += valor;
@@ -126,7 +164,8 @@ let subNome = padronizarSubclasse(subRaw, topico); // Usa o nosso novo filtro in
 
                 if (!detalheMap[topico]) detalheMap[topico] = { total: 0, assets: [] };
                 detalheMap[topico].total += valor;
-                detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor, sub: subNome });
+                // NOVO: Salvando o 'extras: extrasAtivo' no objeto do ativo
+                detalheMap[topico].assets.push({ nome: nomeAtivo, valor: valor, sub: subNome, extras: extrasAtivo });
             }
         }
     });
@@ -152,6 +191,9 @@ function renderDashboard(estrategia, subclasses, detalhe) {
     
     // ATIVA A SIMULAÇÃO INTERATIVA
     renderInteractiveSimulation(estrategia);
+
+    // 👇 ADICIONA ESTA LINHA AQUI 👇
+    renderizarAbasEspecificas(detalhe);
 }
 
 function renderEstrategiaChart(labels, data) {
@@ -163,8 +205,18 @@ function renderEstrategiaChart(labels, data) {
             labels: labels.map((l, i) => `${l} (${data[i]}%)`),
             datasets: [{
                 data: data,
-                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF'],
-                borderWidth: 0
+                backgroundColor: [
+    '#0ea5e9', /* Azul Ciano */
+    '#10b981', /* Verde Esmeralda */
+    '#8b5cf6', /* Roxo/Violeta */
+    '#f59e0b', /* Dourado/Amarelo */
+    '#ef4444', /* Vermelho Suave */
+    '#ec4899', /* Rosa */
+    '#6366f1', /* Índigo */
+    '#14b8a6'  /* Teal/Verde-azulado */
+],
+borderColor: '#1f2937', // Mesma cor do fundo do cartão para dar efeito de separação
+borderWidth: 2
             }]
         },
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
@@ -408,8 +460,18 @@ function renderSimComparisonCharts(novosDados, totalSim) {
             labels: labelsPie.map((l, i) => `${l} (${dataPie[i]}%)`),
             datasets: [{
                 data: dataPie,
-                backgroundColor: ['#FF0000', '#0000FF', '#008000', '#FFFF00', '#FFA500', '#800080', '#00FFFF', '#FF00FF'],
-                borderWidth: 0
+               backgroundColor: [
+    '#0ea5e9', /* Azul Ciano */
+    '#10b981', /* Verde Esmeralda */
+    '#8b5cf6', /* Roxo/Violeta */
+    '#f59e0b', /* Dourado/Amarelo */
+    '#ef4444', /* Vermelho Suave */
+    '#ec4899', /* Rosa */
+    '#6366f1', /* Índigo */
+    '#14b8a6'  /* Teal/Verde-azulado */
+],
+borderColor: '#1f2937', // Mesma cor do fundo do cartão para dar efeito de separação
+borderWidth: 2
             }]
         },
         options: {
@@ -442,20 +504,55 @@ document.getElementById('excelFile').addEventListener('change', function() {
     }
 });
 
-// Função para Adicionar Manualmente
+// Função para mostrar/esconder os campos específicos de FII no Modal
+function verificarCamposExtras() {
+    const classe = document.getElementById('manClasse').value;
+    const divFII = document.getElementById('camposExtraFII');
+    
+    if (classe === "Fundos Imobiliários") {
+        divFII.style.display = 'flex';
+    } else {
+        divFII.style.display = 'none';
+    }
+}
+
+// Melhoria na hora de fechar o modal para limpar os campos
+function fecharModal() {
+    document.getElementById('modalAtivo').style.display = 'none';
+    // Opcional: Limpar os campos para a próxima vez que abrir
+    document.getElementById('manNome').value = '';
+    document.getElementById('manValor').value = '';
+    document.getElementById('manFiiClasse').value = '';
+    document.getElementById('manFiiGestora').value = '';
+    document.getElementById('manFiiIndexador').value = '';
+}
+
 function adicionarAtivoManual() {
     const nome = document.getElementById('manNome').value;
     const classe = document.getElementById('manClasse').value;
-    const sub = document.getElementById('manSub').value; // UPDATE 2: Agora pega do select
+    const sub = document.getElementById('manSub').value; 
     const valor = parseFloat(document.getElementById('manValor').value) || 0;
 
-    if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos!");
+    if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos obrigatórios!");
+
+    // NOVO: Captura os dados extras se a classe for FII
+    let extrasAtivo = {};
+    if (classe === "Fundos Imobiliários") {
+        extrasAtivo = {
+            classeFii: document.getElementById('manFiiClasse').value || "-",
+            gestora: document.getElementById('manFiiGestora').value || "-",
+            indexador: document.getElementById('manFiiIndexador').value || "-"
+        };
+    }
 
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
     globalDetalheMap[classe].total += valor;
-    globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub });
+    
+    // NOVO: Enviando o extrasAtivo junto com o ativo manual
+    globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
+    
     recalcularTudoERenderizar();
-    document.getElementById('modalAtivo').style.display = 'none';
+    fecharModal(); // Usa a nossa nova função que fecha e limpa os campos
 }
 
 function excluirAtivo(classe, index) {
@@ -509,15 +606,25 @@ function exportarProjeto() {
         targets[input.dataset.cat] = input.value;
     });
 
+    const specs = {};
+    document.querySelectorAll('.client-spec-status').forEach(select => {
+        const key = select.dataset.key;
+        const noteInput = document.querySelector(`.client-spec-note[data-key="${key}"]`);
+        specs[key] = {
+            status: select.value,
+            note: noteInput ? noteInput.value : ""
+        };
+    });
+
     const projeto = {
         detalhe: globalDetalheMap,
         subclasses: globalSubclassesMap,
         targets: targets,
+        clientSpecs: specs, // Salvando no JSON
         total: totalPatrimonio,
-        portfolioBase: currentPortfolio, // Salva a base para a simulação
+        portfolioBase: currentPortfolio,
         dataExportacao: new Date().toISOString()
     };
-
     const blob = new Blob([JSON.stringify(projeto, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -540,13 +647,13 @@ function importarProjeto(event) {
             console.log("--- Importando JSON ---");
             const projeto = JSON.parse(e.target.result);
             
-            // Sincroniza variáveis globais ANTES de renderizar
+            // 1. Sincroniza variáveis globais ANTES de renderizar
             globalDetalheMap = projeto.detalhe || {};
             globalSubclassesMap = projeto.subclasses || {};
             totalPatrimonio = projeto.total || 0;
             currentPortfolio = { ...projeto.portfolioBase } || {};
 
-            // Atualiza Sidebar
+            // 2. Atualiza os Alvos (Targets) na Sidebar
             if (projeto.targets) {
                 Object.keys(projeto.targets).forEach(cat => {
                     const input = document.querySelector(`.target-input[data-cat="${cat}"]`);
@@ -554,14 +661,25 @@ function importarProjeto(event) {
                 });
             }
 
-            // Renderiza tudo (o renderDashboard chamará o renderInteractiveSimulation)
+            // 3. NOVO: Atualiza o Planejamento do Cliente na Sidebar
+            if (projeto.clientSpecs) {
+                Object.keys(projeto.clientSpecs).forEach(key => {
+                    const statusEl = document.querySelector(`.client-spec-status[data-key="${key}"]`);
+                    const noteEl = document.querySelector(`.client-spec-note[data-key="${key}"]`);
+                    
+                    if (statusEl) statusEl.value = projeto.clientSpecs[key].status;
+                    if (noteEl) noteEl.value = projeto.clientSpecs[key].note;
+                });
+            }
+
+            // 4. Renderiza tudo com os novos dados
             recalcularTudoERenderizar();
             
-            alert("Carteira carregada!");
-            event.target.value = ''; 
+            alert("Carteira carregada com sucesso!");
+            event.target.value = ''; // Limpa o input para permitir novo carregamento
         } catch (err) {
             console.error("Erro na importação:", err);
-            alert("Erro ao ler o arquivo.");
+            alert("Erro ao ler o arquivo. Verifique se é um arquivo JSON válido da ferramenta.");
         }
     };
     reader.readAsText(file);
@@ -640,4 +758,160 @@ function gerarPDF() {
         // 4. Devolvemos a barra lateral à tela como se nada tivesse acontecido!
         sidebar.style.display = 'block';
     });
+}
+// 0. Configurações Iniciais para o Tema Escuro (Chart.js)
+Chart.defaults.color = '#94a3b8'; // Cor do texto das legendas e eixos
+Chart.defaults.borderColor = '#374151'; // Cor das linhas de grade do gráfico
+
+// Lógica de alternância de abas
+function abrirAba(evento, idAba) {
+    // Esconde todos os conteúdos de aba
+    const conteudos = document.querySelectorAll('.tab-content');
+    conteudos.forEach(conteudo => conteudo.classList.remove('active'));
+
+    // Remove a classe 'active' de todos os botões
+    const botoes = document.querySelectorAll('.tab-btn');
+    botoes.forEach(botao => botao.classList.remove('active'));
+
+    // Mostra a aba selecionada e marca o botão como ativo
+    document.getElementById(idAba).classList.add('active');
+    evento.currentTarget.classList.add('active');
+}
+
+// --- O MAESTRO DAS ABAS ESPECÍFICAS ---
+function renderizarAbasEspecificas(detalhe) {
+    const tabMap = {
+        "Renda Variavel Brasil": "aba-rv-brasil",
+        "Renda Fixa Brasil": "aba-rf-brasil",
+        "Multimercado": "aba-multimercado",
+        "Renda Variavel Global": "aba-rv-global",
+        "Renda Fixa Global": "aba-rf-global",
+        "Alternativo": "aba-alternativo",
+        "Fundos Imobiliários": "aba-fiis",
+        "Caixa": "aba-caixa"
+    };
+
+    // 1. Limpa todas as abas
+    Object.keys(tabMap).forEach(cat => {
+        const tabEl = document.getElementById(tabMap[cat]);
+        if(tabEl) {
+            tabEl.innerHTML = `<div class="card"><h3>${cat}</h3><p style="color: var(--text-muted); padding: 20px 0;">Nenhum ativo nesta categoria.</p></div>`;
+        }
+    });
+
+    // 2. Construtores específicos (Mapeamento arquitetural limpo)
+    const construtoresDeAba = {
+        "Fundos Imobiliários": renderizarAbaFII
+        // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRF
+    };
+
+    // 3. Roteamento de Renderização
+    Object.keys(detalhe).forEach(cat => {
+        const tabId = tabMap[cat];
+        if (!tabId) return;
+        
+        const tabEl = document.getElementById(tabId);
+        const dadosCat = detalhe[cat];
+        
+        if (dadosCat.total <= 0.01) return; // Pula se estiver zerada
+
+        // Se existir um construtor especial para esta classe, usa ele. Se não, usa o padrão.
+        const construirAba = construtoresDeAba[cat] || renderizarAbaPadrao;
+        construirAba(cat, dadosCat, tabEl);
+    });
+}
+
+// --- CONSTRUTOR PADRÃO (Para classes normais) ---
+function renderizarAbaPadrao(cat, dadosCat, tabEl) {
+    const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
+    let rowsHtml = assets.map((a, index) => {
+        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
+        return `
+            <tr>
+                <td><strong>${a.nome}</strong></td>
+                <td><span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid rgba(14, 165, 233, 0.3);">${a.sub}</span></td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, `<th>Ativo</th><th>Subclasse</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso na Classe</th><th style="text-align: right;">Ação</th>`, rowsHtml);
+}
+
+function renderizarAbaFII(cat, dadosCat, tabEl) {
+    const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
+    
+    // 1. Lógica do Mini-Dashboard: Somar valores por "Classe de FII"
+    const resumoClasses = {};
+    assets.forEach(a => {
+        // Se não tiver classe definida, agrupamos em "Não Classificado"
+        const classeFii = (a.extras && a.extras.classeFii && a.extras.classeFii !== "-") ? a.extras.classeFii : "Não Classificado";
+        resumoClasses[classeFii] = (resumoClasses[classeFii] || 0) + a.valor;
+    });
+
+    // 2. Montar o HTML dos Cartões de Resumo
+    let resumoHtml = `<div class="fii-summary-grid">`;
+    // Ordena do maior valor para o menor
+    Object.keys(resumoClasses).sort((a,b) => resumoClasses[b] - resumoClasses[a]).forEach(c => {
+        const val = resumoClasses[c];
+        const perc = ((val / dadosCat.total) * 100).toFixed(1);
+        resumoHtml += `
+            <div class="fii-summary-card">
+                <span class="fii-class-label">${c}</span>
+                <span class="fii-class-value">R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                <span class="fii-class-perc">${perc}% da classe</span>
+            </div>
+        `;
+    });
+    resumoHtml += `</div>`;
+
+    // 3. Montar as Linhas da Tabela
+    let rowsHtml = assets.map((a, index) => {
+        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
+        const classe = a.extras?.classeFii || '-';
+        const gestora = a.extras?.gestora || '-';
+        const indexador = a.extras?.indexador || '-';
+
+        return `
+            <tr>
+                <td><strong>${a.nome}</strong></td>
+                <td><span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid rgba(14, 165, 233, 0.3);">${a.sub}</span></td>
+                <td style="color: var(--text-muted); font-size: 0.9rem;">${classe}</td>
+                <td style="color: var(--text-muted); font-size: 0.9rem;">${gestora}</td>
+                <td style="color: var(--text-muted); font-size: 0.9rem;">${indexador}</td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    const cabecalhoEspecial = `<th>Ativo</th><th>Subclasse</th><th>Classe</th><th>Gestora</th><th>Indexador</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
+    
+    // Passamos o resumoHtml como 5º parâmetro
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, resumoHtml);
+}
+
+// Função Auxiliar Modificada (Agora aceita um HTML extra para o topo)
+function htmlTabelaBase(titulo, total, thsHTML, trsHTML, topExtraHTML = "") {
+    return `
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+                <h3 style="margin: 0; border: none; padding: 0;">${titulo}</h3>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Total na Classe</span><br>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </div>
+            </div>
+            
+            ${topExtraHTML}
+            
+            <table class="data-table" style="width: 100%; text-align: left;">
+                <thead><tr>${thsHTML}</tr></thead>
+                <tbody>${trsHTML}</tbody>
+            </table>
+        </div>
+    `;
 }

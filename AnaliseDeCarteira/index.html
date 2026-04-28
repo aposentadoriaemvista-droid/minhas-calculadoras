@@ -61,84 +61,166 @@
                 </div>
                 <button class="btn-analyze" onclick="processarPlanilha()"> Analisar e Rebalancear</button>
             </div>
-        </aside>
-
-        <main class="main-content">
-            <div class="top-stats">
-                <div class="stat-card">
-                    <label>Patrimônio Total</label>
-                    <h2 id="txtTotal">R$ 0,00</h2>
-                </div>
-                <div class="stat-card">
-                    <label>Conta XP</label>
-                    <h2 id="clientName">---</h2>
-                </div>
-            </div>
-
-            <div class="visual-row single-chart">
-                <div class="card chart-card">
-                    <h3>Estratégia de Alocação Atual</h3>
-                    <div class="chart-wrapper">
-                        <canvas id="chartEstrategia"></canvas>
-                    </div>
-                </div>
-                
-                <div class="card rebalance-card">
-                    <h3>Plano de Execução Estratégico</h3>
-                    <table class="data-table modern-action-table">
-                        <thead>
-                            <tr>
-                                <th>Categoria</th>
-                                <th>Atual %</th>
-                                <th>Alvo %</th>
-                                <th>Ações Sugeridas</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rebalanceBody"></tbody>
-                    </table>
-                    <div id="aporteSummary" class="aporte-summary-box"></div>
-                </div>
-            </div>
-
-            <div id="accordionAtivos" class="asset-grid"></div>
-
-            <div class="card subclass-card">
-                <h3>Exposição por Subclasse (Indexadores)</h3>
-                <div class="chart-wrapper-bar">
-                    <canvas id="chartSubclasses"></canvas>
-                </div>
-            </div>
-
-            <div class="card simulation-card">
-    <h3>🧪 Simulador Estratégico Iterativo</h3>
-    <div class="simulation-layout">
-        <div class="sim-controls">
-            
-            <div id="simSliderContainer"></div>
-            <div class="sim-total-footer">
-                <strong>Aporte Total:</strong> <span id="txtAporteSimulado">R$ 0,00</span><br>
-                <strong>Patrimônio Final:</strong> <span id="txtTotalSimulado">R$ 0,00</span>
+           <div class="sidebar-section">
+    <h3>6. Planejamento do Cliente</h3>
+    <div class="specs-grid-container">
+        <div class="spec-group">
+            <label>Seguro de Vida</label>
+            <div class="spec-controls">
+                <select class="client-spec-status" data-key="seguro_vida">
+                    <option value="Indefinido" selected>Indefinido</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                </select>
+                <input type="text" class="client-spec-note" data-key="seguro_vida" placeholder="Obs...">
             </div>
         </div>
-        
-        <div class="sim-visuals">
-            <div class="sim-chart-item">
-                <canvas id="chartSimEstrategia"></canvas>
+        <div class="spec-group">
+            <label>Previdência</label>
+            <div class="spec-controls">
+                <select class="client-spec-status" data-key="previdencia">
+                    <option value="Indefinido" selected>Indefinido</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                </select>
+                <input type="text" class="client-spec-note" data-key="previdencia" placeholder="Obs...">
             </div>
-            <div class="sim-chart-item">
-                <canvas id="chartSimSubclasses"></canvas>
+        </div>
+        <div class="spec-group">
+            <label>Seguro Auto</label>
+            <div class="spec-controls">
+                <select class="client-spec-status" data-key="seguro_auto">
+                    <option value="Indefinido" selected>Indefinido</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                </select>
+                <input type="text" class="client-spec-note" data-key="seguro_auto" placeholder="Obs...">
+            </div>
+        </div>
+        <div class="spec-group">
+            <label>Financiamento</label>
+            <div class="spec-controls">
+                <select class="client-spec-status" data-key="financiamento">
+                    <option value="Indefinido" selected>Indefinido</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                </select>
+                <input type="text" class="client-spec-note" data-key="financiamento" placeholder="Obs...">
+            </div>
+        </div>
+        <div class="spec-group">
+            <label>Consórcio</label>
+            <div class="spec-controls">
+                <select class="client-spec-status" data-key="consorcio">
+                    <option value="Indefinido" selected>Indefinido</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                </select>
+                <input type="text" class="client-spec-note" data-key="consorcio" placeholder="Obs...">
             </div>
         </div>
     </div>
 </div>
+        </aside>
 
-        </main>
+       <main class="main-content">
+    
+    <nav class="tabs-nav">
+        <button class="tab-btn active" onclick="abrirAba(event, 'aba-geral')">Visão Geral</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-rv-brasil')">RV Brasil</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-rf-brasil')">RF Brasil</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-multimercado')">Multimercado</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-rv-global')">RV Global</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-rf-global')">RF Global</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-alternativo')">Alternativo</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-fiis')">FIIs</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-caixa')">Caixa</button>
+    </nav>
+
+    <div id="aba-geral" class="tab-content active">
+        <div class="top-stats">
+            <div class="stat-card">
+                <label>Patrimônio Total</label>
+                <h2 id="txtTotal">R$ 0,00</h2>
+            </div>
+            <div class="stat-card">
+                <label>Conta XP</label>
+                <h2 id="clientName">---</h2>
+            </div>
+        </div>
+
+        <div class="visual-row">
+            <div class="card chart-card">
+                <h3>Estratégia de Alocação Atual</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chartEstrategia"></canvas>
+                </div>
+            </div>
+            
+            <div class="card rebalance-card">
+                <h3>Plano de Execução Estratégico</h3>
+                <table class="data-table modern-action-table">
+                    <thead>
+                        <tr>
+                            <th>Categoria</th>
+                            <th>Atual %</th>
+                            <th>Alvo %</th>
+                            <th>Ações Sugeridas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rebalanceBody"></tbody>
+                </table>
+                <div id="aporteSummary" class="aporte-summary-box"></div>
+            </div>
+        </div>
+
+        <div id="accordionAtivos" class="asset-grid" style="margin-top: 25px;"></div>
+
+        <div class="card subclass-card" style="margin-top: 25px;">
+            <h3>Exposição por Subclasse (Indexadores)</h3>
+            <div class="chart-wrapper-bar">
+                <canvas id="chartSubclasses"></canvas>
+            </div>
+        </div>
+
+        <div class="card simulation-card" style="margin-top: 25px;">
+            <h3>🧪 Simulador Estratégico Iterativo</h3>
+            <div class="simulation-layout">
+                <div class="sim-controls">
+                    <div id="simSliderContainer"></div>
+                    <div class="sim-total-footer" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                        <strong>Aporte Total:</strong> <span id="txtAporteSimulado" style="color: var(--accent-primary);">R$ 0,00</span><br>
+                        <strong>Patrimônio Final:</strong> <span id="txtTotalSimulado" style="color: var(--success);">R$ 0,00</span>
+                    </div>
+                </div>
+                
+                <div class="sim-visuals">
+                    <div class="sim-chart-item">
+                        <canvas id="chartSimEstrategia"></canvas>
+                    </div>
+                    <div class="sim-chart-item" style="margin-top: 20px;">
+                        <canvas id="chartSimSubclasses"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <div id="aba-rv-brasil" class="tab-content"><div class="card"><h3>Renda Variavel Brasil</h3></div></div>
+    <div id="aba-rf-brasil" class="tab-content"><div class="card"><h3>Renda Fixa Brasil</h3></div></div>
+    <div id="aba-multimercado" class="tab-content"><div class="card"><h3>Multimercado</h3></div></div>
+    <div id="aba-rv-global" class="tab-content"><div class="card"><h3>Renda Variavel Global</h3></div></div>
+    <div id="aba-rf-global" class="tab-content"><div class="card"><h3>Renda Fixa Global</h3></div></div>
+    <div id="aba-alternativo" class="tab-content"><div class="card"><h3>Alternativo</h3></div></div>
+    <div id="aba-fiis" class="tab-content"><div class="card"><h3>Fundos Imobiliários</h3></div></div>
+    <div id="aba-caixa" class="tab-content"><div class="card"><h3>Caixa</h3></div></div>
+
+</main>
     </div>
     <div id="modalAtivo" class="modal-overlay" style="display:none;">
     <div class="modal-content">
         <h3>Adicionar Ativo Manual</h3>
         <input type="text" id="manNome" placeholder="Nome do Ativo (ex: PETR4)">
-        <select id="manClasse">
+        
+        <select id="manClasse" onchange="verificarCamposExtras()">
             <option value="Renda Variavel Brasil">Renda Variavel Brasil</option>
             <option value="Renda Fixa Brasil">Renda Fixa Brasil</option>
             <option value="Multimercado">Multimercado</option>
@@ -148,6 +230,13 @@
             <option value="Fundos Imobiliários">Fundos Imobiliários</option>
             <option value="Caixa">Caixa</option>
         </select>
+
+        <div id="camposExtraFII" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(14, 165, 233, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--accent-primary);">
+            <p style="margin: 0; font-size: 0.8rem; color: var(--accent-primary); font-weight: bold;">Campos Específicos de FII</p>
+            <input type="text" id="manFiiClasse" placeholder="Classe (ex: Tijolo, Papel)">
+            <input type="text" id="manFiiGestora" placeholder="Gestora (ex: Kinea, XP)">
+            <input type="text" id="manFiiIndexador" placeholder="Indexador (ex: IPCA, CDI)">
+        </div>
         
         <select id="manSub">
             <option value="" disabled selected>Selecione a Subclasse</option>
@@ -162,12 +251,14 @@
         </select>
 
         <input type="number" id="manValor" placeholder="Valor (R$)">
+        
         <div class="modal-actions">
             <button class="btn-upload" onclick="adicionarAtivoManual()">Salvar</button>
-            <button class="btn-upload danger" onclick="document.getElementById('modalAtivo').style.display='none'">Cancelar</button>
+            <button class="btn-upload danger" onclick="fecharModal()">Cancelar</button>
         </div>
     </div>
 </div>
+
     <script src="script.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </body>
