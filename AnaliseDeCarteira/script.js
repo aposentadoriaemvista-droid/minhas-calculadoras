@@ -80,7 +80,7 @@ async function loadGlossaryFromDrive() {
         });
 
         // 2. CARREGA A ABA FIIS (Com correção de acentuação)
-        if (urlFIIs !== "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv") {
+        if (urlFIIs && urlFIIs !== "") { // <-- Trava de segurança corrigida e simplificada!
             const resFIIs = await fetch(urlFIIs, { cache: 'no-store' });
             const textFIIs = await resFIIs.text(); // O navegador resolve o UTF-8 (Acentos) sozinho
             const wbFIIs = XLSX.read(textFIIs, { type: 'string' });
