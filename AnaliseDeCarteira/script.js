@@ -57,7 +57,7 @@ async function loadGlossaryFromDrive() {
     
     // URL 2: Nova Aba de FIIs
     // Lembre-se de colar o seu link com o GID real aqui
-    const urlFIIs = "COLE_AQUI_O_SEU_LINK_COM_GID"; 
+    const urlFIIs = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv";
 
     const dict = {};
 
@@ -80,7 +80,7 @@ async function loadGlossaryFromDrive() {
         });
 
         // 2. CARREGA A ABA FIIS (Com correção de acentuação)
-        if (urlFIIs !== "COLE_AQUI_O_SEU_LINK_COM_GID") {
+        if (urlFIIs !== "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv") {
             const resFIIs = await fetch(urlFIIs, { cache: 'no-store' });
             const textFIIs = await resFIIs.text(); // O navegador resolve o UTF-8 (Acentos) sozinho
             const wbFIIs = XLSX.read(textFIIs, { type: 'string' });
