@@ -86,7 +86,7 @@ async function loadGlossaryFromDrive() {
             
             // Lemos a aba de FIIs como matriz (header: 1) para garantir as posições exatas das colunas
             const matrixFIIs = XLSX.utils.sheet_to_json(wbFIIs.Sheets[wbFIIs.SheetNames[0]], { header: 1 });
-            
+            console.log("Conteúdo bruto da aba FIIs:", matrixFIIs);
             for (let i = 1; i < matrixFIIs.length; i++) { // Começa do 1 para pular a linha de cabeçalho
                 const row = matrixFIIs[i];
                 if (!row || row.length === 0) continue;
