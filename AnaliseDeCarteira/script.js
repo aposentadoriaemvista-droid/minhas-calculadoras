@@ -682,7 +682,7 @@ function renderizarAbasEspecificas(detalhe) {
     const construtoresDeAba = {
         "Fundos Imobiliários": renderizarAbaFII,
         "Renda Variavel Brasil": renderizarAbaRV
-        // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRF
+        // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRFjjbj
     };
 
     // 3. Roteamento de Renderização
