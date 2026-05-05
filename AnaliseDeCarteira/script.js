@@ -8,6 +8,7 @@ let chartSimSubclasses = null;
 let globalDetalheMap = {}; // Guardará os ativos atuais
 let globalSubclassesMap = {};
 let chartGestorasFII = null;
+let chartClassesRV = null;
 
 
 
@@ -104,6 +105,31 @@ async function loadGlossaryFromDrive() {
             }
         }
 
+        // 3. CARREGA A ABA DE RENDA VARIÁVEL (AÇÕES)
+        const urlRV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=1207477292&single=true&output=csv";
+        
+        if (urlRV && urlRV !== "") {
+            const resRV = await fetch(urlRV, { cache: 'no-store' });
+            const textRV = await resRV.text();
+            const wbRV = XLSX.read(textRV, { type: 'string' });
+            const matrixRV = XLSX.utils.sheet_to_json(wbRV.Sheets[wbRV.SheetNames[0]], { header: 1 });
+
+            for (let i = 1; i < matrixRV.length; i++) { 
+                const row = matrixRV[i];
+                if (!row || row.length === 0) continue;
+                
+                const ativo = norm(row[0]); // Coluna 1 = Nome
+                if (ativo) {
+                    if (!dict[ativo]) {
+                        dict[ativo] = { cat: "Renda Variavel Brasil", subclasse: "Ibov", extras: {} };
+                    }
+                    if (!dict[ativo].extras) dict[ativo].extras = {};
+                    
+                    dict[ativo].extras.classeRV = row[1] || "Não Classificado"; // Coluna 2 = Classe/Estratégia
+                }
+            }
+        }
+
         console.log("Glossário online carregado com sucesso (Acentos corrigidos)!");
         return dict;
     } catch (error) {
@@ -185,9 +211,6 @@ function renderDashboard(estrategia, subclasses, detalhe) {
     renderRebalanceTable(estrategia, valorAporte, totalFuturo);
     renderAssetAccordion(detalhe);
     
-    // ATIVA A SIMULAÇÃO INTERATIVA
-    renderInteractiveSimulation(estrategia);
-
     // 👇 ADICIONA ESTA LINHA AQUI 👇
     renderizarAbasEspecificas(detalhe);
 }
@@ -256,13 +279,12 @@ function renderSubclassChart(subclasses) {
             }]
         },
         options: { 
-            indexAxis: 'y', 
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }, // Esconde a legenda superior que era redundante
+                legend: { display: false }, 
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `R$ ${ctx.parsed.x.toLocaleString('pt-BR')}`
+                        label: (ctx) => `R$ ${ctx.parsed.y.toLocaleString('pt-BR')}` // Mudei parsed.x para parsed.y
                     }
                 }
             }
@@ -325,160 +347,6 @@ function renderAssetAccordion(detalhe) {
             </div>`;
     });
 }
-function renderInteractiveSimulation(estrategia) {
-    const container = document.getElementById('simSliderContainer');
-    if (!container) return;
-    
-    // 1. Limpamos o container para não duplicar elementos
-    container.innerHTML = "";
-    
-    // 2. Criamos os sliders com o passo corrigido
-    Object.keys(estrategia).forEach(cat => {
-        const safeId = cat.replace(/\s+/g,'');
-        const valorOriginal = currentPortfolio[cat] || 0;
-
-        const div = document.createElement('div');
-        div.className = 'sim-slider-row';
-        
-        // A MÁGICA ACONTECE AQUI: Mudámos o step="1000" para step="1".
-        // Isto permite que o valor inicial "0" seja sempre aceite pelo navegador.
-        div.innerHTML = `
-            <label>${cat} <span class="val-display" id="txt-val-${safeId}">R$ 0,00</span></label>
-            <input type="range" class="modern-slider sim-range" 
-                   data-cat="${cat}" 
-                   min="${-Math.floor(valorOriginal)}" 
-                   max="1000000" 
-                   step="1" 
-                   value="0"> 
-        `;
-        container.appendChild(div);
-    });
-
-    // 3. Vinculamos o evento e forçamos o valor a zero via JavaScript
-    const sliders = document.querySelectorAll('.sim-range');
-    sliders.forEach(s => {
-        s.value = 0; // Garantia dupla de que começa em zero
-        s.addEventListener('input', updateSimulation);
-    });
-
-    // 4. Resetamos os textos de resumo para o estado inicial sem simulação
-    if(document.getElementById('txtAporteSimulado')) document.getElementById('txtAporteSimulado').innerText = "R$ 0,00";
-    if(document.getElementById('txtTotalSimulado')) document.getElementById('txtTotalSimulado').innerText = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-
-    // 5. Chamamos a função apenas para renderizar os gráficos iniciais alinhados
-    updateSimulation(); 
-}
-
-function updateSimulation() {
-    let aporteRealEfetivo = 0; 
-    const novosValores = {};
-    const sliders = document.querySelectorAll('.sim-range');
-
-    sliders.forEach(input => {
-        // Garantimos que o valor do slider é lido corretamente como número
-        const sliderVal = parseFloat(input.value) || 0;
-        const cat = input.dataset.cat;
-        const valorOriginal = currentPortfolio[cat] || 0;
-        
-        // vFinal é o valor que a categoria terá após a simulação
-        let vFinal = valorOriginal + sliderVal;
-        
-        // Proteção para não ter saldo negativo na simulação
-        if (vFinal < 0) vFinal = 0;
-        
-        novosValores[cat] = vFinal;
-
-        // O aporte real é a soma das variações de todos os sliders
-        aporteRealEfetivo += (vFinal - valorOriginal);
-
-        // Atualiza a etiqueta individual (ex: + R$ 1.000 ou - R$ 500)
-        const safeId = cat.replace(/\s+/g,'');
-        const txtLabel = document.getElementById(`txt-val-${safeId}`);
-        if (txtLabel) {
-            const variacao = vFinal - valorOriginal;
-            txtLabel.innerText = (variacao >= 0 ? "+" : "") + ` R$ ${variacao.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-            txtLabel.style.color = variacao > 0 ? "#10b981" : (variacao < 0 ? "#ef4444" : "#64748b");
-        }
-    });
-
-    const totalSimulado = totalPatrimonio + aporteRealEfetivo;
-    
-    // Atualiza os campos de resumo no dashboard
-    const elAporte = document.getElementById('txtAporteSimulado');
-    const elTotal = document.getElementById('txtTotalSimulado');
-    
-    if (elAporte) elAporte.innerText = `R$ ${aporteRealEfetivo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-    if (elTotal) elTotal.innerText = `R$ ${totalSimulado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-
-    renderSimComparisonCharts(novosValores, totalSimulado);
-}
-function renderSimComparisonCharts(novosDados, totalSim) {
-    // 1. Gráfico de Barras: Comparativo de Classes (Atual vs Simulado)
-    const ctxBar = document.getElementById('chartSimEstrategia').getContext('2d');
-    if (chartSimEstrategia) chartSimEstrategia.destroy();
-
-    const labels = Object.keys(novosDados);
-    
-    chartSimEstrategia = new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Atual',
-                    data: labels.map(l => currentPortfolio[l] || 0),
-                    backgroundColor: '#d1d8db' // Cinza
-                },
-                {
-                    label: 'Simulado',
-                    data: labels.map(l => novosDados[l]),
-                    backgroundColor: '#10b981' // Verde
-                }
-            ]
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: { title: { display: true, text: 'Equilíbrio de Classes (R$)' } },
-            scales: { y: { beginAtZero: true } }
-        }
-    });
-
-    // 2. Gráfico de Rosca: Nova Distribuição %
-    const ctxPie = document.getElementById('chartSimSubclasses').getContext('2d');
-    if (chartSimSubclasses) chartSimSubclasses.destroy();
-
-    const labelsPie = labels.filter(l => novosDados[l] > 0);
-    const dataPie = labelsPie.map(l => ((novosDados[l] / totalSim) * 100).toFixed(1));
-
-    chartSimSubclasses = new Chart(ctxPie, {
-        type: 'doughnut',
-        data: {
-            labels: labelsPie.map((l, i) => `${l} (${dataPie[i]}%)`),
-            datasets: [{
-                data: dataPie,
-               backgroundColor: [
-    '#0ea5e9', /* Azul Ciano */
-    '#10b981', /* Verde Esmeralda */
-    '#8b5cf6', /* Roxo/Violeta */
-    '#f59e0b', /* Dourado/Amarelo */
-    '#ef4444', /* Vermelho Suave */
-    '#ec4899', /* Rosa */
-    '#6366f1', /* Índigo */
-    '#14b8a6'  /* Teal/Verde-azulado */
-],
-borderColor: '#1f2937', // Mesma cor do fundo do cartão para dar efeito de separação
-borderWidth: 2
-            }]
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: { 
-                legend: { position: 'right' },
-                title: { display: true, text: 'Nova Composição (%)' }
-            }
-        }
-    });
-}
 
 // AUXILIARES
 function cleanV(v) {
@@ -501,28 +369,38 @@ document.getElementById('excelFile').addEventListener('change', function() {
 });
 
 // Função para mostrar/esconder os campos específicos de FII no Modal
+// Função para mostrar/esconder os campos específicos no Modal
 function verificarCamposExtras() {
     const classe = document.getElementById('manClasse').value;
     const divFII = document.getElementById('camposExtraFII');
+    const divRV = document.getElementById('camposExtraRV'); // Pega a nova div
     
+    // Primeiro, esconde tudo para garantir que não fiquem duas caixinhas abertas
+    divFII.style.display = 'none';
+    divRV.style.display = 'none';
+
+    // Depois, mostra apenas a caixinha correta
     if (classe === "Fundos Imobiliários") {
         divFII.style.display = 'flex';
-    } else {
-        divFII.style.display = 'none';
+    } else if (classe === "Renda Variavel Brasil") {
+        divRV.style.display = 'flex';
     }
 }
 
-// Melhoria na hora de fechar o modal para limpar os campos
+// Melhoria na hora de fechar o modal para limpar todos os campos
 function fecharModal() {
     document.getElementById('modalAtivo').style.display = 'none';
-    // Opcional: Limpar os campos para a próxima vez que abrir
+    
+    // Limpa todos os inputs
     document.getElementById('manNome').value = '';
     document.getElementById('manValor').value = '';
     document.getElementById('manFiiClasse').value = '';
     document.getElementById('manFiiGestora').value = '';
     document.getElementById('manFiiIndexador').value = '';
+    document.getElementById('manRvClasse').value = ''; // Limpa o novo input de RV
 }
 
+// Função de adicionar ativo atualizada
 function adicionarAtivoManual() {
     const nome = document.getElementById('manNome').value;
     const classe = document.getElementById('manClasse').value;
@@ -531,24 +409,29 @@ function adicionarAtivoManual() {
 
     if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos obrigatórios!");
 
-    // NOVO: Captura os dados extras se a classe for FII
+    // Captura os dados extras dependendo da classe escolhida
     let extrasAtivo = {};
+    
     if (classe === "Fundos Imobiliários") {
         extrasAtivo = {
             classeFii: document.getElementById('manFiiClasse').value || "-",
             gestora: document.getElementById('manFiiGestora').value || "-",
             indexador: document.getElementById('manFiiIndexador').value || "-"
         };
+    } else if (classe === "Renda Variavel Brasil") {
+        extrasAtivo = {
+            classeRV: document.getElementById('manRvClasse').value || "Não Classificado"
+        };
     }
 
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
     globalDetalheMap[classe].total += valor;
     
-    // NOVO: Enviando o extrasAtivo junto com o ativo manual
+    // Enviando o extrasAtivo junto com o ativo manual
     globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
     
     recalcularTudoERenderizar();
-    fecharModal(); // Usa a nossa nova função que fecha e limpa os campos
+    fecharModal(); 
 }
 
 function excluirAtivo(classe, index) {
@@ -797,7 +680,8 @@ function renderizarAbasEspecificas(detalhe) {
 
     // 2. Construtores específicos (Mapeamento arquitetural limpo)
     const construtoresDeAba = {
-        "Fundos Imobiliários": renderizarAbaFII
+        "Fundos Imobiliários": renderizarAbaFII,
+        "Renda Variavel Brasil": renderizarAbaRV
         // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRF
     };
 
@@ -963,6 +847,95 @@ function renderChartGestoras(dadosGestoras) {
                 backgroundColor: [
                     '#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', 
                     '#ef4444', '#ec4899', '#6366f1', '#14b8a6'
+                ],
+                borderColor: '#1f2937',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    position: 'right',
+                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } }
+                }
+            }
+        }
+    });
+}
+// --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL ---
+function renderizarAbaRV(cat, dadosCat, tabEl) {
+    const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
+    
+    // 1. Somar valores por "Classe de RV"
+    const resumoClassesRV = {};
+    assets.forEach(a => {
+        const classe = (a.extras && a.extras.classeRV && a.extras.classeRV !== "-") ? a.extras.classeRV : "Não Classificado";
+        resumoClassesRV[classe] = (resumoClassesRV[classe] || 0) + a.valor;
+    });
+
+    // 2. Montar o Container do Gráfico (Centralizado e elegante)
+    const graficoRVHtml = `
+        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
+            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 500px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Estratégia / Setor</h4>
+                <div style="position: relative; height: 180px; width: 100%;">
+                    <canvas id="chartRV"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 3. Montar as Linhas da Tabela
+    let rowsHtml = assets.map((a, index) => {
+        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
+        const classeRV = a.extras?.classeRV || 'Não Classificado';
+
+        return `
+            <tr>
+                <td><strong>${a.nome}</strong></td>
+                <td><span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${classeRV}</span></td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    const cabecalhoEspecial = `<th>Ativo</th><th>Estratégia / Classe</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
+    
+    // Injeta o HTML na aba (reaproveitando o seu htmlTabelaBase)
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficoRVHtml);
+
+    // 4. Desenha o gráfico
+    renderChartRV(resumoClassesRV);
+}
+
+// --- FUNÇÃO DO GRÁFICO DE RV ---
+function renderChartRV(dadosClasses) {
+    const ctx = document.getElementById('chartRV');
+    if (!ctx) return;
+
+    if (chartClassesRV) chartClassesRV.destroy();
+
+    const labelsRaw = Object.keys(dadosClasses);
+    const dataRaw = Object.values(dadosClasses);
+    const totalRV = dataRaw.reduce((acc, val) => acc + val, 0);
+
+    const labelsComPerc = labelsRaw.map((nome, index) => {
+        const perc = ((dataRaw[index] / totalRV) * 100).toFixed(1);
+        return `${nome} (${perc}%)`;
+    });
+
+    chartClassesRV = new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: labelsComPerc,
+            datasets: [{
+                data: dataRaw,
+                backgroundColor: [
+                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+                    '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'
                 ],
                 borderColor: '#1f2937',
                 borderWidth: 2

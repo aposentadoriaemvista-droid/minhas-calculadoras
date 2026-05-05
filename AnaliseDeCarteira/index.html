@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Analisador Pro - XP Investor</title>
+    <title>Analisador Pro - Investor</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -10,7 +10,7 @@
 <body>
     <div class="app-shell">
         <aside class="sidebar">
-            <div class="brand">XP <span>Analyzer</span></div>
+            <div class="brand">Pro <span>Analyzer</span></div>
             
             
          <div class="sidebar-section">
@@ -123,11 +123,11 @@
 </div>
         </aside>
 
-       <main class="main-content">
+      <main class="main-content">
     
     <nav class="tabs-nav">
         <button class="tab-btn active" onclick="abrirAba(event, 'aba-geral')">Visão Geral</button>
-        <button class="tab-btn" onclick="abrirAba(event, 'aba-rv-brasil')">RV Brasil</button>
+        <button class="tab-btn" onclick="abrirAba(event, 'aba-rv-brasil')">Carteira de Ações</button>
         <button class="tab-btn" onclick="abrirAba(event, 'aba-rf-brasil')">RF Brasil</button>
         <button class="tab-btn" onclick="abrirAba(event, 'aba-multimercado')">Multimercado</button>
         <button class="tab-btn" onclick="abrirAba(event, 'aba-rv-global')">RV Global</button>
@@ -144,7 +144,7 @@
                 <h2 id="txtTotal">R$ 0,00</h2>
             </div>
             <div class="stat-card">
-                <label>Conta XP</label>
+                <label>Conta / Cliente</label>
                 <h2 id="clientName">---</h2>
             </div>
         </div>
@@ -183,28 +183,9 @@
             </div>
         </div>
 
-        <div class="card simulation-card" style="margin-top: 25px;">
-            <h3>🧪 Simulador Estratégico Iterativo</h3>
-            <div class="simulation-layout">
-                <div class="sim-controls">
-                    <div id="simSliderContainer"></div>
-                    <div class="sim-total-footer" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
-                        <strong>Aporte Total:</strong> <span id="txtAporteSimulado" style="color: var(--accent-primary);">R$ 0,00</span><br>
-                        <strong>Patrimônio Final:</strong> <span id="txtTotalSimulado" style="color: var(--success);">R$ 0,00</span>
-                    </div>
-                </div>
-                
-                <div class="sim-visuals">
-                    <div class="sim-chart-item">
-                        <canvas id="chartSimEstrategia"></canvas>
-                    </div>
-                    <div class="sim-chart-item" style="margin-top: 20px;">
-                        <canvas id="chartSimSubclasses"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div> <div id="aba-rv-brasil" class="tab-content"><div class="card"><h3>Renda Variavel Brasil</h3></div></div>
+        </div> 
+    
+    <div id="aba-rv-brasil" class="tab-content"><div class="card"><h3>Carteira de Ações</h3></div></div>
     <div id="aba-rf-brasil" class="tab-content"><div class="card"><h3>Renda Fixa Brasil</h3></div></div>
     <div id="aba-multimercado" class="tab-content"><div class="card"><h3>Multimercado</h3></div></div>
     <div id="aba-rv-global" class="tab-content"><div class="card"><h3>Renda Variavel Global</h3></div></div>
@@ -236,7 +217,15 @@
             <input type="text" id="manFiiClasse" placeholder="Classe (ex: Tijolo, Papel)">
             <input type="text" id="manFiiGestora" placeholder="Gestora (ex: Kinea, XP)">
             <input type="text" id="manFiiIndexador" placeholder="Indexador (ex: IPCA, CDI)">
+
         </div>
+        <!-- NOVA Caixinha das Ações (RV) -->
+        <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
+            <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de Ações</p>
+            <input type="text" id="manRvClasse" placeholder="Estratégia / Setor (ex: Dividendos, Bancos)">
+        </div>
+
+
         
         <select id="manSub">
             <option value="" disabled selected>Selecione a Subclasse</option>
