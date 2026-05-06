@@ -874,19 +874,19 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
         resumoClassesRV[classe] = (resumoClassesRV[classe] || 0) + a.valor;
     });
 
-    // 2. Montar o Container do Gráfico (Centralizado e elegante)
+    // 2. Montar o Container do Gráfico (Maior e centralizado)
     const graficoRVHtml = `
         <div style="display: flex; justify-content: center; margin-bottom: 25px;">
-            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 500px;">
+            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 600px;">
                 <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Estratégia / Setor</h4>
-                <div style="position: relative; height: 180px; width: 100%;">
+                <div style="position: relative; height: 260px; width: 100%;">
                     <canvas id="chartRV"></canvas>
                 </div>
             </div>
         </div>
     `;
 
-    // 3. Montar as Linhas da Tabela
+    // 3. Montar as Linhas da Tabela com o Botão de Edição
     let rowsHtml = assets.map((a, index) => {
         const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
         const classeRV = a.extras?.classeRV || 'Não Classificado';
@@ -894,7 +894,12 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
         return `
             <tr>
                 <td><strong>${a.nome}</strong></td>
-                <td><span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${classeRV}</span></td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${classeRV}</span>
+                        <button onclick="editarClasseRV('${cat}', ${index})" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-muted); padding: 0;" title="Alterar Classe">✏️</button>
+                    </div>
+                </td>
                 <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
                 <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
@@ -904,7 +909,7 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
 
     const cabecalhoEspecial = `<th>Ativo</th><th>Estratégia / Classe</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
     
-    // Injeta o HTML na aba (reaproveitando o seu htmlTabelaBase)
+    // Injeta o HTML na aba
     tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficoRVHtml);
 
     // 4. Desenha o gráfico
@@ -945,10 +950,25 @@ function renderChartRV(dadosClasses) {
             maintainAspectRatio: false,
             plugins: {
                 legend: { 
-                    position: 'right',
-                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } }
+                    position: 'bottom', // Move a legenda para baixo, criando colunas automaticamente
+                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 }, padding: 15 }
                 }
             }
         }
     });
+}
+// --- FUNÇÃO PARA EDITAR CLASSE DE RV MANUALMENTE ---
+function editarClasseRV(cat, index) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const classeAtual = ativo.extras?.classeRV || 'Não Classificado';
+    const novaClasse = prompt(`Defina a nova Estratégia/Setor para o ativo ${ativo.nome}:`, classeAtual);
+    
+    // Se o usuário digitou algo e não cancelou
+    if (novaClasse !== null && novaClasse.trim() !== "") {
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras.classeRV = novaClasse.trim();
+        
+        // Recalcula o projeto para atualizar tabelas e gráficos em tempo real
+        recalcularTudoERenderizar();
+    }
 }
