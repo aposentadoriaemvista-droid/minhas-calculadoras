@@ -45,7 +45,11 @@
             </div>
             <div class="sidebar-section">
     <h3>4. Gestão Manual</h3>
-    <button class="btn-upload secondary" onclick="document.getElementById('modalAtivo').style.display='flex'">➕ Adicionar Ativo</button>
+    
+    <button class="btn-upload secondary" onclick="document.getElementById('modalAtivo').style.display='flex'">➕ Adicionar Único</button>
+    
+    <input type="file" id="excelOffshore" accept=".xlsx, .xls, .csv" hidden onchange="importarPlanilhaOffshore(event)">
+    <label for="excelOffshore" class="btn-upload secondary" style="margin-top: 10px; border-color: #f59e0b; color: #f59e0b;">🌍 Importar Planilha Exterior</label>
 </div>
 
             <div class="sidebar-section">
@@ -242,6 +246,9 @@
                 <option value="Telecomunicação">Telecomunicação</option>
                 <option value="Varejo">Varejo</option>
                 <option value="Varejo Turismo">Varejo Turismo</option>
+                <option value="Alimentacao">Alimentacao</option>
+                <option value="Tesouro">Tesouro</option>
+                <option value="Outros">Outros</option>
             </select>
         </div>
 
@@ -268,6 +275,9 @@
                 <option value="Telecomunicação">Telecomunicação</option>
                 <option value="Varejo">Varejo</option>
                 <option value="Varejo Turismo">Varejo Turismo</option>
+                <option value="Alimentacao">Alimentacao</option>
+                <option value="Tesouro">Tesouro</option>
+                <option value="Outros">Outros</option>
             </select>
 
             <select id="manGlobalLocal" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
@@ -294,7 +304,7 @@
             <option value="Fundo Imobiliário">Fundo Imobiliário</option>
         </select>
 
-        <input type="number" id="manValor" placeholder="Valor (R$)">
+        <input type="number" id="manValor" placeholder="Valor (R$ nac. / US$ globais)">
         
         <div class="modal-actions">
             <button class="btn-upload" onclick="adicionarAtivoManual()">Salvar</button>

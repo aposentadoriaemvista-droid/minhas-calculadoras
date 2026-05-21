@@ -19,7 +19,19 @@ google.charts.load('current', {
     'packages': ['geochart']
 });
 
+let cotacaoDolarGlobal = 5.00; // Valor padrão de segurança
 
+// Função que roda invisível quando o site abre para pegar o Dólar de agora
+async function initApp() {
+    try {
+        const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+        const data = await res.json();
+        cotacaoDolarGlobal = parseFloat(data.USDBRL.bid);
+    } catch (e) {
+        console.warn("API de Dólar falhou. Usando R$ 5,00 como base.");
+    }
+}
+initApp();
 
 // 1. Mapeamento Inteligente com 8 Categorias
 const mapToSeven = (subclasseXp, ativo) => {
@@ -415,18 +427,28 @@ function fecharModal() {
     document.getElementById('manGlobalLocal').value = '';
 }
 
-// Função de adicionar ativo atualizada
 function adicionarAtivoManual() {
     const nome = document.getElementById('manNome').value;
     const classe = document.getElementById('manClasse').value;
     const sub = document.getElementById('manSub').value; 
-    const valor = parseFloat(document.getElementById('manValor').value) || 0;
+    let valorInput = parseFloat(document.getElementById('manValor').value);
+    
+    // Permite que o valor seja zero!
+    if (isNaN(valorInput)) valorInput = 0; 
 
-    if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos obrigatórios!");
+    if (!nome || !sub) return alert("Preencha todos os campos obrigatórios!");
 
     let extrasAtivo = {};
-    
-    if (classe === "Fundos Imobiliários") {
+    let valorFinalReais = valorInput;
+
+    // Se for global, transforma o US$ digitado em R$ para os cálculos gerais
+    if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
+        valorFinalReais = valorInput * cotacaoDolarGlobal;
+        extrasAtivo = {
+            setor: document.getElementById('manGlobalSetor').value || "Não Classificado",
+            localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado"
+        };
+    } else if (classe === "Fundos Imobiliários") {
         extrasAtivo = {
             classeFii: document.getElementById('manFiiClasse').value || "-",
             gestora: document.getElementById('manFiiGestora').value || "-",
@@ -436,20 +458,98 @@ function adicionarAtivoManual() {
         extrasAtivo = {
             classeRV: document.getElementById('manRvClasse').value || "Não Classificado"
         };
-    } else if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
-        extrasAtivo = {
-            setor: document.getElementById('manGlobalSetor').value || "Não Classificado",
-            localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado"
-        };
     }
 
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
-    globalDetalheMap[classe].total += valor;
+    globalDetalheMap[classe].total += valorFinalReais;
     
-    globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
+    globalDetalheMap[classe].assets.push({ nome: nome, valor: valorFinalReais, sub: sub, extras: extrasAtivo });
     
     recalcularTudoERenderizar();
     fecharModal(); 
+}
+
+// 3. Lê o Excel Offshore e injeta no Sistema (Agora aceitando zeros)
+// 3. Lê o Excel Offshore e injeta no Sistema (Versão Blindada)
+async function importarPlanilhaOffshore(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Tenta atualizar a cotação antes de processar
+    await initApp(); 
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+
+            let contagem = 0;
+
+            // Começa a ler da Linha 2 (índice 1), pulando os cabeçalhos
+            for (let i = 1; i < matrix.length; i++) {
+                const row = matrix[i];
+                if (!row || row.length === 0) continue;
+
+                const nomeAtivo = row[0];
+                const codigo = row[1];
+                
+                // SEGURANÇA 1: Se a linha não tiver Nome nem Código, ela é vazia e deve ser pulada
+                if (!nomeAtivo && !codigo) continue;
+
+                const setor = row[2] || "Não Classificado";
+                const paisLocal = row[3] || "Não Classificado";
+                const classePlanilha = row[4] || "Renda Variavel Global"; 
+                
+                // SEGURANÇA 2: Se o valor estiver vazio, em branco ou for texto, transforma em ZERO (0)
+                let rawValor = row[5];
+                let valorDolar = 0; 
+                
+                if (rawValor !== undefined && rawValor !== null && rawValor !== "") {
+                    if (typeof rawValor === 'string') {
+                        valorDolar = parseFloat(rawValor.replace(',', '.'));
+                    } else {
+                        valorDolar = parseFloat(rawValor);
+                    }
+                }
+                if (isNaN(valorDolar)) valorDolar = 0;
+
+                const nomeFinal = codigo ? codigo.toString().toUpperCase() : nomeAtivo.toString();
+                const regiaoMapeada = traduzirPaisParaRegiao(paisLocal);
+                
+                // Multiplica o ZERO (ou o valor real) pela cotação
+                const valorEmReais = valorDolar * cotacaoDolarGlobal;
+
+                if (!globalDetalheMap[classePlanilha]) {
+                    globalDetalheMap[classePlanilha] = { total: 0, assets: [] };
+                }
+
+                globalDetalheMap[classePlanilha].total += valorEmReais;
+                globalDetalheMap[classePlanilha].assets.push({
+                    nome: nomeFinal,
+                    valor: valorEmReais, // Fica guardado em Reais (R$ 0.00) nos cálculos
+                    sub: "Dólar",
+                    extras: { setor: setor, localizacao: regiaoMapeada }
+                });
+                contagem++;
+            }
+
+            // Exibe as mensagens corretas
+            if (contagem > 0) {
+                recalcularTudoERenderizar();
+                alert(`Sucesso! ${contagem} ativos importados.\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+            } else {
+                alert("Aviso: A planilha foi lida, mas não encontramos nenhum ativo escrito da linha 2 em diante. Lembre-se de colocar ao menos o Nome ou Código!");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erro interno ao ler a planilha. Verifique se ela não está corrompida.");
+        } finally {
+            event.target.value = ''; // Limpa o botão para permitir subir a mesma planilha de novo
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 function excluirAtivo(classe, index) {
@@ -819,15 +919,25 @@ function renderizarAbaFII(cat, dadosCat, tabEl) {
     renderChartGestoras(resumoGestoras);
 }
 
-// Função Auxiliar Modificada (Agora aceita um HTML extra para o topo)
-function htmlTabelaBase(titulo, total, thsHTML, trsHTML, topExtraHTML = "") {
+// Função Auxiliar Modificada (Agora suporta mudança para US$)
+function htmlTabelaBase(titulo, total, thsHTML, trsHTML, topExtraHTML = "", moeda = "R$") {
+    let totalFormatado = "";
+    
+    // Se a aba for global, converte o total em Reais de volta para Dólar na visualização!
+    if (moeda === "US$") {
+        const totalDolar = total / cotacaoDolarGlobal;
+        totalFormatado = `US$ ${totalDolar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    } else {
+        totalFormatado = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
     return `
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
                 <h3 style="margin: 0; border: none; padding: 0;">${titulo}</h3>
                 <div style="text-align: right;">
                     <span style="font-size: 0.8rem; color: var(--text-muted);">Total na Classe</span><br>
-                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">${totalFormatado}</strong>
                 </div>
             </div>
             
@@ -1000,7 +1110,6 @@ function editarClasseRV(cat, index) {
 function renderizarAbaGlobal(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
     
-    // Agrupa valores para os dois gráficos
     const resumoLocais = {};
     const resumoSetores = {};
     
@@ -1008,8 +1117,9 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
         const local = (a.extras && a.extras.localizacao && a.extras.localizacao !== "-") ? a.extras.localizacao : "Não Classificado";
         const setor = (a.extras && a.extras.setor && a.extras.setor !== "-") ? a.extras.setor : "Não Classificado";
         
-        resumoLocais[local] = (resumoLocais[local] || 0) + a.valor;
-        resumoSetores[setor] = (resumoSetores[setor] || 0) + a.valor;
+        // Passa para os gráficos já convertido em Dólar!
+        resumoLocais[local] = (resumoLocais[local] || 0) + (a.valor / cotacaoDolarGlobal);
+        resumoSetores[setor] = (resumoSetores[setor] || 0) + (a.valor / cotacaoDolarGlobal);
     });
 
     const isRV = cat === "Renda Variavel Global";
@@ -1017,7 +1127,6 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
     const chartGeoId = isRV ? "chartGeoRV" : "chartGeoRF";
     const corTema = isRV ? "#f59e0b" : "#0ea5e9";
 
-    // O container duplo (Setores e Mapa Múndi)
     const graficosDuplosHtml = `
         <div class="fii-top-panels" style="align-items: center;">
             <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid ${corTema};">
@@ -1033,11 +1142,13 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
         </div>
     `;
 
-    // A Tabela com campos duplos de edição
     let rowsHtml = assets.map((a, index) => {
-        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
+        const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
         const setor = a.extras?.setor || 'Não Classificado';
         const local = a.extras?.localizacao || 'Não Classificado';
+        
+        // Converte o item da tabela para Dólar
+        const valorEmDolar = a.valor / cotacaoDolarGlobal;
 
         return `
             <tr>
@@ -1054,20 +1165,72 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
                         <button onclick="editarCampoGlobal('${cat}', ${index}, 'localizacao')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Alterar Localização">✏️</button>
                     </div>
                 </td>
-                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">US$ ${valorEmDolar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
                 <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
             </tr>
         `;
     }).join('');
 
-    const cabecalhoEspecial = `<th>Ativo</th><th>Setor</th><th>Localização</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
+    const cabecalhoEspecial = `<th>Ativo</th><th>Setor</th><th>Localização</th><th style="text-align: right;">Valor (US$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
     
-    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficosDuplosHtml);
+    // Passamos "US$" como o 6º parâmetro para forçar o cabeçalho em dólar!
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficosDuplosHtml, "US$");
     
-    // Chama a renderização dos dois gráficos
     renderChartSetorGlobal(resumoSetores, chartSetorId);
     renderGeoChartGlobal(resumoLocais, chartGeoId);
+}
+
+// Mapa Múndi atualizado para mostrar "US$" ao passar o mouse
+function renderGeoChartGlobal(dadosLocais, containerId) {
+    if (!google.visualization || !google.visualization.DataTable) {
+        setTimeout(() => renderGeoChartGlobal(dadosLocais, containerId), 500);
+        return;
+    }
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const regionMap = {
+        "América do Norte": { codes: ["021"], index: 1 }, 
+        "América Latina": { codes: ["005", "013", "029"], index: 2 }, 
+        "Europa": { codes: ["154", "155", "151", "039"], index: 3 },
+        "África": { codes: ["015", "014", "011", "018", "017"], index: 4 },
+        "Ásia": { codes: ["143", "030", "034", "035", "145"], index: 5 },
+        "Oceania": { codes: ["053", "054", "057", "061"], index: 6 }
+    };
+
+    var data = new google.visualization.DataTable();
+    data.addColumn('string', 'Região');
+    data.addColumn('number', 'Alocado'); 
+
+    let temDadosNoMapa = false;
+    for (let local in dadosLocais) {
+        let config = regionMap[local];
+        let valorDolar = dadosLocais[local]; // Já chega em dólar
+        
+        if (config && valorDolar > 0) {
+            config.codes.forEach(code => {
+                data.addRow([
+                    {v: code, f: local}, 
+                    {v: config.index, f: 'US$ ' + valorDolar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                ]);
+            });
+            temDadosNoMapa = true;
+        }
+    }
+
+    if (!temDadosNoMapa) data.addRow(['001', 0]);
+
+    var options = {
+        displayMode: 'regions', resolution: 'subcontinents', backgroundColor: 'transparent', datalessRegionColor: '#374151',
+        colorAxis: { values: [1, 2, 3, 4, 5, 6], colors: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#14b8a6'] },
+        legend: 'none', tooltip: { textStyle: { color: '#1f2937' }, showColorCode: true }
+    };
+
+    container.style.minWidth = "300px";
+    var chart = new google.visualization.GeoChart(container);
+    chart.draw(data, options);
 }
 
 // Gráfico de Pizza de Setores
@@ -1104,75 +1267,6 @@ function renderChartSetorGlobal(dadosSetores, canvasId) {
     else chartSetorGlobalRF = newChart;
 }
 
-// O NOVO GRÁFICO DE MAPA MÚNDI (Google GeoCharts) - CORES FIXAS E CORRIGIDAS
-function renderGeoChartGlobal(dadosLocais, containerId) {
-    if (!google.visualization || !google.visualization.DataTable) {
-        setTimeout(() => renderGeoChartGlobal(dadosLocais, containerId), 500);
-        return;
-    }
-
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    // 1. Mapeamento com códigos específicos e um "Índice de Cor" (de 1 a 6)
-    const regionMap = {
-        "América do Norte": { codes: ["021"], index: 1 }, 
-        // CORREÇÃO: América do Sul (005), América Central (013) e Caribe (029)
-        "América Latina": { codes: ["005", "013", "029"], index: 2 }, 
-        "Europa": { codes: ["154", "155", "151", "039"], index: 3 },
-        "África": { codes: ["015", "014", "011", "018", "017"], index: 4 },
-        "Ásia": { codes: ["143", "030", "034", "035", "145"], index: 5 },
-        "Oceania": { codes: ["053", "054", "057", "061"], index: 6 }
-    };
-
-    var data = new google.visualization.DataTable();
-    data.addColumn('string', 'Região');
-    data.addColumn('number', 'Alocado'); 
-
-    let temDadosNoMapa = false;
-    for (let local in dadosLocais) {
-        let config = regionMap[local];
-        let valor = dadosLocais[local];
-        
-        if (config && valor > 0) {
-            config.codes.forEach(code => {
-                // O TRUQUE: 'v' passa o índice da cor para o gráfico, 'f' passa o texto em Reais para a legenda!
-                data.addRow([
-                    {v: code, f: local}, 
-                    {v: config.index, f: 'R$ ' + valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                ]);
-            });
-            temDadosNoMapa = true;
-        }
-    }
-
-    if (!temDadosNoMapa) data.addRow(['001', 0]);
-
-    var options = {
-        displayMode: 'regions',
-        resolution: 'subcontinents',
-        backgroundColor: 'transparent',
-        datalessRegionColor: '#374151', // Cinza escuro para regiões vazias
-        colorAxis: {
-            // Aqui nós dizemos para o Google: "Quem tiver o índice 1 é Azul, 2 é Verde, etc."
-            values: [1, 2, 3, 4, 5, 6],
-            colors: [
-                '#3b82f6', // 1. América do Norte (Azul)
-                '#10b981', // 2. América Latina (Verde Neon)
-                '#8b5cf6', // 3. Europa (Roxo)
-                '#f59e0b', // 4. África (Amarelo Dourado)
-                '#ef4444', // 5. Ásia (Vermelho)
-                '#14b8a6'  // 6. Oceania (Verde-azulado)
-            ]
-        },
-        legend: 'none',
-        tooltip: { textStyle: { color: '#1f2937' }, showColorCode: true }
-    };
-
-    container.style.minWidth = "300px";
-    var chart = new google.visualization.GeoChart(container);
-    chart.draw(data, options);
-}
 
 function editarCampoGlobal(cat, index, campo) {
     const ativo = globalDetalheMap[cat].assets[index];
@@ -1220,4 +1314,115 @@ function editarCampoGlobal(cat, index, campo) {
     };
     
     document.getElementById('btnCancelarEdit').onclick = () => document.body.removeChild(dialog);
+}
+
+// ==========================================
+// MÓDULO: IMPORTAÇÃO OFFSHORE (PLANILHA EXTERNA)
+// ==========================================
+
+// 1. Dicionário de Países para as 6 Regiões do Cliente
+function traduzirPaisParaRegiao(pais) {
+    if (!pais) return "Não Classificado";
+    const p = pais.toLowerCase().trim();
+    
+    const americaNorte = ['eua', 'estados unidos', 'usa', 'united states', 'canadá', 'canada', 'méxico', 'mexico'];
+    const europa = ['alemanha', 'inglaterra', 'reino unido', 'uk', 'frança', 'espanha', 'itália', 'suíça', 'europa', 'holanda', 'irlanda'];
+    const amLatina = ['brasil', 'argentina', 'chile', 'colômbia', 'peru', 'uruguai', 'américa latina'];
+    const asia = ['china', 'japão', 'japan', 'índia', 'india', 'coreia', 'singapura', 'ásia', 'asia', 'taiwan'];
+    const oceania = ['austrália', 'australia', 'nova zelândia', 'oceania'];
+    const africa = ['áfrica', 'africa', 'áfrica do sul', 'nigeria', 'egito'];
+
+    if (americaNorte.some(x => p.includes(x))) return "América do Norte";
+    if (europa.some(x => p.includes(x))) return "Europa";
+    if (amLatina.some(x => p.includes(x))) return "América Latina";
+    if (asia.some(x => p.includes(x))) return "Ásia";
+    if (oceania.some(x => p.includes(x))) return "Oceania";
+    if (africa.some(x => p.includes(x))) return "África";
+
+    return "Não Classificado"; 
+}
+
+// 2. Busca a Cotação do Dólar em Tempo Real
+async function obterCotacaoDolar() {
+    try {
+        const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+        const data = await res.json();
+        return parseFloat(data.USDBRL.bid);
+    } catch (e) {
+        console.warn("API de Dólar falhou, pedindo manual...");
+        const manual = prompt("Erro ao buscar dólar online. Digite a cotação de hoje (ex: 5.15):", "5.00");
+        return parseFloat(manual.replace(',', '.')) || 5.00;
+    }
+}
+
+// 3. Lê o Excel e injeta no Sistema
+async function importarPlanilhaOffshore(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Pausa para pegar o dólar
+    const cotacaoDolar = await obterCotacaoDolar();
+    alert(`Cotação do Dólar obtida com sucesso: R$ ${cotacaoDolar.toFixed(3)}\nProcessando ativos...`);
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+
+        let contagem = 0;
+
+        // Pula a linha 0 (Cabeçalho) e lê do 1 em diante
+        for (let i = 1; i < matrix.length; i++) {
+            const row = matrix[i];
+            if (!row || row.length === 0) continue;
+
+            // Mapeando as colunas conforme o modelo do cliente
+            const nomeAtivo = row[0];
+            const codigo = row[1];
+            const setor = row[2] || "Não Classificado";
+            const paisLocal = row[3] || "";
+            const classePlanilha = row[4] || "Renda Variavel Global"; 
+            
+            // Coluna 5: Valor (Tratando se vier com vírgula ou ponto)
+            let rawValor = row[5];
+            let valorDolar = typeof rawValor === 'string' ? parseFloat(rawValor.replace(',', '.')) : parseFloat(rawValor);
+            if (isNaN(valorDolar) || valorDolar <= 0) continue;
+
+            // Usa o Código se existir (ex: AAPL, TSLA), senão usa o Nome
+            const nomeFinal = codigo ? codigo.toString().toUpperCase() : nomeAtivo;
+            
+            // Lógica Inteligente
+            const regiaoMapeada = traduzirPaisParaRegiao(paisLocal);
+            const valorEmReais = valorDolar * cotacaoDolar;
+
+            // Injeta na classe exata (RV Global, RF Global, etc.)
+            if (!globalDetalheMap[classePlanilha]) {
+                globalDetalheMap[classePlanilha] = { total: 0, assets: [] };
+            }
+
+            globalDetalheMap[classePlanilha].total += valorEmReais;
+            globalDetalheMap[classePlanilha].assets.push({
+                nome: nomeFinal,
+                valor: valorEmReais,
+                sub: "Dólar", // Define a subclasse padrão para exterior
+                extras: {
+                    setor: setor,
+                    localizacao: regiaoMapeada
+                }
+            });
+
+            contagem++;
+        }
+
+        if (contagem > 0) {
+            recalcularTudoERenderizar();
+            alert(`Sucesso! ${contagem} ativos importados e convertidos para Reais.`);
+        } else {
+            alert("Nenhum ativo válido com valor em dólar foi encontrado.");
+        }
+        
+        event.target.value = ''; // Limpa o botão para permitir subir a mesma planilha se errar
+    };
+    reader.readAsArrayBuffer(file);
 }
