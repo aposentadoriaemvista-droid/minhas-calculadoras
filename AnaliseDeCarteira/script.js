@@ -9,6 +9,8 @@ let globalDetalheMap = {}; // Guardará os ativos atuais
 let globalSubclassesMap = {};
 let chartGestorasFII = null;
 let chartClassesRV = null;
+let chartRVGlobal = null;
+let chartRFGlobal = null;
 
 
 
@@ -374,16 +376,20 @@ function verificarCamposExtras() {
     const classe = document.getElementById('manClasse').value;
     const divFII = document.getElementById('camposExtraFII');
     const divRV = document.getElementById('camposExtraRV'); // Pega a nova div
+    const divGlobal = document.getElementById('camposExtraGlobal'); // Nova div global
     
     // Primeiro, esconde tudo para garantir que não fiquem duas caixinhas abertas
     divFII.style.display = 'none';
     divRV.style.display = 'none';
+    divGlobal.style.display = 'none';
 
     // Depois, mostra apenas a caixinha correta
     if (classe === "Fundos Imobiliários") {
         divFII.style.display = 'flex';
     } else if (classe === "Renda Variavel Brasil") {
         divRV.style.display = 'flex';
+    } else if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
+        divGlobal.style.display = 'flex';
     }
 }
 
@@ -398,6 +404,8 @@ function fecharModal() {
     document.getElementById('manFiiGestora').value = '';
     document.getElementById('manFiiIndexador').value = '';
     document.getElementById('manRvClasse').value = ''; // Limpa o novo input de RV
+    document.getElementById('manGlobalSetor').value = ''; 
+    document.getElementById('manGlobalLocal').value = '';
 }
 
 // Função de adicionar ativo atualizada
@@ -409,7 +417,6 @@ function adicionarAtivoManual() {
 
     if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos obrigatórios!");
 
-    // Captura os dados extras dependendo da classe escolhida
     let extrasAtivo = {};
     
     if (classe === "Fundos Imobiliários") {
@@ -422,12 +429,16 @@ function adicionarAtivoManual() {
         extrasAtivo = {
             classeRV: document.getElementById('manRvClasse').value || "Não Classificado"
         };
+    } else if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
+        extrasAtivo = {
+            setor: document.getElementById('manGlobalSetor').value || "Não Classificado",
+            localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado"
+        };
     }
 
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
     globalDetalheMap[classe].total += valor;
     
-    // Enviando o extrasAtivo junto com o ativo manual
     globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
     
     recalcularTudoERenderizar();
@@ -681,7 +692,9 @@ function renderizarAbasEspecificas(detalhe) {
     // 2. Construtores específicos (Mapeamento arquitetural limpo)
     const construtoresDeAba = {
         "Fundos Imobiliários": renderizarAbaFII,
-        "Renda Variavel Brasil": renderizarAbaRV
+        "Renda Variavel Brasil": renderizarAbaRV,
+        "Renda Variavel Global": renderizarAbaGlobal, // <-- Adicionado
+        "Renda Fixa Global": renderizarAbaGlobal      // <-- Adicionado
         // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRFjjbj
     };
 
@@ -969,6 +982,121 @@ function editarClasseRV(cat, index) {
         ativo.extras.classeRV = novaClasse.trim();
         
         // Recalcula o projeto para atualizar tabelas e gráficos em tempo real
+        recalcularTudoERenderizar();
+    }
+}
+
+// ==========================================
+// MÓDULO: ATIVOS GLOBAIS (RV e RF)
+// ==========================================
+
+function renderizarAbaGlobal(cat, dadosCat, tabEl) {
+    const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
+    
+    // Agrupa os valores pela "Localização"
+    const resumoLocais = {};
+    assets.forEach(a => {
+        const local = (a.extras && a.extras.localizacao && a.extras.localizacao !== "-") ? a.extras.localizacao : "Não Classificado";
+        resumoLocais[local] = (resumoLocais[local] || 0) + a.valor;
+    });
+
+    const chartId = cat === "Renda Variavel Global" ? "chartRVGlobal" : "chartRFGlobal";
+
+    // O container do gráfico (cor adaptada ao design)
+    const graficoHtml = `
+        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
+            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 600px; border-color: #f59e0b;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Localização</h4>
+                <div style="position: relative; height: 260px; width: 100%;">
+                    <canvas id="${chartId}"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // A Tabela com campos duplos de edição
+    let rowsHtml = assets.map((a, index) => {
+        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
+        const setor = a.extras?.setor || 'Não Classificado';
+        const local = a.extras?.localizacao || 'Não Classificado';
+
+        return `
+            <tr>
+                <td><strong>${a.nome}</strong></td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: var(--text-muted); font-size: 0.9rem;">${setor}</span>
+                        <button onclick="editarCampoGlobal('${cat}', ${index}, 'setor')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Alterar Setor">✏️</button>
+                    </div>
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">${local}</span>
+                        <button onclick="editarCampoGlobal('${cat}', ${index}, 'localizacao')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Alterar Localização">✏️</button>
+                    </div>
+                </td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    const cabecalhoEspecial = `<th>Ativo</th><th>Setor</th><th>Localização</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
+    
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficoHtml);
+    renderChartGlobal(resumoLocais, chartId);
+}
+
+function renderChartGlobal(dadosLocais, canvasId) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Destrói o gráfico correto antes de redesenhar
+    if (canvasId === "chartRVGlobal" && chartRVGlobal) chartRVGlobal.destroy();
+    if (canvasId === "chartRFGlobal" && chartRFGlobal) chartRFGlobal.destroy();
+
+    const labelsRaw = Object.keys(dadosLocais);
+    const dataRaw = Object.values(dadosLocais);
+    const total = dataRaw.reduce((acc, val) => acc + val, 0);
+
+    const labelsComPerc = labelsRaw.map((nome, index) => {
+        const perc = ((dataRaw[index] / total) * 100).toFixed(1);
+        return `${nome} (${perc}%)`;
+    });
+
+    const newChart = new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: labelsComPerc,
+            datasets: [{
+                data: dataRaw,
+                backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'],
+                borderColor: '#1f2937',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 }, padding: 15 } }
+            }
+        }
+    });
+
+    if (canvasId === "chartRVGlobal") chartRVGlobal = newChart;
+    else chartRFGlobal = newChart;
+}
+
+function editarCampoGlobal(cat, index, campo) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const valorAtual = ativo.extras?.[campo] || 'Não Classificado';
+    const nomeCampo = campo === 'setor' ? 'Setor' : 'Localização';
+    const novoValor = prompt(`Defina o(a) ${nomeCampo} para o ativo ${ativo.nome}:`, valorAtual);
+    
+    if (novoValor !== null && novoValor.trim() !== "") {
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras[campo] = novoValor.trim();
         recalcularTudoERenderizar();
     }
 }

@@ -219,12 +219,58 @@
             <input type="text" id="manFiiIndexador" placeholder="Indexador (ex: IPCA, CDI)">
 
         </div>
-        <!-- NOVA Caixinha das Ações (RV) -->
-        <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
+       <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
             <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de Ações</p>
-            <input type="text" id="manRvClasse" placeholder="Estratégia / Setor (ex: Dividendos, Bancos)">
+            <select id="manRvClasse" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione o Setor...</option>
+                <option value="Agro">Agro</option>
+                <option value="Construção civil">Construção civil</option>
+                <option value="Diversificado">Diversificado</option>
+                <option value="Educação">Educação</option>
+                <option value="Eletrica">Eletrica</option>
+                <option value="Financeiro">Financeiro</option>
+                <option value="Holding">Holding</option>
+                <option value="Industria">Industria</option>
+                <option value="Locadoras">Locadoras</option>
+                <option value="Metalurgia">Metalurgia</option>
+                <option value="Mineração">Mineração</option>
+                <option value="Papel e Celulose">Papel e Celulose</option>
+                <option value="Petroleo Gas E Energia">Petroleo Gas E Energia</option>
+                <option value="Sidelurgia">Sidelurgia</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Telecomunicação">Telecomunicação</option>
+                <option value="Varejo">Varejo</option>
+                <option value="Varejo Turismo">Varejo Turismo</option>
+            </select>
         </div>
 
+      <div id="camposExtraGlobal" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(245, 158, 11, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #f59e0b;">
+            <p style="margin: 0; font-size: 0.8rem; color: #f59e0b; font-weight: bold;">Campos Específicos Globais</p>
+            
+            <select id="manGlobalSetor" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione o Setor...</option>
+                <option value="Agro">Agro</option>
+                <option value="Construção civil">Construção civil</option>
+                <option value="Diversificado">Diversificado</option>
+                <option value="Educação">Educação</option>
+                <option value="Eletrica">Eletrica</option>
+                <option value="Financeiro">Financeiro</option>
+                <option value="Holding">Holding</option>
+                <option value="Industria">Industria</option>
+                <option value="Locadoras">Locadoras</option>
+                <option value="Metalurgia">Metalurgia</option>
+                <option value="Mineração">Mineração</option>
+                <option value="Papel e Celulose">Papel e Celulose</option>
+                <option value="Petroleo Gas E Energia">Petroleo Gas E Energia</option>
+                <option value="Sidelurgia">Sidelurgia</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Telecomunicação">Telecomunicação</option>
+                <option value="Varejo">Varejo</option>
+                <option value="Varejo Turismo">Varejo Turismo</option>
+            </select>
+
+            <input type="text" id="manGlobalLocal" placeholder="Localização (ex: EUA, Europa, Ásia)">
+        </div>
 
         
         <select id="manSub">
