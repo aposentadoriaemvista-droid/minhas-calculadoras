@@ -11,6 +11,13 @@ let chartGestorasFII = null;
 let chartClassesRV = null;
 let chartRVGlobal = null;
 let chartRFGlobal = null;
+let chartSetorGlobalRV = null;
+let chartSetorGlobalRF = null;
+
+// Carrega o pacote de Mapas do Google
+google.charts.load('current', {
+    'packages': ['geochart']
+});
 
 
 
@@ -987,29 +994,41 @@ function editarClasseRV(cat, index) {
 }
 
 // ==========================================
-// MÓDULO: ATIVOS GLOBAIS (RV e RF)
+// MÓDULO: ATIVOS GLOBAIS (RV e RF com Mapa Múndi)
 // ==========================================
 
 function renderizarAbaGlobal(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
     
-    // Agrupa os valores pela "Localização"
+    // Agrupa valores para os dois gráficos
     const resumoLocais = {};
+    const resumoSetores = {};
+    
     assets.forEach(a => {
         const local = (a.extras && a.extras.localizacao && a.extras.localizacao !== "-") ? a.extras.localizacao : "Não Classificado";
+        const setor = (a.extras && a.extras.setor && a.extras.setor !== "-") ? a.extras.setor : "Não Classificado";
+        
         resumoLocais[local] = (resumoLocais[local] || 0) + a.valor;
+        resumoSetores[setor] = (resumoSetores[setor] || 0) + a.valor;
     });
 
-    const chartId = cat === "Renda Variavel Global" ? "chartRVGlobal" : "chartRFGlobal";
+    const isRV = cat === "Renda Variavel Global";
+    const chartSetorId = isRV ? "chartSetorRV" : "chartSetorRF";
+    const chartGeoId = isRV ? "chartGeoRV" : "chartGeoRF";
+    const corTema = isRV ? "#f59e0b" : "#0ea5e9";
 
-    // O container do gráfico (cor adaptada ao design)
-    const graficoHtml = `
-        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
-            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 600px; border-color: #f59e0b;">
-                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Localização</h4>
+    // O container duplo (Setores e Mapa Múndi)
+    const graficosDuplosHtml = `
+        <div class="fii-top-panels" style="align-items: center;">
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid ${corTema};">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Setor</h4>
                 <div style="position: relative; height: 260px; width: 100%;">
-                    <canvas id="${chartId}"></canvas>
+                    <canvas id="${chartSetorId}"></canvas>
                 </div>
+            </div>
+            <div class="fii-gestora-chart-container card" style="flex: 1.5; border-top: 3px solid ${corTema};">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Distribuição Geográfica</h4>
+                <div id="${chartGeoId}" style="width: 100%; height: 260px; display: flex; justify-content: center;"></div>
             </div>
         </div>
     `;
@@ -1031,7 +1050,7 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
                 </td>
                 <td>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">${local}</span>
+                        <span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid rgba(14, 165, 233, 0.3);">${local}</span>
                         <button onclick="editarCampoGlobal('${cat}', ${index}, 'localizacao')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Alterar Localização">✏️</button>
                     </div>
                 </td>
@@ -1044,26 +1063,26 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
 
     const cabecalhoEspecial = `<th>Ativo</th><th>Setor</th><th>Localização</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
     
-    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficoHtml);
-    renderChartGlobal(resumoLocais, chartId);
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficosDuplosHtml);
+    
+    // Chama a renderização dos dois gráficos
+    renderChartSetorGlobal(resumoSetores, chartSetorId);
+    renderGeoChartGlobal(resumoLocais, chartGeoId);
 }
 
-function renderChartGlobal(dadosLocais, canvasId) {
+// Gráfico de Pizza de Setores
+function renderChartSetorGlobal(dadosSetores, canvasId) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    // Destrói o gráfico correto antes de redesenhar
-    if (canvasId === "chartRVGlobal" && chartRVGlobal) chartRVGlobal.destroy();
-    if (canvasId === "chartRFGlobal" && chartRFGlobal) chartRFGlobal.destroy();
+    if (canvasId === "chartSetorRV" && chartSetorGlobalRV) chartSetorGlobalRV.destroy();
+    if (canvasId === "chartSetorRF" && chartSetorGlobalRF) chartSetorGlobalRF.destroy();
 
-    const labelsRaw = Object.keys(dadosLocais);
-    const dataRaw = Object.values(dadosLocais);
+    const labelsRaw = Object.keys(dadosSetores);
+    const dataRaw = Object.values(dadosSetores);
     const total = dataRaw.reduce((acc, val) => acc + val, 0);
 
-    const labelsComPerc = labelsRaw.map((nome, index) => {
-        const perc = ((dataRaw[index] / total) * 100).toFixed(1);
-        return `${nome} (${perc}%)`;
-    });
+    const labelsComPerc = labelsRaw.map((nome, index) => `${nome} (${((dataRaw[index] / total) * 100).toFixed(1)}%)`);
 
     const newChart = new Chart(ctx.getContext('2d'), {
         type: 'doughnut',
@@ -1072,31 +1091,133 @@ function renderChartGlobal(dadosLocais, canvasId) {
             datasets: [{
                 data: dataRaw,
                 backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'],
-                borderColor: '#1f2937',
-                borderWidth: 2
+                borderColor: '#1f2937', borderWidth: 2
             }]
         },
         options: {
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 }, padding: 15 } }
-            }
+            plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 10, font: { size: 9 }, padding: 10 } } }
         }
     });
 
-    if (canvasId === "chartRVGlobal") chartRVGlobal = newChart;
-    else chartRFGlobal = newChart;
+    if (canvasId === "chartSetorRV") chartSetorGlobalRV = newChart;
+    else chartSetorGlobalRF = newChart;
+}
+
+// O NOVO GRÁFICO DE MAPA MÚNDI (Google GeoCharts) - CORES FIXAS E CORRIGIDAS
+function renderGeoChartGlobal(dadosLocais, containerId) {
+    if (!google.visualization || !google.visualization.DataTable) {
+        setTimeout(() => renderGeoChartGlobal(dadosLocais, containerId), 500);
+        return;
+    }
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // 1. Mapeamento com códigos específicos e um "Índice de Cor" (de 1 a 6)
+    const regionMap = {
+        "América do Norte": { codes: ["021"], index: 1 }, 
+        // CORREÇÃO: América do Sul (005), América Central (013) e Caribe (029)
+        "América Latina": { codes: ["005", "013", "029"], index: 2 }, 
+        "Europa": { codes: ["154", "155", "151", "039"], index: 3 },
+        "África": { codes: ["015", "014", "011", "018", "017"], index: 4 },
+        "Ásia": { codes: ["143", "030", "034", "035", "145"], index: 5 },
+        "Oceania": { codes: ["053", "054", "057", "061"], index: 6 }
+    };
+
+    var data = new google.visualization.DataTable();
+    data.addColumn('string', 'Região');
+    data.addColumn('number', 'Alocado'); 
+
+    let temDadosNoMapa = false;
+    for (let local in dadosLocais) {
+        let config = regionMap[local];
+        let valor = dadosLocais[local];
+        
+        if (config && valor > 0) {
+            config.codes.forEach(code => {
+                // O TRUQUE: 'v' passa o índice da cor para o gráfico, 'f' passa o texto em Reais para a legenda!
+                data.addRow([
+                    {v: code, f: local}, 
+                    {v: config.index, f: 'R$ ' + valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                ]);
+            });
+            temDadosNoMapa = true;
+        }
+    }
+
+    if (!temDadosNoMapa) data.addRow(['001', 0]);
+
+    var options = {
+        displayMode: 'regions',
+        resolution: 'subcontinents',
+        backgroundColor: 'transparent',
+        datalessRegionColor: '#374151', // Cinza escuro para regiões vazias
+        colorAxis: {
+            // Aqui nós dizemos para o Google: "Quem tiver o índice 1 é Azul, 2 é Verde, etc."
+            values: [1, 2, 3, 4, 5, 6],
+            colors: [
+                '#3b82f6', // 1. América do Norte (Azul)
+                '#10b981', // 2. América Latina (Verde Neon)
+                '#8b5cf6', // 3. Europa (Roxo)
+                '#f59e0b', // 4. África (Amarelo Dourado)
+                '#ef4444', // 5. Ásia (Vermelho)
+                '#14b8a6'  // 6. Oceania (Verde-azulado)
+            ]
+        },
+        legend: 'none',
+        tooltip: { textStyle: { color: '#1f2937' }, showColorCode: true }
+    };
+
+    container.style.minWidth = "300px";
+    var chart = new google.visualization.GeoChart(container);
+    chart.draw(data, options);
 }
 
 function editarCampoGlobal(cat, index, campo) {
     const ativo = globalDetalheMap[cat].assets[index];
     const valorAtual = ativo.extras?.[campo] || 'Não Classificado';
-    const nomeCampo = campo === 'setor' ? 'Setor' : 'Localização';
-    const novoValor = prompt(`Defina o(a) ${nomeCampo} para o ativo ${ativo.nome}:`, valorAtual);
+    const isSetor = campo === 'setor';
     
-    if (novoValor !== null && novoValor.trim() !== "") {
-        if (!ativo.extras) ativo.extras = {};
-        ativo.extras[campo] = novoValor.trim();
-        recalcularTudoERenderizar();
+    let optionsHtml = '';
+    
+    if (isSetor) {
+        const setores = ["Agro", "Construção civil", "Diversificado", "Educação", "Eletrica", "Financeiro", "Holding", "Industria", "Locadoras", "Metalurgia", "Mineração", "Papel e Celulose", "Petroleo Gas E Energia", "Sidelurgia", "Tecnologia", "Telecomunicação", "Varejo", "Varejo Turismo"];
+        optionsHtml = setores.map(s => `<option value="${s}">${s}</option>`).join('');
+    } else {
+        const locais = ["América do Norte", "América Latina", "Europa", "África", "Ásia", "Oceania"];
+        optionsHtml = locais.map(l => `<option value="${l}">${l}</option>`).join('');
     }
+
+    // Cria um modal dinâmico e elegante na tela
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `
+        <div class="modal-content">
+            <h3>Editar ${isSetor ? 'Setor' : 'Localização'}</h3>
+            <p style="color: var(--text-muted); margin-top: -10px;">Ativo: <strong>${ativo.nome}</strong></p>
+            <select id="tempEditSelect" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin: 15px 0;">
+                <option value="Não Classificado">Não Classificado</option>
+                ${optionsHtml}
+            </select>
+            <div class="modal-actions">
+                <button class="btn-upload" id="btnSalvarEdit">Salvar</button>
+                <button class="btn-upload danger" id="btnCancelarEdit">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    
+    // Já deixa a opção atual selecionada no dropdown
+    document.getElementById('tempEditSelect').value = valorAtual;
+
+    // Ações dos botões
+    document.getElementById('btnSalvarEdit').onclick = () => {
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras[campo] = document.getElementById('tempEditSelect').value;
+        document.body.removeChild(dialog);
+        recalcularTudoERenderizar();
+    };
+    
+    document.getElementById('btnCancelarEdit').onclick = () => document.body.removeChild(dialog);
 }

@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
 </head>
 <body>
     <div class="app-shell">
@@ -269,7 +270,15 @@
                 <option value="Varejo Turismo">Varejo Turismo</option>
             </select>
 
-            <input type="text" id="manGlobalLocal" placeholder="Localização (ex: EUA, Europa, Ásia)">
+            <select id="manGlobalLocal" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione a Região...</option>
+                <option value="América do Norte">América do Norte</option>
+                <option value="América Latina">América Latina</option>
+                <option value="Europa">Europa</option>
+                <option value="África">África</option>
+                <option value="Ásia">Ásia</option>
+                <option value="Oceania">Oceania</option>
+            </select>
         </div>
 
         
