@@ -1127,21 +1127,22 @@ function renderizarAbaGlobal(cat, dadosCat, tabEl) {
     const chartGeoId = isRV ? "chartGeoRV" : "chartGeoRF";
     const corTema = isRV ? "#f59e0b" : "#0ea5e9";
 
+    // Aplicando overflow: hidden para o mapa não vazar!
+    // Painel Duplo Ampliado (Sem cortes, com mais altura)
     const graficosDuplosHtml = `
-        <div class="fii-top-panels" style="align-items: center;">
-            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid ${corTema};">
+        <div class="fii-top-panels" style="align-items: stretch;">
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid ${corTema}; min-height: 350px;">
                 <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Setor</h4>
-                <div style="position: relative; height: 260px; width: 100%;">
+                <div style="position: relative; height: 300px; width: 100%;">
                     <canvas id="${chartSetorId}"></canvas>
                 </div>
             </div>
-            <div class="fii-gestora-chart-container card" style="flex: 1.5; border-top: 3px solid ${corTema};">
+            <div class="fii-gestora-chart-container card" style="flex: 1.5; border-top: 3px solid ${corTema}; min-height: 350px; padding: 15px;">
                 <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Distribuição Geográfica</h4>
-                <div id="${chartGeoId}" style="width: 100%; height: 260px; display: flex; justify-content: center;"></div>
+                <div id="${chartGeoId}" style="width: 100%; height: 300px; display: flex; justify-content: center; align-items: center;"></div>
             </div>
         </div>
     `;
-
     let rowsHtml = assets.map((a, index) => {
         const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
         const setor = a.extras?.setor || 'Não Classificado';
@@ -1228,7 +1229,7 @@ function renderGeoChartGlobal(dadosLocais, containerId) {
         legend: 'none', tooltip: { textStyle: { color: '#1f2937' }, showColorCode: true }
     };
 
-    container.style.minWidth = "300px";
+    
     var chart = new google.visualization.GeoChart(container);
     chart.draw(data, options);
 }
@@ -1355,74 +1356,205 @@ async function obterCotacaoDolar() {
     }
 }
 
-// 3. Lê o Excel e injeta no Sistema
+// 3. Lê o Excel Offshore Padrão e injeta no Sistema (Versão Blindada)
 async function importarPlanilhaOffshore(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Pausa para pegar o dólar
-    const cotacaoDolar = await obterCotacaoDolar();
-    alert(`Cotação do Dólar obtida com sucesso: R$ ${cotacaoDolar.toFixed(3)}\nProcessando ativos...`);
+    // Tenta atualizar a cotação antes de processar
+    await initApp(); 
 
     const reader = new FileReader();
     reader.onload = function(e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
 
-        let contagem = 0;
+            let contagem = 0;
 
-        // Pula a linha 0 (Cabeçalho) e lê do 1 em diante
-        for (let i = 1; i < matrix.length; i++) {
-            const row = matrix[i];
-            if (!row || row.length === 0) continue;
+            // Começa a ler da Linha 2 (índice 1), pulando os cabeçalhos
+            for (let i = 1; i < matrix.length; i++) {
+                const row = matrix[i];
+                if (!row || row.length === 0) continue;
 
-            // Mapeando as colunas conforme o modelo do cliente
-            const nomeAtivo = row[0];
-            const codigo = row[1];
-            const setor = row[2] || "Não Classificado";
-            const paisLocal = row[3] || "";
-            const classePlanilha = row[4] || "Renda Variavel Global"; 
-            
-            // Coluna 5: Valor (Tratando se vier com vírgula ou ponto)
-            let rawValor = row[5];
-            let valorDolar = typeof rawValor === 'string' ? parseFloat(rawValor.replace(',', '.')) : parseFloat(rawValor);
-            if (isNaN(valorDolar) || valorDolar <= 0) continue;
+                const nomeAtivo = row[0];
+                const codigo = row[1];
+                
+                // SEGURANÇA 1: Se a linha não tiver Nome nem Código, ela é vazia e deve ser pulada
+                if (!nomeAtivo && !codigo) continue;
 
-            // Usa o Código se existir (ex: AAPL, TSLA), senão usa o Nome
-            const nomeFinal = codigo ? codigo.toString().toUpperCase() : nomeAtivo;
-            
-            // Lógica Inteligente
-            const regiaoMapeada = traduzirPaisParaRegiao(paisLocal);
-            const valorEmReais = valorDolar * cotacaoDolar;
+                const setor = row[2] || "Não Classificado";
+                const paisLocal = row[3] || "Não Classificado";
+                const classePlanilha = row[4] || "Renda Variavel Global"; 
+                
+                // SEGURANÇA 2: Se o valor estiver vazio, em branco ou for texto, transforma em ZERO (0)
+                let rawValor = row[5];
+                let valorDolar = 0; 
+                
+                if (rawValor !== undefined && rawValor !== null && rawValor !== "") {
+                    if (typeof rawValor === 'string') {
+                        valorDolar = parseFloat(rawValor.replace(',', '.'));
+                    } else {
+                        valorDolar = parseFloat(rawValor);
+                    }
+                }
+                if (isNaN(valorDolar)) valorDolar = 0;
 
-            // Injeta na classe exata (RV Global, RF Global, etc.)
-            if (!globalDetalheMap[classePlanilha]) {
-                globalDetalheMap[classePlanilha] = { total: 0, assets: [] };
+                const nomeFinal = codigo ? codigo.toString().toUpperCase() : nomeAtivo.toString();
+                const regiaoMapeada = traduzirPaisParaRegiao(paisLocal);
+                
+                // Multiplica o ZERO (ou o valor real) pela cotação
+                const valorEmReais = valorDolar * cotacaoDolarGlobal;
+
+                if (!globalDetalheMap[classePlanilha]) {
+                    globalDetalheMap[classePlanilha] = { total: 0, assets: [] };
+                }
+
+                globalDetalheMap[classePlanilha].total += valorEmReais;
+                globalDetalheMap[classePlanilha].assets.push({
+                    nome: nomeFinal,
+                    valor: valorEmReais, // Fica guardado em Reais (R$ 0.00) nos cálculos
+                    sub: "Dólar",
+                    extras: { setor: setor, localizacao: regiaoMapeada }
+                });
+                contagem++;
             }
 
-            globalDetalheMap[classePlanilha].total += valorEmReais;
-            globalDetalheMap[classePlanilha].assets.push({
-                nome: nomeFinal,
-                valor: valorEmReais,
-                sub: "Dólar", // Define a subclasse padrão para exterior
-                extras: {
-                    setor: setor,
-                    localizacao: regiaoMapeada
-                }
-            });
-
-            contagem++;
+            // Exibe as mensagens corretas
+            if (contagem > 0) {
+                recalcularTudoERenderizar();
+                alert(`Sucesso! ${contagem} ativos importados.\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+            } else {
+                alert("Aviso: A planilha foi lida, mas não encontramos nenhum ativo escrito da linha 2 em diante. Lembre-se de colocar ao menos o Nome ou Código!");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erro interno ao ler a planilha. Verifique se ela não está corrompida.");
+        } finally {
+            // FECHA O MODAL E LIMPA O INPUT
+            document.getElementById('modalImportacao').style.display = 'none'; 
+            event.target.value = ''; 
         }
-
-        if (contagem > 0) {
-            recalcularTudoERenderizar();
-            alert(`Sucesso! ${contagem} ativos importados e convertidos para Reais.`);
-        } else {
-            alert("Nenhum ativo válido com valor em dólar foi encontrado.");
-        }
-        
-        event.target.value = ''; // Limpa o botão para permitir subir a mesma planilha se errar
     };
     reader.readAsArrayBuffer(file);
+}
+
+// ==========================================
+// MÓDULO NOVO: LEITOR DE EXTRATO AVENUE (PDF)
+// ==========================================
+
+// 1. Inicializa o motor do PDF.js
+const pdfjsLib = window['pdfjs-dist/build/pdf'];
+if (pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+}
+
+async function importarPlanilhaAvenue(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Fecha o modal de seleção imediatamente
+    document.getElementById('modalImportacao').style.display = 'none';
+
+    // Bloqueia caso o utilizador suba um Excel aqui por engano
+    if (file.type !== "application/pdf") {
+        alert("Por favor, selecione o ficheiro PDF do extrato da Avenue (Posição Consolidada).");
+        event.target.value = '';
+        return;
+    }
+
+    // Puxa a cotação em tempo real
+    await initApp(); 
+    alert(`Iniciando a leitura do extrato Avenue...\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+
+    const fileReader = new FileReader();
+    fileReader.onload = async function() {
+        try {
+            const typedarray = new Uint8Array(this.result);
+            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            
+            let contagem = 0;
+            let currentCategory = "Renda Variavel Global"; // Categoria Padrão
+
+            // Percorre todas as páginas do PDF
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                
+                // Limpa os textos, removendo espaços vazios inúteis
+                const items = textContent.items.map(item => item.str.trim()).filter(str => str.length > 0);
+
+                for (let j = 0; j < items.length; j++) {
+                    const strLower = items[j].toLowerCase();
+                    
+                    // A) RASTREADOR DE CATEGORIA: O robô "lê" o cabeçalho e memoriza onde está
+                    if (strLower.includes("renda fixa")) currentCategory = "Renda Fixa Global";
+                    if (strLower.includes("ações - global") || strLower.includes("ações global")) currentCategory = "Renda Variavel Global";
+
+                    // B) RASTREADOR DE ATIVO: Identificou um ativo!
+                    if (items[j] === "ETF's" || items[j] === "Bonds" || items[j] === "Stocks" || items[j] === "Caixa") {
+                        const ativo = items[j+1]; // O código (Ex: SPY, BIL) é sempre a palavra seguinte
+                        
+                        let volumeDolar = 0;
+                        let percCount = 0;
+                        let k = j + 2;
+                        
+                        // C) CAÇADOR DE VOLUME: A Avenue coloca 2 percentagens no fim da linha (VAR e Peso).
+                        // O valor do "Volume" é SEMPRE o item exato antes da segunda percentagem.
+                        while(k < items.length && percCount < 2) {
+                            if (items[k].includes('%')) {
+                                percCount++;
+                                if (percCount === 2) {
+                                    let volStr = items[k-1];
+                                    // Limpa o formato americano/brasileiro (ex: 6.368,98 -> 6368.98)
+                                    volumeDolar = parseFloat(volStr.replace(/\./g, '').replace(',', '.'));
+                                    break;
+                                }
+                            }
+                            k++;
+                        }
+
+                        // D) INJETA NA PLATAFORMA
+                        if (volumeDolar > 0) {
+                            const valorEmReais = volumeDolar * cotacaoDolarGlobal;
+                            
+                            // Se for Caixa da corretora, manda direto para a classe Caixa
+                            let categoriaFinal = currentCategory;
+                            if (items[j] === "Caixa") categoriaFinal = "Caixa";
+
+                            if (!globalDetalheMap[categoriaFinal]) {
+                                globalDetalheMap[categoriaFinal] = { total: 0, assets: [] };
+                            }
+
+                            globalDetalheMap[categoriaFinal].total += valorEmReais;
+                            globalDetalheMap[categoriaFinal].assets.push({
+                                nome: ativo.toUpperCase(),
+                                valor: valorEmReais,
+                                sub: "Dólar",
+                                // Como a Avenue não dá o setor, padronizamos como EUA e Não Classificado
+                                extras: { setor: "Não Classificado", localizacao: "América do Norte" }
+                            });
+                            contagem++;
+                        }
+                    }
+                }
+            }
+
+            // Exibe o resultado final e redesenha a tela
+            if (contagem > 0) {
+                recalcularTudoERenderizar();
+                alert(`Sucesso! ${contagem} ativos do extrato Avenue foram extraídos, categorizados e convertidos para Reais.`);
+            } else {
+                alert("O PDF foi lido, mas nenhum ativo válido foi encontrado. Verifique se escolheu o documento 'Posição Consolidada'.");
+            }
+
+        } catch (err) {
+            console.error("Erro na extração do PDF:", err);
+            alert("Erro ao processar o PDF. O ficheiro pode estar protegido com palavra-passe ou corrompido.");
+        } finally {
+            event.target.value = ''; // Limpa o input para permitir subir de novo, se necessário
+        }
+    };
+    fileReader.readAsArrayBuffer(file);
 }
