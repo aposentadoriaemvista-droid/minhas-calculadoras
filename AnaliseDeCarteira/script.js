@@ -80,7 +80,7 @@ async function loadGlossaryFromDrive() {
     // URL 2: Nova Aba de FIIs
     // Lembre-se de colar o seu link com o GID real aqui
     const urlFIIs = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv";
-
+const urlExterior = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=644052208&single=true&output=csv";
     const dict = {};
 
     try {
@@ -147,6 +147,31 @@ async function loadGlossaryFromDrive() {
                     if (!dict[ativo].extras) dict[ativo].extras = {};
                     
                     dict[ativo].extras.classeRV = row[1] || "Não Classificado"; // Coluna 2 = Classe/Estratégia
+                }
+            }
+        }
+        // 4. CARREGA A ABA EXTERIOR (Mapeia o Ticker -> Setor e País)
+        if (urlExterior && urlExterior !== "") {
+            const resExt = await fetch(urlExterior, { cache: 'no-store' });
+            const wbExt = XLSX.read(await resExt.text(), { type: 'string' });
+            const matrixExt = XLSX.utils.sheet_to_json(wbExt.Sheets[wbExt.SheetNames[0]], { header: 1 });
+
+            for (let i = 1; i < matrixExt.length; i++) { 
+                const row = matrixExt[i];
+                if (!row || row.length === 0) continue;
+                
+                const nome = norm(row[0]);
+                const codigo = norm(row[1]);
+                
+                // Na Avenue, o Ativo vem pelo código (Ex: GOVT, SPY). Se não tiver código, usa o nome.
+                const ativoKey = codigo ? codigo.toUpperCase() : (nome ? nome.toUpperCase() : null);
+                if (ativoKey) {
+                    if (!dict[ativoKey]) dict[ativoKey] = { cat: row[4] || "Renda Variavel Global", subclasse: "Dólar", extras: {} };
+                    if (!dict[ativoKey].extras) dict[ativoKey].extras = {};
+                    
+                    dict[ativoKey].extras.setor = row[2] || "Não Classificado";
+                    // Já traduz o país (ex: EUA -> América do Norte) para o mapa múndi entender
+                    dict[ativoKey].extras.localizacao = traduzirPaisParaRegiao(row[3]); 
                 }
             }
         }
@@ -1454,19 +1479,18 @@ async function importarPlanilhaAvenue(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Fecha o modal de seleção imediatamente
     document.getElementById('modalImportacao').style.display = 'none';
 
-    // Bloqueia caso o utilizador suba um Excel aqui por engano
     if (file.type !== "application/pdf") {
         alert("Por favor, selecione o ficheiro PDF do extrato da Avenue (Posição Consolidada).");
         event.target.value = '';
         return;
     }
 
-    // Puxa a cotação em tempo real
+    // Baixa a cotação e o Glossário de uma vez!
     await initApp(); 
-    alert(`Iniciando a leitura do extrato Avenue...\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+    alert(`Lendo o extrato Avenue e conectando ao Glossário Online...\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+    const glossary = await loadGlossaryFromDrive().catch(() => ({}));
 
     const fileReader = new FileReader();
     fileReader.onload = async function() {
@@ -1475,39 +1499,34 @@ async function importarPlanilhaAvenue(event) {
             const pdf = await pdfjsLib.getDocument(typedarray).promise;
             
             let contagem = 0;
-            let currentCategory = "Renda Variavel Global"; // Categoria Padrão
+            let currentCategory = "Renda Variavel Global"; 
 
-            // Percorre todas as páginas do PDF
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                
-                // Limpa os textos, removendo espaços vazios inúteis
                 const items = textContent.items.map(item => item.str.trim()).filter(str => str.length > 0);
 
                 for (let j = 0; j < items.length; j++) {
                     const strLower = items[j].toLowerCase();
                     
-                    // A) RASTREADOR DE CATEGORIA: O robô "lê" o cabeçalho e memoriza onde está
+                    // RASTREADOR DE CATEGORIA DO PDF
                     if (strLower.includes("renda fixa")) currentCategory = "Renda Fixa Global";
                     if (strLower.includes("ações - global") || strLower.includes("ações global")) currentCategory = "Renda Variavel Global";
 
-                    // B) RASTREADOR DE ATIVO: Identificou um ativo!
+                    // ENCONTROU UM ATIVO
                     if (items[j] === "ETF's" || items[j] === "Bonds" || items[j] === "Stocks" || items[j] === "Caixa") {
-                        const ativo = items[j+1]; // O código (Ex: SPY, BIL) é sempre a palavra seguinte
+                        const ativo = items[j+1]; 
+                        const ativoKey = ativo.toUpperCase();
                         
                         let volumeDolar = 0;
                         let percCount = 0;
                         let k = j + 2;
                         
-                        // C) CAÇADOR DE VOLUME: A Avenue coloca 2 percentagens no fim da linha (VAR e Peso).
-                        // O valor do "Volume" é SEMPRE o item exato antes da segunda percentagem.
                         while(k < items.length && percCount < 2) {
                             if (items[k].includes('%')) {
                                 percCount++;
                                 if (percCount === 2) {
                                     let volStr = items[k-1];
-                                    // Limpa o formato americano/brasileiro (ex: 6.368,98 -> 6368.98)
                                     volumeDolar = parseFloat(volStr.replace(/\./g, '').replace(',', '.'));
                                     break;
                                 }
@@ -1515,13 +1534,22 @@ async function importarPlanilhaAvenue(event) {
                             k++;
                         }
 
-                        // D) INJETA NA PLATAFORMA
+                        // INJETA NA PLATAFORMA
                         if (volumeDolar > 0) {
                             const valorEmReais = volumeDolar * cotacaoDolarGlobal;
-                            
-                            // Se for Caixa da corretora, manda direto para a classe Caixa
                             let categoriaFinal = currentCategory;
                             if (items[j] === "Caixa") categoriaFinal = "Caixa";
+
+                            // ====== INTELIGÊNCIA DO GLOSSÁRIO ======
+                            const gData = glossary[ativoKey];
+                            let setorFinal = "Não Classificado";
+                            let localFinal = "Não Classificado"; // Se não tiver no glossário, fica indefinido (vazio/cinza no mapa)
+
+                            if (gData && gData.extras) {
+                                if (gData.extras.setor && gData.extras.setor !== "-") setorFinal = gData.extras.setor;
+                                if (gData.extras.localizacao && gData.extras.localizacao !== "-") localFinal = gData.extras.localizacao;
+                            }
+                            // ========================================
 
                             if (!globalDetalheMap[categoriaFinal]) {
                                 globalDetalheMap[categoriaFinal] = { total: 0, assets: [] };
@@ -1529,11 +1557,10 @@ async function importarPlanilhaAvenue(event) {
 
                             globalDetalheMap[categoriaFinal].total += valorEmReais;
                             globalDetalheMap[categoriaFinal].assets.push({
-                                nome: ativo.toUpperCase(),
+                                nome: ativoKey,
                                 valor: valorEmReais,
                                 sub: "Dólar",
-                                // Como a Avenue não dá o setor, padronizamos como EUA e Não Classificado
-                                extras: { setor: "Não Classificado", localizacao: "América do Norte" }
+                                extras: { setor: setorFinal, localizacao: localFinal }
                             });
                             contagem++;
                         }
@@ -1541,19 +1568,18 @@ async function importarPlanilhaAvenue(event) {
                 }
             }
 
-            // Exibe o resultado final e redesenha a tela
             if (contagem > 0) {
                 recalcularTudoERenderizar();
-                alert(`Sucesso! ${contagem} ativos do extrato Avenue foram extraídos, categorizados e convertidos para Reais.`);
+                alert(`Sucesso! ${contagem} ativos da Avenue importados com Enriquecimento de Dados.`);
             } else {
-                alert("O PDF foi lido, mas nenhum ativo válido foi encontrado. Verifique se escolheu o documento 'Posição Consolidada'.");
+                alert("Nenhum ativo válido foi encontrado no PDF da Avenue.");
             }
 
         } catch (err) {
             console.error("Erro na extração do PDF:", err);
-            alert("Erro ao processar o PDF. O ficheiro pode estar protegido com palavra-passe ou corrompido.");
+            alert("Erro ao processar o PDF. O arquivo pode estar corrompido.");
         } finally {
-            event.target.value = ''; // Limpa o input para permitir subir de novo, se necessário
+            event.target.value = ''; 
         }
     };
     fileReader.readAsArrayBuffer(file);
