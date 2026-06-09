@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10 } };
         const taxaJurosAtual = premissas.taxasJurosReais[inputs.perfilRisco];
         const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
         const anosDeAposentadoria = retirementGoal.lifeExpectancy - retirementGoal.age;
@@ -443,7 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let simulatedRetirementGoal = simulatedGoals.find(g => g.type === 'aposentadoria');
         simulatedRetirementGoal.age = simIdade;
         
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+        // Substitua esta linha:
+        // const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+        
+        // Por esta:
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10 } };
         const taxaJurosSimulada = premissas.taxasJurosReais[simPerfil];
 
         const anosParaAposentar = simulatedRetirementGoal.age - simulatedInputs.idadeAtual;
