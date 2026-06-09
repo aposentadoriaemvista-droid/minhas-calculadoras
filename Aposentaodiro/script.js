@@ -500,8 +500,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function calculateOptimalRiskProfile(inputs, userGoals, metaMinima) {
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
-        const profiles = ['conservador', 'moderado', 'arrojado', 'muitoArrojado'];
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10 } };
+        const profiles = ['conservador', 'moderado', 'moderadoArrojado', 'arrojado','muitoArrojado'];
         const currentProfileIndex = profiles.indexOf(inputs.perfilRisco);
         for (let i = currentProfileIndex + 1; i < profiles.length; i++) {
             const newProfile = profiles[i];
