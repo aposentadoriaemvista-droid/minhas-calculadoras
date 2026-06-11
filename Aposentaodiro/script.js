@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10 } };
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10, 12: 0.12 } };
         const taxaJurosAtual = premissas.taxasJurosReais[inputs.perfilRisco];
         const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
         const anosDeAposentadoria = retirementGoal.lifeExpectancy - retirementGoal.age;
@@ -447,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
         
         // Por esta:
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10 } };
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10, 12: 0.12 } };
         const taxaJurosSimulada = premissas.taxasJurosReais[simPerfil];
 
         const anosParaAposentar = simulatedRetirementGoal.age - simulatedInputs.idadeAtual;
@@ -504,8 +504,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function calculateOptimalRiskProfile(inputs, userGoals, metaMinima) {
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10 } };
-        const profiles = ['conservador', 'moderado', 'moderadoArrojado', 'arrojado','muitoArrojado'];
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10, 12: 0.12 } };
+        const profiles = ['conservador', 'moderado', 'moderadoArrojado', 'arrojado','muitoArrojado', '12'];
         const currentProfileIndex = profiles.indexOf(inputs.perfilRisco);
         for (let i = currentProfileIndex + 1; i < profiles.length; i++) {
             const newProfile = profiles[i];
