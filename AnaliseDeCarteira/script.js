@@ -21,6 +21,39 @@ google.charts.load('current', {
 
 let cotacaoDolarGlobal = 5.00; // Valor padrão de segurança
 
+
+// Função para traduzir a data "quebrada" do Excel
+// Função auxiliar para traduzir a data do Excel
+function formatarDataExcel(valor) {
+    if (!valor) return "-";
+    if (typeof valor === 'number') {
+        const data = new Date(Math.round((valor - 25569) * 86400 * 1000));
+        data.setMinutes(data.getMinutes() + data.getTimezoneOffset());
+        return `${data.getDate().toString().padStart(2, '0')}/${(data.getMonth()+1).toString().padStart(2, '0')}/${data.getFullYear()}`;
+    }
+    return valor.toString().trim();
+}
+
+// Função Inteligente (Regex) para extrair o Emissor direto do nome do ativo
+function extrairBanco(nome) { 
+    if (!nome) return "Outros";
+    const nomeUpper = nome.toUpperCase();
+    
+    // Filtros manuais diretos
+    if (nomeUpper.includes("NTN") || nomeUpper.includes("LTN") || nomeUpper.includes("LFT") || nomeUpper.includes("TESOURO")) return "Tesouro Nacional";
+    if (nomeUpper.includes("MASTER") || nomeUpper.includes("WILL FINANCEIRA")) return "Banco Master";
+    if (nomeUpper.includes("C6")) return "Banco C6"; 
+    
+    // Limpeza de datas e sujeiras no final do nome via Regex
+    let nomeLimpo = nome
+        .replace(/\s*-\s*\d{2}\/\d{2}\/\d{2,4}/g, '') // Tira coisas como "- 12/12/2025"
+        .replace(/\s*-\s*[A-Za-zçÇ]{3}\s*[\/-]\s*\d{2,4}/gi, '') // Tira "- MAI/2025"
+        .replace(/\s+-\s+$/, '') // Tira traços avulsos no final
+        .trim();
+
+    if (nomeLimpo.length < 2) return "Outros"; 
+    return nomeLimpo; 
+}
 // Função que roda invisível quando o site abre para pegar o Dólar de agora
 async function initApp() {
     try {
@@ -194,7 +227,7 @@ function analisarCarteira(matrix, glossary) {
     const detalheMap = {};
     totalPatrimonio = 0;
     let currentXpCategory = "Caixa";
-    let colPosicaoIdx = -1;
+    let colPosicaoIdx = -1, colVencIdx = -1, colTaxaIdx = -1, colEmissorIdx = -1;
 
     matrix.forEach(row => {
         if(!row || row.length === 0) return;
@@ -208,7 +241,14 @@ function analisarCarteira(matrix, glossary) {
             let idx = rowStr.indexOf(v);
             if (idx !== -1) { foundValor = idx; break; }
         }
-        if (foundValor !== -1) { colPosicaoIdx = foundValor; return; }
+       if (foundValor !== -1) { 
+            colPosicaoIdx = foundValor; 
+            // Sensor Renda Fixa: Verifica onde estão as colunas na planilha
+            colVencIdx = rowStr.findIndex(c => c && c.toUpperCase().includes("VENCIMENTO"));
+            colTaxaIdx = rowStr.findIndex(c => c && (c.toUpperCase().includes("TAXA") || c.toUpperCase().includes("RENTABILIDADE") || c.toUpperCase().includes("INDEXADOR")));
+            colEmissorIdx = rowStr.findIndex(c => c && (c.toUpperCase().includes("EMISSOR") || c.toUpperCase().includes("INSTITUIÇÃO")));
+            return; 
+        }
 
         if (currentXpCategory.toLowerCase().includes("proventos")) return;
 
@@ -224,7 +264,19 @@ function analisarCarteira(matrix, glossary) {
                 let subNome = padronizarSubclasse(subRaw, topico); // Usa o nosso novo filtro inteligente!
                 
                 // NOVO: Captura os extras do glossário se existirem
-                let extrasAtivo = (gData && gData.extras) ? gData.extras : {};
+                // Clona os extras para não sujar o glossário
+                let extrasAtivo = (gData && gData.extras) ? { ...gData.extras } : {};
+
+                // SE FOR RENDA FIXA: Salva os dados específicos que o robô achou
+                // SE FOR RENDA FIXA: Salva os dados específicos
+                if (topico === "Renda Fixa Brasil" || topico === "Renda Fixa Global") {
+                    // O Emissor agora é puxado com extrema precisão usando a sua função de Regex!
+                    extrasAtivo.emissor = extrairBanco(nomeAtivo);
+                    
+                    // Vencimento e Taxa continuam sendo puxados da coluna do Excel
+                    extrasAtivo.vencimento = (colVencIdx !== -1 && row[colVencIdx]) ? formatarDataExcel(row[colVencIdx]) : "-";
+                    extrasAtivo.taxa = (colTaxaIdx !== -1 && row[colTaxaIdx]) ? norm(row[colTaxaIdx]) : "-";
+                }
 
                 estrategiaMap[topico] += valor;
                 totalPatrimonio += valor;
@@ -417,39 +469,32 @@ document.getElementById('excelFile').addEventListener('change', function() {
 // Função para mostrar/esconder os campos específicos de FII no Modal
 // Função para mostrar/esconder os campos específicos no Modal
 function verificarCamposExtras() {
-    const classe = document.getElementById('manClasse').value;
-    const divFII = document.getElementById('camposExtraFII');
-    const divRV = document.getElementById('camposExtraRV'); // Pega a nova div
-    const divGlobal = document.getElementById('camposExtraGlobal'); // Nova div global
-    
-    // Primeiro, esconde tudo para garantir que não fiquem duas caixinhas abertas
-    divFII.style.display = 'none';
-    divRV.style.display = 'none';
-    divGlobal.style.display = 'none';
+    document.getElementById('camposExtraFII').style.display = 'none';
+    document.getElementById('camposExtraRV').style.display = 'none';
+    document.getElementById('camposExtraGlobal').style.display = 'none';
+    document.getElementById('camposExtraRF').style.display = 'none';
 
-    // Depois, mostra apenas a caixinha correta
-    if (classe === "Fundos Imobiliários") {
-        divFII.style.display = 'flex';
-    } else if (classe === "Renda Variavel Brasil") {
-        divRV.style.display = 'flex';
-    } else if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
-        divGlobal.style.display = 'flex';
-    }
+    const classe = document.getElementById('manClasse').value;
+    if (classe === "Fundos Imobiliários") document.getElementById('camposExtraFII').style.display = 'flex';
+    else if (classe === "Renda Variavel Brasil") document.getElementById('camposExtraRV').style.display = 'flex';
+    else if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") document.getElementById('camposExtraGlobal').style.display = 'flex';
+    else if (classe === "Renda Fixa Brasil") document.getElementById('camposExtraRF').style.display = 'flex';
 }
 
-// Melhoria na hora de fechar o modal para limpar todos os campos
 function fecharModal() {
     document.getElementById('modalAtivo').style.display = 'none';
-    
-    // Limpa todos os inputs
     document.getElementById('manNome').value = '';
     document.getElementById('manValor').value = '';
     document.getElementById('manFiiClasse').value = '';
     document.getElementById('manFiiGestora').value = '';
     document.getElementById('manFiiIndexador').value = '';
-    document.getElementById('manRvClasse').value = ''; // Limpa o novo input de RV
-    document.getElementById('manGlobalSetor').value = ''; 
-    document.getElementById('manGlobalLocal').value = '';
+    document.getElementById('manRvClasse').value = 'Não Classificado'; 
+    document.getElementById('manGlobalSetor').value = 'Não Classificado'; 
+    document.getElementById('manGlobalLocal').value = 'Não Classificado';
+    
+    document.getElementById('manRfEmissor').value = '';
+    document.getElementById('manRfVencimento').value = '';
+    document.getElementById('manRfTaxa').value = '';
 }
 
 function adicionarAtivoManual() {
@@ -457,8 +502,6 @@ function adicionarAtivoManual() {
     const classe = document.getElementById('manClasse').value;
     const sub = document.getElementById('manSub').value; 
     let valorInput = parseFloat(document.getElementById('manValor').value);
-    
-    // Permite que o valor seja zero!
     if (isNaN(valorInput)) valorInput = 0; 
 
     if (!nome || !sub) return alert("Preencha todos os campos obrigatórios!");
@@ -466,28 +509,23 @@ function adicionarAtivoManual() {
     let extrasAtivo = {};
     let valorFinalReais = valorInput;
 
-    // Se for global, transforma o US$ digitado em R$ para os cálculos gerais
     if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
         valorFinalReais = valorInput * cotacaoDolarGlobal;
-        extrasAtivo = {
-            setor: document.getElementById('manGlobalSetor').value || "Não Classificado",
-            localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado"
-        };
+        extrasAtivo = { setor: document.getElementById('manGlobalSetor').value || "Não Classificado", localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado" };
     } else if (classe === "Fundos Imobiliários") {
-        extrasAtivo = {
-            classeFii: document.getElementById('manFiiClasse').value || "-",
-            gestora: document.getElementById('manFiiGestora').value || "-",
-            indexador: document.getElementById('manFiiIndexador').value || "-"
-        };
+        extrasAtivo = { classeFii: document.getElementById('manFiiClasse').value || "-", gestora: document.getElementById('manFiiGestora').value || "-", indexador: document.getElementById('manFiiIndexador').value || "-" };
     } else if (classe === "Renda Variavel Brasil") {
+        extrasAtivo = { classeRV: document.getElementById('manRvClasse').value || "Não Classificado" };
+    } else if (classe === "Renda Fixa Brasil") {
         extrasAtivo = {
-            classeRV: document.getElementById('manRvClasse').value || "Não Classificado"
+            emissor: document.getElementById('manRfEmissor').value || "Indefinido",
+            vencimento: document.getElementById('manRfVencimento').value || "-",
+            taxa: document.getElementById('manRfTaxa').value || "-"
         };
     }
 
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
     globalDetalheMap[classe].total += valorFinalReais;
-    
     globalDetalheMap[classe].assets.push({ nome: nome, valor: valorFinalReais, sub: sub, extras: extrasAtivo });
     
     recalcularTudoERenderizar();
@@ -826,7 +864,8 @@ function renderizarAbasEspecificas(detalhe) {
         "Fundos Imobiliários": renderizarAbaFII,
         "Renda Variavel Brasil": renderizarAbaRV,
         "Renda Variavel Global": renderizarAbaGlobal, // <-- Adicionado
-        "Renda Fixa Global": renderizarAbaGlobal      // <-- Adicionado
+        "Renda Fixa Global": renderizarAbaGlobal,
+        "Renda Fixa Brasil": renderizarAbaRF // <-- ADICIONADO AQUI!    // <-- Adicionado
         // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRFjjbj
     };
 
@@ -1583,4 +1622,335 @@ async function importarPlanilhaAvenue(event) {
         }
     };
     fileReader.readAsArrayBuffer(file);
+}
+// ==========================================
+// MÓDULO: RENDA FIXA BRASIL (FLUXO, FGC E PROJEÇÕES)
+// ==========================================
+
+let refChartFluxoAnual = null;
+let refChartFluxoMensal = null;
+
+// 1. MATEMÁTICA FINANCEIRA
+function parseDataBR(dataStr) { 
+    if (!dataStr || dataStr === "-") return null; 
+    const p = dataStr.toString().split('/'); 
+    if (p.length === 3) return new Date(p[2], p[1]-1, p[0]); 
+    if (dataStr.toString().includes('-')) return new Date(dataStr);
+    return null; 
+}
+
+function diffMeses(d1, d2) {
+    let months = (d2.getFullYear() - d1.getFullYear()) * 12;
+    months -= d1.getMonth();
+    months += d2.getMonth();
+    return months <= 0 ? 0 : months;
+}
+
+function estimarTaxaAnual(taxaStr, pCDI, pIPCA) {
+    if(!taxaStr || taxaStr === "-") return pCDI / 100; // Padrão Conservador
+    let t = taxaStr.toUpperCase().replace(/\s/g, '').replace(',', '.');
+    
+    if (t.includes('CDI')) {
+        const matchPct = t.match(/(\d+[.,]?\d*)%/);
+        if (matchPct) return (pCDI / 100) * (parseFloat(matchPct[1]) / 100);
+        const matchSpread = t.match(/\+(\d+[.,]?\d*)/);
+        if (matchSpread) return (pCDI / 100) + (parseFloat(matchSpread[1]) / 100);
+        return pCDI / 100;
+    }
+    if (t.includes('IPCA') || t.includes('IPC-A')) {
+        let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
+        return ((pIPCA + fixedPart) / 100);
+    }
+    let val = parseFloat(t.replace('%', '')); if (!isNaN(val)) return val / 100;
+    return pCDI / 100; 
+}
+
+function calcularValorNoVencimento(ativo, pCDI, pIPCA) {
+    const vencimento = parseDataBR(ativo.extras?.vencimento);
+    if (!vencimento) return ativo.valor; // Se não tem vencimento, assume o valor atual no fluxo
+    
+    const hoje = new Date();
+    if (vencimento <= hoje) return ativo.valor;
+
+    // Cupom não capitaliza juros no montante final
+    if (ativo.nome.toUpperCase().includes("CUPOM") || ativo.nome.toUpperCase().includes("MENSAL")) return ativo.valor; 
+
+    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA);
+    const taxaMensal = Math.pow(1 + taxaAnual, 1/12) - 1;
+    const meses = diffMeses(hoje, vencimento);
+    
+    return ativo.valor * Math.pow(1 + taxaMensal, meses);
+}
+
+// 2. DESENHO DA ESTRUTURA HTML DA ABA
+// 2. DESENHO DA ESTRUTURA HTML DA ABA (JUROS BLOCADO ABAIXO)
+function renderizarAbaRF(cat, dadosCat, tabEl) {
+    const html = `
+        <div class="card" style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
+                <h3 style="margin: 0; padding: 0; border: none;">${cat}</h3>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Patrimônio Presente</span><br>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${dadosCat.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 20px; margin-top: 20px;">
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção CDI (% a.a.)</label><br>
+                    <input type="number" id="projCDI" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5);" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IPCA (% a.a.)</label><br>
+                    <input type="number" id="projIPCA" value="4.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5);" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap;">
+            <div class="card" style="flex: 2; min-width: 300px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="border: none; margin: 0; padding: 0; font-size: 1rem;">Fluxo de Vencimentos (Anual)</h3>
+                    <button class="btn-upload" style="margin: 0; padding: 6px 12px; font-size: 0.8rem;" onclick="abrirFluxoMensal('${cat}')">🔎 Ver Mensal</button>
+                </div>
+                <div style="height: 220px; position: relative;">
+                    <canvas id="chartFluxoAnual"></canvas>
+                </div>
+            </div>
+            
+            <div class="card" style="flex: 1.2; min-width: 250px;">
+                <h3 style="border: none; margin: 0 0 15px 0; padding: 0; font-size: 1rem;">Exposição FGC (Risco Emissor)</h3>
+                <div id="containerFGC" style="max-height: 220px; overflow-y: auto; padding-right: 10px;"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <h3 style="border: none; margin: 0; padding: 0; font-size: 1rem;">Previsão de Juros Mensais Estimados</h3>
+                <div id="totalJurosBadge" style="font-weight: bold; color: var(--accent-primary); font-size: 1.05rem; background: rgba(14, 165, 233, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(14, 165, 233, 0.2);">Total: R$ 0,00/mês</div>
+            </div>
+            <div id="containerRendimentos" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; max-height: 240px; overflow-y: auto; padding-right: 10px;"></div>
+        </div>
+
+        <div class="acc-item" style="border: 1px solid var(--border-color);">
+            <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                <span>📋 Listagem e Edição de Ativos (Clique para Expandir)</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+            <div class="acc-content" id="tabelaAtivosRF" style="padding: 0;"></div>
+        </div>
+    `;
+    
+    tabEl.innerHTML = html;
+    atualizarGraficosRF(cat);
+}
+
+// 3. MOTOR DE RENDERIZAÇÃO SECUNDÁRIO
+function atualizarGraficosRF(cat) {
+    const dadosCat = globalDetalheMap[cat];
+    if(!dadosCat) return;
+
+    const pCDI = parseFloat(document.getElementById('projCDI')?.value) || 10.5;
+    const pIPCA = parseFloat(document.getElementById('projIPCA')?.value) || 4.5;
+
+    const dadosMapAnual = {};
+    const porBanco = {};
+    const LIMITE_FGC = 250000;
+    const TIPOS_FGC = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB'];
+
+    dadosCat.assets.forEach(at => {
+        // A) Processamento do Fluxo de Caixa Anual
+        const dt = parseDataBR(at.extras?.vencimento);
+        const valorF = calcularValorNoVencimento(at, pCDI, pIPCA);
+        
+        const ano = dt ? dt.getFullYear().toString() : new Date().getFullYear().toString();
+        dadosMapAnual[ano] = (dadosMapAnual[ano] || 0) + valorF;
+
+        // B) Processamento do FGC
+        let emissor = at.extras?.emissor || "Indefinido";
+        if(emissor === "Indefinido" && at.nome.toUpperCase().includes("TESOURO")) emissor = "Tesouro Nacional";
+        
+        if (!porBanco[emissor]) porBanco[emissor] = { totalFGC: 0 };
+        
+        let isFGC = TIPOS_FGC.some(tipo => at.nome.toUpperCase().includes(tipo) || (at.extras?.taxa && at.extras.taxa.toUpperCase().includes(tipo)));
+        if(!at.nome.toUpperCase().includes("TESOURO") && emissor !== "Tesouro Nacional") isFGC = true; 
+
+        if(isFGC) porBanco[emissor].totalFGC += at.valor; // FGC protege o saldo atual, não o projetado
+    });
+
+    // C) Desenha o Gráfico Anual
+    const labelsAnual = Object.keys(dadosMapAnual).sort();
+    const dataAnual = labelsAnual.map(k => dadosMapAnual[k]);
+    
+    const ctxAnual = document.getElementById('chartFluxoAnual');
+    if(ctxAnual) {
+        if(refChartFluxoAnual) refChartFluxoAnual.destroy();
+        refChartFluxoAnual = new Chart(ctxAnual, {
+            type: 'bar',
+            data: { labels: labelsAnual, datasets: [{ label: 'Vencimentos Projetados (R$)', data: dataAnual, backgroundColor: '#10b981', borderRadius: 4 }] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+
+    // D) Desenha as Barras do FGC
+    let fgcHtml = '';
+    Object.keys(porBanco).sort((a,b) => porBanco[b].totalFGC - porBanco[a].totalFGC).forEach(banco => {
+        if(porBanco[banco].totalFGC === 0) return; 
+        const percentualUso = Math.min(100, (porBanco[banco].totalFGC / LIMITE_FGC) * 100);
+        let corBarra = percentualUso >= 100 ? '#ef4444' : (percentualUso > 80 ? '#f59e0b' : '#0ea5e9');
+
+        fgcHtml += `
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">
+                <span>${banco}</span>
+                <span style="color: ${corBarra};">R$ ${porBanco[banco].totalFGC.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+            </div>
+            <div style="width: 100%; height: 6px; background-color: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: ${percentualUso}%; background-color: ${corBarra};"></div>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 2px;">
+                ${percentualUso.toFixed(1)}% do teto coberto
+            </div>
+        </div>`;
+    });
+    document.getElementById('containerFGC').innerHTML = fgcHtml || '<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum ativo listado com risco FGC mapeado.</p>';
+// D2) Processamento e Desenho dos Juros Mensais (Grid Layout Premium)
+    let totalJurosMensais = 0;
+    let jurosHtml = '';
+    
+    dadosCat.assets.forEach(at => {
+        if(at.nome.toUpperCase().includes("CUPOM") || at.nome.toUpperCase().includes("MENSAL") || at.nome.toUpperCase().includes("JUROS")) {
+            const taxaAnual = estimarTaxaAnual(at.extras?.taxa, pCDI, pIPCA);
+            const rendaMensalBruta = (at.valor * taxaAnual) / 12;
+            const rendaMensalLiq = rendaMensalBruta * 0.85; // Estima 15% de IR
+            totalJurosMensais += rendaMensalLiq;
+            
+            jurosHtml += `
+            <div style="background: rgba(31, 41, 55, 0.3); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 65px;">
+                <div style="font-size: 0.8rem; font-weight: bold; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${at.nome}">${at.nome}</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px;">
+                    <span style="color: var(--success); font-size: 1.1rem; font-weight: bold;">R$ ${rendaMensalLiq.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-muted);">líq./mês</span>
+                </div>
+            </div>`;
+        }
+    });
+    
+    if(totalJurosMensais > 0) {
+        document.getElementById('totalJurosBadge').innerText = `Total: R$ ${totalJurosMensais.toLocaleString('pt-BR', {minimumFractionDigits:2})}/mês`;
+        document.getElementById('containerRendimentos').innerHTML = jurosHtml;
+    } else {
+        document.getElementById('totalJurosBadge').innerText = `Total: R$ 0,00/mês`;
+        document.getElementById('containerRendimentos').innerHTML = '<p style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted); margin: 5px 0;">Nenhum ativo com pagamento de cupons mensais ou fluxos periódicos detectado nesta carteira.</p>';
+    }
+    // E) Desenha a Tabela Interna (Suspensa)
+    let rowsHtml = dadosCat.assets.sort((a,b) => b.valor - a.valor).map((a, index) => {
+        const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
+        return `
+            <tr>
+                <td><strong>${a.nome}</strong></td>
+                <td style="color: var(--text-muted);">${a.extras?.emissor || '-'}</td>
+                <td style="color: var(--text-muted);">${a.extras?.vencimento || '-'}</td>
+                <td style="color: var(--text-muted);">${a.extras?.taxa || '-'}</td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                <td style="text-align: right;">
+                    <button onclick="editarCampoRF('${cat}', ${index}, 'emissor')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;" title="Editar Emissor">🏦</button>
+                    <button onclick="editarCampoRF('${cat}', ${index}, 'vencimento')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;" title="Editar Vencimento">📅</button>
+                    <button onclick="editarCampoRF('${cat}', ${index}, 'taxa')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;" title="Editar Taxa">📈</button>
+                    <button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    document.getElementById('tabelaAtivosRF').innerHTML = `
+        <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+            <thead><tr><th>Ativo</th><th>Emissor</th><th>Venc.</th><th>Taxa</th><th style="text-align: right;">Presente (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>
+    `;
+}
+
+// 4. MODAL DETALHADO DO FLUXO MENSAL
+function abrirFluxoMensal(cat) {
+    document.getElementById('modalFluxoMensal').style.display = 'flex';
+    
+    const dadosCat = globalDetalheMap[cat];
+    const pCDI = parseFloat(document.getElementById('projCDI')?.value) || 10.5;
+    const pIPCA = parseFloat(document.getElementById('projIPCA')?.value) || 4.5;
+
+    const dadosMapMensal = {};
+    let minDate = new Date(3000, 0, 1); 
+    let maxDate = new Date(2000, 0, 1);
+
+    dadosCat.assets.forEach(at => {
+        const dt = parseDataBR(at.extras?.vencimento);
+        if (dt) {
+            if (dt < minDate) minDate = dt; 
+            if (dt > maxDate) maxDate = dt; 
+            const mesAno = `${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()}`;
+            dadosMapMensal[mesAno] = (dadosMapMensal[mesAno] || 0) + calcularValorNoVencimento(at, pCDI, pIPCA);
+        }
+    });
+
+    const labels = []; const data = []; 
+    if(minDate <= maxDate) {
+        let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1); 
+        while (curr <= maxDate) { 
+            const mesAno = `${(curr.getMonth()+1).toString().padStart(2,'0')}/${curr.getFullYear()}`;
+            labels.push(mesAno); 
+            data.push(dadosMapMensal[mesAno] || 0); 
+            curr.setMonth(curr.getMonth() + 1); 
+        }
+    }
+
+    const ctxMensal = document.getElementById('chartFluxoMensal');
+    if(refChartFluxoMensal) refChartFluxoMensal.destroy();
+    refChartFluxoMensal = new Chart(ctxMensal, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: 'Vencimento (R$)', data: data, backgroundColor: '#0ea5e9', borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+}
+
+// 5. EDIÇÃO RÁPIDA NA TABELA
+// 5. EDIÇÃO RÁPIDA NA TABELA COM MODAL PREMIUM
+// EDIÇÃO RÁPIDA DE RF COM MODAL ELEGANTE
+function editarCampoRF(cat, index, campo) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const valorAtual = ativo.extras?.[campo] || '';
+    
+    // Títulos dinâmicos dependendo do botão
+    let titulo = ""; let dica = "";
+    if (campo === 'emissor') { titulo = 'Emissor do Ativo'; dica = 'ex: Banco Master, Tesouro'; }
+    else if (campo === 'vencimento') { titulo = 'Data de Vencimento'; dica = 'DD/MM/AAAA'; }
+    else { titulo = 'Taxa Contratada'; dica = 'ex: 110% CDI, IPCA + 6%'; }
+    
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `
+        <div class="modal-content">
+            <h3>Editar ${titulo}</h3>
+            <p style="color: var(--text-muted); margin-top: -10px;">Ativo: <strong>${ativo.nome}</strong></p>
+            <input type="text" id="tempEditRf" placeholder="${dica}" value="${valorAtual}" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 12px; border-radius: 4px; margin: 15px 0;">
+            <div class="modal-actions">
+                <button class="btn-upload" id="btnSalvarEditRf">Salvar</button>
+                <button class="btn-upload danger" id="btnCancelarEditRf">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    
+    // Foca automaticamente no campo
+    document.getElementById('tempEditRf').focus();
+
+    document.getElementById('btnSalvarEditRf').onclick = () => {
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras[campo] = document.getElementById('tempEditRf').value.trim() || "-";
+        document.body.removeChild(dialog);
+        recalcularTudoERenderizar();
+    };
+    
+    document.getElementById('btnCancelarEditRf').onclick = () => document.body.removeChild(dialog);
 }

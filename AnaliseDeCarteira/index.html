@@ -291,6 +291,13 @@
             </select>
         </div>
 
+        <div id="camposExtraRF" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(16, 185, 129, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--success);">
+            <p style="margin: 0; font-size: 0.8rem; color: var(--success); font-weight: bold;">Campos Específicos de Renda Fixa</p>
+            <input type="text" id="manRfEmissor" placeholder="Emissor (ex: Banco Master, Tesouro)">
+            <input type="text" id="manRfVencimento" placeholder="Vencimento (DD/MM/AAAA)">
+            <input type="text" id="manRfTaxa" placeholder="Taxa (ex: 110% CDI, IPCA + 6%)">
+        </div>
+
         
         <select id="manSub">
             <option value="" disabled selected>Selecione a Subclasse</option>
@@ -333,6 +340,22 @@
 
         <div class="modal-actions" style="margin-top: 25px;">
             <button class="btn-upload danger" style="width: 100%;" onclick="document.getElementById('modalImportacao').style.display='none'">Cancelar</button>
+        </div>
+    </div>
+</div>
+<div id="modalFluxoMensal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="width: 90%; max-width: 1000px; padding: 25px;">
+        <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; color: var(--text-main);">Fluxo de Caixa Mensal Detalhado</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: -5px;">Arraste para os lados para visualizar os vencimentos futuros.</p>
+        
+        <div style="overflow-x: auto; margin-top: 15px; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; background: rgba(31, 41, 55, 0.3);">
+            <div style="min-width: 800px; height: 320px;">
+                <canvas id="chartFluxoMensal"></canvas>
+            </div>
+        </div>
+        
+        <div class="modal-actions" style="margin-top: 25px;">
+            <button class="btn-upload danger" onclick="document.getElementById('modalFluxoMensal').style.display='none'">Fechar Visão Mensal</button>
         </div>
     </div>
 </div>
