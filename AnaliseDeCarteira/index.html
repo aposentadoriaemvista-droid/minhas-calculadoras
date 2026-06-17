@@ -291,11 +291,20 @@
             </select>
         </div>
 
-        <div id="camposExtraRF" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(16, 185, 129, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--success);">
+       <div id="camposExtraRF" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(16, 185, 129, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--success);">
             <p style="margin: 0; font-size: 0.8rem; color: var(--success); font-weight: bold;">Campos Específicos de Renda Fixa</p>
             <input type="text" id="manRfEmissor" placeholder="Emissor (ex: Banco Master, Tesouro)">
             <input type="text" id="manRfVencimento" placeholder="Vencimento (DD/MM/AAAA)">
-            <input type="text" id="manRfTaxa" placeholder="Taxa (ex: 110% CDI, IPCA + 6%)">
+            
+            <div style="display: flex; gap: 8px; width: 100%;">
+                <select id="manRfTaxaTipo" style="flex: 1.2; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                    <option value="% CDI">% do CDI (ex: 110% CDI)</option>
+                    <option value="CDI +">CDI + % (ex: CDI + 2%)</option>
+                    <option value="IPCA +">IPCA + % (ex: IPCA + 6%)</option>
+                    <option value="PRE">Prefixado % (ex: 12.5% PRE)</option>
+                </select>
+                <input type="number" id="manRfTaxaValor" placeholder="Valor (ex: 6)" step="0.01" style="flex: 0.8; min-width: 0;">
+            </div>
         </div>
 
         
