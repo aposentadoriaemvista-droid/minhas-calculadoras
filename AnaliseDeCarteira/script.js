@@ -34,25 +34,61 @@ function formatarDataExcel(valor) {
     return valor.toString().trim();
 }
 
-// Função Inteligente (Regex) para extrair o Emissor direto do nome do ativo
+// 1. Dicionário Inteligente que une diferentes formas de escrever o mesmo banco
+function limparNomeEmissor(emissor) {
+    if (!emissor || emissor === "-") return "Indefinido";
+    let nome = emissor.toString().toUpperCase();
+    
+    // Remove siglas de produtos que poluem o nome (CDB, LCA, LCI, etc.)
+    const siglas = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB', 'CRA', 'CRI', 'DEB', 'LF', 'LIG', 'CDCA'];
+    siglas.forEach(sigla => {
+        const regex = new RegExp(`\\b${sigla}\\b`, 'g');
+        nome = nome.replace(regex, '');
+    });
+    
+    // Limpa caracteres especiais, hífens soltos e espaços duplos
+    nome = nome.replace(/^[-/\s]+/, '').replace(/[-/\s]+$/, '').replace(/\s+/g, ' ').trim();
+    
+    // Dicionário de Agrupamento Institucional
+    if (nome.includes("MASTER") || nome.includes("WILL")) return "BANCO MASTER";
+    if (nome.includes("C6")) return "BANCO C6";
+    if (nome.includes("BTG")) return "BTG PACTUAL";
+    if (nome.includes("XP") || nome.includes("X P")) return "XP INVESTIMENTOS";
+    if (nome.includes("ITAU") || nome.includes("ITAÚ")) return "ITAÚ UNIBANCO";
+    if (nome.includes("BRADESCO")) return "BANCO BRADESCO";
+    if (nome.includes("SANTANDER")) return "BANCO SANTANDER";
+    if (nome.includes("SAFRA")) return "BANCO SAFRA";
+    if (nome.includes("DAYCOVAL")) return "BANCO DAYCOVAL";
+    if (nome.includes("PINE")) return "BANCO PINE";
+    if (nome.includes("BMG")) return "BANCO BMG";
+    if (nome.includes("BV") || nome.includes("VOTORANTIM")) return "BANCO BV";
+    if (nome.includes("PAN")) return "BANCO PAN";
+    if (nome.includes("ORIGINAL")) return "BANCO ORIGINAL";
+    if (nome.includes("INTER")) return "BANCO INTER";
+    if (nome.includes("BRB")) return "BANCO BRB";
+    if (nome.includes("FIBRA")) return "BANCO FIBRA";
+    if (nome.includes("ABC")) return "BANCO ABC";
+    if (nome.includes("ALFA")) return "BANCO ALFA";
+    if (nome.includes("RICO")) return "RICO INVESTIMENTOS";
+    if (nome.includes("NUBANK") || nome.includes("NU PAGAMENTOS") || nome.includes("NU")) return "NUBANK";
+    if (nome.includes("CAIXA") || nome.includes("CEF")) return "CAIXA ECONOMICA FEDERAL";
+    if (nome.includes("BRASIL") && !nome.includes("TESOURO")) return "BANCO DO BRASIL";
+    if (nome.includes("BNDES")) return "BNDES";
+    if (nome.includes("TESOURO") || nome.includes("NTN") || nome.includes("LTN") || nome.includes("LFT")) return "TESOURO NACIONAL";
+
+    return nome || "Outros";
+}
+
+// 2. Extrai o banco do Excel e já aplica a limpeza
 function extrairBanco(nome) { 
     if (!nome) return "Outros";
-    const nomeUpper = nome.toUpperCase();
-    
-    // Filtros manuais diretos
-    if (nomeUpper.includes("NTN") || nomeUpper.includes("LTN") || nomeUpper.includes("LFT") || nomeUpper.includes("TESOURO")) return "Tesouro Nacional";
-    if (nomeUpper.includes("MASTER") || nomeUpper.includes("WILL FINANCEIRA")) return "Banco Master";
-    if (nomeUpper.includes("C6")) return "Banco C6"; 
-    
-    // Limpeza de datas e sujeiras no final do nome via Regex
-    let nomeLimpo = nome
-        .replace(/\s*-\s*\d{2}\/\d{2}\/\d{2,4}/g, '') // Tira coisas como "- 12/12/2025"
-        .replace(/\s*-\s*[A-Za-zçÇ]{3}\s*[\/-]\s*\d{2,4}/gi, '') // Tira "- MAI/2025"
-        .replace(/\s+-\s+$/, '') // Tira traços avulsos no final
+    let nomeLimpo = nome.toUpperCase()
+        .replace(/\s*-\s*\d{2}\/\d{2}\/\d{2,4}/g, '') // Tira datas como "- 12/12/2025"
+        .replace(/\s*-\s*[A-ZÇ]{3}\s*[\/-]\s*\d{2,4}/gi, '') // Tira "- MAI/2025"
+        .replace(/\s+-\s+$/, '') // Tira hífens no final
         .trim();
 
-    if (nomeLimpo.length < 2) return "Outros"; 
-    return nomeLimpo; 
+    return limparNomeEmissor(nomeLimpo); // Passa no filtro de agrupamento
 }
 // Função que roda invisível quando o site abre para pegar o Dólar de agora
 async function initApp() {
@@ -1695,8 +1731,25 @@ function calcularValorNoVencimento(ativo, pCDI, pIPCA) {
     return ativo.valor * Math.pow(1 + taxaMensal, meses);
 }
 
+// Função Inteligente para Classificar Renda Fixa
+function classificarAtivoRF(nome) {
+    const n = nome.toUpperCase();
+    
+    // 1. FGC (CDB, LCI, LCA, LCD, LC, RDB)
+    const TIPOS_FGC = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB'];
+    if (TIPOS_FGC.some(t => n.includes(t))) return "FGC";
+    
+    // 2. Crédito Privado e Tesouro (Tem Vencimento, mas NÃO tem FGC)
+    const TIPOS_CP = ['CRA', 'CRI', 'DEB', 'LF', 'LIG', 'CDCA', 'NTN', 'LTN', 'LFT', 'TESOURO'];
+    if (TIPOS_CP.some(t => n.includes(t))) return "CP_TESOURO";
+    
+    // 3. Fundos de Investimento (Não tem FGC e geralmente não tem Vencimento)
+    return "FUNDOS";
+}
+
 // 2. DESENHO DA ESTRUTURA HTML DA ABA
 // 2. DESENHO DA ESTRUTURA HTML DA ABA (JUROS BLOCADO ABAIXO)
+// 2. DESENHO DA ESTRUTURA HTML DA ABA (JUROS BLOCADO ABAIXO E 3 TABELAS)
 function renderizarAbaRF(cat, dadosCat, tabEl) {
     const html = `
         <div class="card" style="margin-bottom: 25px;">
@@ -1735,6 +1788,7 @@ function renderizarAbaRF(cat, dadosCat, tabEl) {
                 <h3 style="border: none; margin: 0 0 15px 0; padding: 0; font-size: 1rem;">Exposição FGC (Risco Emissor)</h3>
                 <div id="containerFGC" style="padding-right: 10px;"></div>
             </div>
+        </div>
 
         <div class="card" style="margin-bottom: 25px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
@@ -1744,12 +1798,29 @@ function renderizarAbaRF(cat, dadosCat, tabEl) {
             <div id="containerRendimentos" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; max-height: 240px; overflow-y: auto; padding-right: 10px;"></div>
         </div>
 
-        <div class="acc-item" style="border: 1px solid var(--border-color);">
+        <!-- 3 TABELAS SEPARADAS E CLASSIFICADAS -->
+        <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
             <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
-                <span>📋 Listagem e Edição de Ativos (Clique para Expandir)</span>
+                <span style="color: #0ea5e9;">🛡️ Renda Fixa FGC (CDB, LCI, LCA...)</span>
                 <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
             </div>
-            <div class="acc-content" id="tabelaAtivosRF" style="padding: 0;"></div>
+            <div class="acc-content" id="tabelaAtivosFGC" style="padding: 0;"></div>
+        </div>
+        
+        <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+            <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                <span style="color: #f59e0b;">🏢 Crédito Privado e Tesouro (CRA, CRI, LF...)</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+            <div class="acc-content" id="tabelaAtivosCP" style="padding: 0;"></div>
+        </div>
+
+        <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+            <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                <span style="color: #8b5cf6;">📊 Fundos de Investimento e Outros</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+            <div class="acc-content" id="tabelaAtivosFundos" style="padding: 0;"></div>
         </div>
     `;
     
@@ -1757,8 +1828,7 @@ function renderizarAbaRF(cat, dadosCat, tabEl) {
     atualizarGraficosRF(cat);
 }
 
-// 3. MOTOR DE RENDERIZAÇÃO SECUNDÁRIO
-// 3. MOTOR DE RENDERIZAÇÃO SECUNDÁRIO
+// 3. MOTOR DE RENDERIZAÇÃO SECUNDÁRIO (COM REGRAS ESTRITAS)
 function atualizarGraficosRF(cat) {
     const dadosCat = globalDetalheMap[cat];
     if(!dadosCat) return;
@@ -1769,29 +1839,38 @@ function atualizarGraficosRF(cat) {
     const dadosMapAnual = {};
     const porBanco = {};
     const LIMITE_FGC = 250000;
-    const TIPOS_FGC = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB'];
+
+    // Listas para separar as tabelas
+    const listaFGC = [];
+    const listaCP = [];
+    const listaFundos = [];
 
     dadosCat.assets.forEach(at => {
-        // A) Processamento do Fluxo de Caixa Anual
+        const categoria = classificarAtivoRF(at.nome);
         const dt = parseDataBR(at.extras?.vencimento);
-        const valorF = calcularValorNoVencimento(at, pCDI, pIPCA);
-        
-        const ano = dt ? dt.getFullYear().toString() : new Date().getFullYear().toString();
-        dadosMapAnual[ano] = (dadosMapAnual[ano] || 0) + valorF;
 
-        // B) Processamento do FGC
-        let emissor = at.extras?.emissor || "Indefinido";
-        if(emissor === "Indefinido" && at.nome.toUpperCase().includes("TESOURO")) emissor = "Tesouro Nacional";
-        
-        // CORREÇÃO DO ERRO DO PUSH: A lista ativosFGC[] agora é criada corretamente
-        if (!porBanco[emissor]) porBanco[emissor] = { totalFGC: 0, ativosFGC: [] }; 
-        
-        let isFGC = TIPOS_FGC.some(tipo => at.nome.toUpperCase().includes(tipo) || (at.extras?.taxa && at.extras.taxa.toUpperCase().includes(tipo)));
-        if(!at.nome.toUpperCase().includes("TESOURO") && emissor !== "Tesouro Nacional") isFGC = true; 
+        // A) Processamento do Fluxo de Caixa Anual (SOMENTE SE TIVER VENCIMENTO VÁLIDO)
+        if (dt) {
+            const valorF = calcularValorNoVencimento(at, pCDI, pIPCA);
+            const ano = dt.getFullYear().toString();
+            dadosMapAnual[ano] = (dadosMapAnual[ano] || 0) + valorF;
+        }
 
-        if(isFGC) {
-            porBanco[emissor].totalFGC += at.valor;
-            porBanco[emissor].ativosFGC.push(at); // Agora o push funciona perfeitamente!
+       // B) Processamento Estrito do FGC
+        if (categoria === "FGC") {
+            let emissorBruto = at.extras?.emissor || "Indefinido";
+            
+            // APLICA O AGRUPADOR INTELIGENTE AQUI
+            let emissorLimpo = limparNomeEmissor(emissorBruto); 
+            
+            if (!porBanco[emissorLimpo]) porBanco[emissorLimpo] = { totalFGC: 0, ativosFGC: [] }; 
+            porBanco[emissorLimpo].totalFGC += at.valor;
+            porBanco[emissorLimpo].ativosFGC.push(at);
+            listaFGC.push(at);
+        } else if (categoria === "CP_TESOURO") {
+            listaCP.push(at);
+        } else {
+            listaFundos.push(at);
         }
     });
     
@@ -1809,7 +1888,7 @@ function atualizarGraficosRF(cat) {
         });
     }
 
-   // D) Desenha as Barras do FGC (Com Lógica Avançada de Gargalo / Valor Presente)
+   // D) Desenha as Barras do FGC
     let fgcHtml = '';
     const hoje = new Date();
 
@@ -1820,7 +1899,6 @@ function atualizarGraficosRF(cat) {
         const percentualUso = Math.min(100, (totalAtual / LIMITE_FGC) * 100);
         let corBarra = percentualUso >= 100 ? '#ef4444' : (percentualUso > 80 ? '#f59e0b' : '#0ea5e9');
 
-        // --- MATEMÁTICA DO GARGALO (Cálculo de Aporte Seguro) ---
         let tetoSegurancaAcumulado = Math.max(0, LIMITE_FGC - totalAtual); 
         const ativosDoBanco = porBanco[banco].ativosFGC;
 
@@ -1830,38 +1908,25 @@ function atualizarGraficosRF(cat) {
                 const dt = parseDataBR(a.extras?.vencimento);
                 if (dt && dt >= hoje) datasCriticas.push(dt);
             });
-
-            // Ordena cronologicamente
             datasCriticas.sort((a, b) => a - b);
 
             if (datasCriticas.length > 0) {
                 tetoSegurancaAcumulado = 9999999999; 
-                // Usa o CDI Projetado pelo Assessor como taxa de desconto do dinheiro no tempo
                 const taxaSimulacaoMensal = Math.pow(1 + (pCDI / 100), 1/12) - 1;
 
                 datasCriticas.forEach(dataCritica => {
                     let saldoProjetadoNaData = 0;
-                    ativosDoBanco.forEach(a => {
-                        saldoProjetadoNaData += calcularValorProjetadoEmData(a, dataCritica, pCDI, pIPCA);
-                    });
-
+                    ativosDoBanco.forEach(a => saldoProjetadoNaData += calcularValorProjetadoEmData(a, dataCritica, pCDI, pIPCA));
                     const gapFuturo = Math.max(0, LIMITE_FGC - saldoProjetadoNaData);
                     const mesesAteData = diffMeses(hoje, dataCritica);
-                    
-                    // Desconta o Gap futuro para Valor Presente
                     const aportePermitidoIsolado = gapFuturo / Math.pow(1 + taxaSimulacaoMensal, mesesAteData);
-
-                    // O limite seguro hoje é o menor gargalo encontrado no futuro
-                    if (aportePermitidoIsolado < tetoSegurancaAcumulado) {
-                        tetoSegurancaAcumulado = aportePermitidoIsolado;
-                    }
+                    if (aportePermitidoIsolado < tetoSegurancaAcumulado) tetoSegurancaAcumulado = aportePermitidoIsolado;
                 });
             }
         }
 
         const potencialAporte = Math.max(0, tetoSegurancaAcumulado);
         let corAporteText = potencialAporte > 0 ? 'var(--success)' : 'var(--danger)';
-        // --------------------------------------------------------
 
         fgcHtml += `
         <div style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
@@ -1874,24 +1939,22 @@ function atualizarGraficosRF(cat) {
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
                 <span>${percentualUso.toFixed(1)}% do teto</span>
-                <span>Potencial de Aporte Hoje: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></span>
+                <span>Potencial de Aporte: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></span>
             </div>
         </div>`;
     });
     
     document.getElementById('containerFGC').innerHTML = fgcHtml || '<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum ativo listado com risco FGC mapeado.</p>';
 
-    // D2) RESTAURAÇÃO: Processamento e Desenho dos Juros Mensais (Grid Layout Premium)
+    // D2) Processamento de Juros
     let totalJurosMensais = 0;
     let jurosHtml = '';
-    
     dadosCat.assets.forEach(at => {
         if(at.nome.toUpperCase().includes("CUPOM") || at.nome.toUpperCase().includes("MENSAL") || at.nome.toUpperCase().includes("JUROS")) {
             const taxaAnual = estimarTaxaAnual(at.extras?.taxa, pCDI, pIPCA);
             const rendaMensalBruta = (at.valor * taxaAnual) / 12;
-            const rendaMensalLiq = rendaMensalBruta * 0.85; // Estima 15% de IR
+            const rendaMensalLiq = rendaMensalBruta * 0.85; 
             totalJurosMensais += rendaMensalLiq;
-            
             jurosHtml += `
             <div style="background: rgba(31, 41, 55, 0.3); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 65px;">
                 <div style="font-size: 0.8rem; font-weight: bold; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${at.nome}">${at.nome}</div>
@@ -1903,49 +1966,45 @@ function atualizarGraficosRF(cat) {
         }
     });
     
-    const badge = document.getElementById('totalJurosBadge');
-    const containerRend = document.getElementById('containerRendimentos');
-
-    if(badge && containerRend) {
-        if(totalJurosMensais > 0) {
-            badge.innerText = `Total: R$ ${totalJurosMensais.toLocaleString('pt-BR', {minimumFractionDigits:2})}/mês`;
-            containerRend.innerHTML = jurosHtml;
-        } else {
-            badge.innerText = `Total: R$ 0,00/mês`;
-            containerRend.innerHTML = '<p style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted); margin: 5px 0;">Nenhum ativo com pagamento de cupons mensais ou fluxos periódicos detectado nesta carteira.</p>';
-        }
+    if(totalJurosMensais > 0) {
+        document.getElementById('totalJurosBadge').innerText = `Total: R$ ${totalJurosMensais.toLocaleString('pt-BR', {minimumFractionDigits:2})}/mês`;
+        document.getElementById('containerRendimentos').innerHTML = jurosHtml;
+    } else {
+        document.getElementById('totalJurosBadge').innerText = `Total: R$ 0,00/mês`;
+        document.getElementById('containerRendimentos').innerHTML = '<p style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted); margin: 5px 0;">Nenhum ativo com pagamento de cupons mensais detectado.</p>';
     }
 
-    // E) Desenha a Tabela Interna (Suspensa)
-    let rowsHtml = dadosCat.assets.sort((a,b) => b.valor - a.valor).map((a, index) => {
-        const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
-        return `
-            <tr>
-                <td><strong>${a.nome}</strong></td>
-                <td style="color: var(--text-muted);">${a.extras?.emissor || '-'}</td>
-                <td style="color: var(--text-muted);">${a.extras?.vencimento || '-'}</td>
-                <td style="color: var(--text-muted);">${a.extras?.taxa || '-'}</td>
-                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
-                <td style="text-align: right;">
-                    <button onclick="editarCampoRF('${cat}', ${index}, 'emissor')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;" title="Editar Emissor">🏦</button>
-                    <button onclick="editarCampoRF('${cat}', ${index}, 'vencimento')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;" title="Editar Vencimento">📅</button>
-                    <button onclick="editarCampoRF('${cat}', ${index}, 'taxa')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;" title="Editar Taxa">📈</button>
-                    <button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-
-    const tabelaEl = document.getElementById('tabelaAtivosRF');
-    if(tabelaEl) {
-        tabelaEl.innerHTML = `
-            <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+    // E) Desenha as Tabelas Separadas
+    const gerarTabelaHTML = (listaAtivos) => {
+        if (listaAtivos.length === 0) return `<p style="padding: 15px; color: var(--text-muted); margin: 0;">Nenhum ativo listado nesta categoria.</p>`;
+        let rows = listaAtivos.sort((a,b) => b.valor - a.valor).map(a => {
+            const originalIndex = dadosCat.assets.indexOf(a); // Mantém o index original para edição/exclusão
+            const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
+            return `
+                <tr>
+                    <td><strong>${a.nome}</strong></td>
+                    <td style="color: var(--text-muted);">${a.extras?.emissor || '-'}</td>
+                    <td style="color: var(--text-muted);">${a.extras?.vencimento || '-'}</td>
+                    <td style="color: var(--text-muted);">${a.extras?.taxa || '-'}</td>
+                    <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                    <td style="text-align: right;">
+                        <button onclick="editarCampoRF('${cat}', ${originalIndex}, 'emissor')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;">🏦</button>
+                        <button onclick="editarCampoRF('${cat}', ${originalIndex}, 'vencimento')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;">📅</button>
+                        <button onclick="editarCampoRF('${cat}', ${originalIndex}, 'taxa')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;">📈</button>
+                        <button class="btn-delete" onclick="excluirAtivo('${cat}', ${originalIndex})">×</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        return `<table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
                 <thead><tr><th>Ativo</th><th>Emissor</th><th>Venc.</th><th>Taxa</th><th style="text-align: right;">Presente (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
-                <tbody>${rowsHtml}</tbody>
-            </table>
-        `;
-    }
+                <tbody>${rows}</tbody></table>`;
+    };
+
+    if(document.getElementById('tabelaAtivosFGC')) document.getElementById('tabelaAtivosFGC').innerHTML = gerarTabelaHTML(listaFGC);
+    if(document.getElementById('tabelaAtivosCP')) document.getElementById('tabelaAtivosCP').innerHTML = gerarTabelaHTML(listaCP);
+    if(document.getElementById('tabelaAtivosFundos')) document.getElementById('tabelaAtivosFundos').innerHTML = gerarTabelaHTML(listaFundos);
 }
 
 // 4. MODAL DETALHADO DO FLUXO MENSAL
