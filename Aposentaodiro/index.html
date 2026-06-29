@@ -108,25 +108,39 @@
                 <div class="metrics-panel" id="metrics-container"></div>
             </div>
 
-            <div id="scenario-simulator-card" class="addon-card">
-                <h3>🔬 Simulador de Cenários</h3>
-                <p>Arraste os controlos abaixo para ver o impacto de diferentes decisões no seu plano. A linha tracejada no gráfico mostrará a sua simulação.</p>
-                <div class="financial-columns">
-                    <div class="form-group">
-                        <label for="sim-aporte">Aporte Mensal Simulado<span id="sim-aporte-value" class="slider-value"></span></label>
-                        <input type="range" id="sim-aporte" class="scenario-slider">
-                    </div>
-                    <div class="form-group">
-                        <label for="sim-idade-reforma">Idade de Reforma Simulada<span id="sim-idade-reforma-value" class="slider-value"></span></label>
-                        <input type="range" id="sim-idade-reforma" class="scenario-slider">
-                    </div>
-                    <div class="form-group">
-                        <label for="sim-perfil-risco">Perfil de Risco Simulado</label>
-                        <select id="sim-perfil-risco" class="scenario-select"></select>
-                    </div>
-                </div>
-                <button id="reset-scenario-btn" class="secondary-button" style="margin-top: 15px;">Restaurar Plano Original</button>
-            </div>
+           <div id="scenario-simulator-card" class="addon-card">
+    <h3>🔬 Simulador de Cenários</h3>
+    <p>Arraste os controlos abaixo para ver o impacto de diferentes decisões no seu plano. A linha tracejada no gráfico mostrará a sua simulação.</p>
+    
+    <div class="financial-columns">
+        <div class="form-group">
+            <label for="sim-aporte">Aporte Mensal Simulado<span id="sim-aporte-value" class="slider-value"></span></label>
+            <input type="range" id="sim-aporte" class="scenario-slider">
+        </div>
+        <div class="form-group">
+            <label for="sim-idade-reforma">Idade de Reforma Simulada<span id="sim-idade-reforma-value" class="slider-value"></span></label>
+            <input type="range" id="sim-idade-reforma" class="scenario-slider">
+        </div>
+        <!-- NOVO: Slider da Renda Simulada -->
+        <div class="form-group">
+            <label for="sim-renda">Renda Desejada Simulada<span id="sim-renda-value" class="slider-value"></span></label>
+            <input type="range" id="sim-renda" class="scenario-slider">
+        </div>
+        <div class="form-group">
+            <label for="sim-perfil-risco">Perfil de Risco Simulado</label>
+            <select id="sim-perfil-risco" class="scenario-select"></select>
+        </div>
+    </div>
+    
+    <!-- NOVO: Container para Objetivos Simulados -->
+    <div style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+        <h4>Objetivos e Eventos Simulados</h4>
+        <div id="sim-goals-list"></div>
+        <button id="add-sim-goal-btn" class="secondary-button" style="width:100%; margin-top: 10px; font-size: 14px;">+ Adicionar Evento na Simulação</button>
+    </div>
+
+    <button id="reset-scenario-btn" class="secondary-button" style="margin-top: 15px;">Restaurar Plano Original</button>
+</div>
 
             <div class="dashboard-addons">
                 <div class="addon-card" id="optimizer-card" class="hidden">

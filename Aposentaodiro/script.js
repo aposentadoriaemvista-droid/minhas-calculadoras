@@ -105,6 +105,48 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('share-plan-btn').addEventListener('click', sharePlan);
     loadPlanFromURL();
+
+    // Cole isso em algum lugar na raiz do seu DOMContentLoaded
+    document.getElementById('add-sim-goal-btn').addEventListener('click', addSimulatedGoal);
+
+    function addSimulatedGoal() {
+        const list = document.getElementById('sim-goals-list');
+        const newItem = document.createElement('div');
+        newItem.classList.add('goal-item'); // Reaproveitando sua classe CSS de box
+        newItem.style.padding = '15px';
+        newItem.style.marginTop = '10px';
+        
+        newItem.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                <select class="sim-goal-type" style="width: auto; padding: 6px; border-radius: 4px; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                    <option value="objetivo">Gasto / Retirada</option>
+                    <option value="evento">Entrada / Ganho</option>
+                </select>
+                <button class="remove-button remove-sim-goal">×</button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" class="formatted-number sim-goal-value" placeholder="Valor (R$)" style="flex: 1; padding: 8px; border-radius: 4px; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                <input type="number" class="sim-goal-age" placeholder="Sua Idade" style="width: 100px; padding: 8px; border-radius: 4px; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+            </div>
+        `;
+        
+        list.appendChild(newItem);
+        
+        // Formatar valor dinamicamente e rodar simulação na mudança
+        const valueInput = newItem.querySelector('.sim-goal-value');
+        valueInput.addEventListener('input', formatNumberInput);
+        
+        // Disparar o runSimulation ao preencher
+        newItem.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('input', runSimulation);
+        });
+
+        // Remover da simulação e recalcular
+        newItem.querySelector('.remove-sim-goal').addEventListener('click', (e) => {
+            e.target.closest('.goal-item').remove();
+            runSimulation();
+        });
+    }
     
     function runFinancialPlan() {
     enviarDadosParaPlanilha();
@@ -404,8 +446,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const idadeValue = document.getElementById('sim-idade-reforma-value');
         const perfilSelect = document.getElementById('sim-perfil-risco');
         const resetButton = document.getElementById('reset-scenario-btn');
+        // NOVO: Pegando elementos da Renda Simulada
+        const rendaSlider = document.getElementById('sim-renda');
+        const rendaValue = document.getElementById('sim-renda-value');
 
-        aporteSlider.min = 0;
+       aporteSlider.min = 0;
         aporteSlider.max = Math.max(inputs.aporteMensal * 3, 5000, unformatNumber(document.getElementById('salario').value)); 
         aporteSlider.step = 100;
         aporteSlider.value = inputs.aporteMensal;
@@ -417,10 +462,20 @@ document.addEventListener('DOMContentLoaded', () => {
         idadeSlider.value = retirementGoal.age;
         idadeValue.textContent = `${retirementGoal.age} anos`;
 
+        // NOVO: Configurando slider da Renda Simulada
+        rendaSlider.min = 0;
+        rendaSlider.max = Math.max(retirementGoal.value * 3, 20000); // Teto de 3x a renda ou 20k
+        rendaSlider.step = 500;
+        rendaSlider.value = retirementGoal.value;
+        rendaValue.textContent = formatCurrency(retirementGoal.value);
+
         perfilSelect.innerHTML = document.getElementById('risk-profile').innerHTML;
         perfilSelect.value = inputs.perfilRisco;
         
-        [aporteSlider, idadeSlider, perfilSelect].forEach(el => {
+        // NOVO: Limpar lista de objetivos manuais da simulação ao (re)iniciar e reatribuir listeners
+        document.getElementById('sim-goals-list').innerHTML = '';
+        
+        [aporteSlider, idadeSlider, perfilSelect, rendaSlider].forEach(el => {
             el.addEventListener('input', runSimulation);
         });
         
@@ -434,14 +489,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const simAporte = parseFloat(document.getElementById('sim-aporte').value);
         const simIdade = parseInt(document.getElementById('sim-idade-reforma').value);
         const simPerfil = document.getElementById('sim-perfil-risco').value;
-
+const simRenda = parseFloat(document.getElementById('sim-renda').value);
         document.getElementById('sim-aporte-value').textContent = formatCurrency(simAporte);
         document.getElementById('sim-idade-reforma-value').textContent = `${simIdade} anos`;
+        document.getElementById('sim-renda-value').textContent = formatCurrency(simRenda);
 
+
+        
         let simulatedInputs = { ...originalResults.inputs, aporteMensal: simAporte, perfilRisco: simPerfil };
         let simulatedGoals = JSON.parse(JSON.stringify(originalResults.userGoals));
+
+
+        // NOVO: Loop para varrer e adicionar os objetivos manuais criados na simulação
+        document.querySelectorAll('#sim-goals-list .goal-item').forEach(item => {
+            const type = item.querySelector('.sim-goal-type').value;
+            const valueStr = item.querySelector('.sim-goal-value').value;
+            const ageStr = item.querySelector('.sim-goal-age').value;
+            
+            const value = unformatNumber(valueStr);
+            const age = parseInt(ageStr);
+
+            if (value > 0 && age > simulatedInputs.idadeAtual) {
+                simulatedGoals.push({
+                    type: type,
+                    description: 'Simulação Dinâmica',
+                    value: value,
+                    age: age
+                });
+            }
+        });
+
         let simulatedRetirementGoal = simulatedGoals.find(g => g.type === 'aposentadoria');
         simulatedRetirementGoal.age = simIdade;
+        // NOVO: Substituir a meta de renda do objetivo de aposentadoria clonado
+        simulatedRetirementGoal.value = simRenda;
         
         // Substitua esta linha:
         // const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
