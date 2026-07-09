@@ -35,6 +35,27 @@ function formatarDataExcel(valor) {
     return valor.toString().trim();
 }
 
+// Corretor Inteligente de Porcentagens e Decimais (Para Alocação Alvo)
+function lerPercentual(valor) {
+    if (valor === undefined || valor === null || valor === "") return 0;
+    
+    let str = valor.toString().trim();
+    
+    // 1. Se a pessoa digitou com "%" (Ex: "40%" ou "17,5%")
+    if (str.includes('%')) {
+        str = str.replace('%', ''); // Arranca o símbolo para não atrapalhar
+    } 
+    // 2. Se o Excel transformou matematicamente "40%" em "0.4"
+    else if (typeof valor === 'number' && valor > 0 && valor < 1) {
+        return valor * 100; // Multiplica para voltar a ser 40
+    }
+
+    // 3. Lida com o problema da vírgula brasileira (transforma "17,5" em "17.5")
+    str = str.replace(',', '.');
+
+    // 4. Converte o texto limpo para número real com segurança
+    return parseFloat(str) || 0;
+}
 // Corretor Inteligente de Datas (Coloca as barras "/" automaticamente)
 function formatarDataMascara(str) {
     if (!str || str === "-") return "-";
@@ -339,14 +360,14 @@ const urlExterior = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2p
                 const conta = row["CLIENTES"] ? row["CLIENTES"].toString().trim() : "";
                 if (conta) {
                     globalGlossarioClientes[conta] = {
-                        "Renda Variavel Brasil": parseFloat(row["RV BRASIL"]) || 0,
-                        "Renda Fixa Brasil": parseFloat(row["RF BRASIL"]) || 0,
-                        "Multimercado": parseFloat(row["MULTIMERCADO"]) || 0,
-                        "Renda Variavel Global": parseFloat(row["RV GLOBAL"]) || 0,
-                        "Renda Fixa Global": parseFloat(row["RF GLOBAL"]) || 0,
-                        "Alternativo": parseFloat(row["ALTERNATIVO"]) || 0,
-                        "Fundos Imobiliários": parseFloat(row["FIIS"]) || 0,
-                        "Caixa": parseFloat(row["CAIXA"]) || 0
+                        "Renda Variavel Brasil": lerPercentual(row["RV BRASIL"]) || 0,
+                        "Renda Fixa Brasil": lerPercentual(row["RF BRASIL"]) || 0,
+                        "Multimercado": lerPercentual(row["MULTIMERCADO"]) || 0,
+                        "Renda Variavel Global": lerPercentual(row["RV GLOBAL"]) || 0,
+                        "Renda Fixa Global": lerPercentual(row["RF GLOBAL"]) || 0,
+                        "Alternativo": lerPercentual(row["ALTERNATIVO"]) || 0,
+                        "Fundos Imobiliários": lerPercentual(row["FIIS"]) || 0,
+                        "Caixa": lerPercentual(row["CAIXA"]) || 0
                     };
                 }
             });
