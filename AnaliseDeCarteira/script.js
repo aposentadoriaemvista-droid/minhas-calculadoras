@@ -6,6 +6,7 @@ let totalPatrimonio = 0;
 let chartSimEstrategia = null;
 let chartSimSubclasses = null;
 let globalDetalheMap = {}; // Guardará os ativos atuais
+let globalGlossarioClientes = {}; // Guardará os alvos por número de conta
 let globalSubclassesMap = {};
 let chartGestorasFII = null;
 let chartClassesRV = null;
@@ -149,9 +150,60 @@ async function processarPlanilha() {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+        // --- NOVO: BUSCA DE CONTA DO CLIENTE ---
+        // Junta o nome do arquivo com as primeiras 20 linhas para formar um textão
+        let textoBusca = file.name + " ";
+        for (let i = 0; i < Math.min(20, matrix.length); i++) {
+            textoBusca += matrix[i].join(" ") + " ";
+        }
+        // Aciona o Detetive
+        buscarContaEPreencherAlvos(textoBusca);
+        // ----------------------------------------
         analisarCarteira(matrix, glossary);
     };
     reader.readAsArrayBuffer(file);
+}
+
+// Função Inteligente que vasculha o arquivo em busca da conta do cliente
+function buscarContaEPreencherAlvos(textoBusca) {
+    if (!globalGlossarioClientes || Object.keys(globalGlossarioClientes).length === 0) return false;
+    
+    const contasCadastradas = Object.keys(globalGlossarioClientes);
+    let contaEncontrada = null;
+
+    for (let conta of contasCadastradas) {
+        // Procura a conta exata no meio de todo o texto do Excel ou do Título
+        if (textoBusca.includes(conta)) {
+            contaEncontrada = conta;
+            break;
+        }
+    }
+
+    if (contaEncontrada) {
+        const alvo = globalGlossarioClientes[contaEncontrada];
+        
+        // Preenche os Inputs da barra lateral
+        document.querySelector('.target-input[data-cat="Renda Variavel Brasil"]').value = alvo["Renda Variavel Brasil"];
+        document.querySelector('.target-input[data-cat="Renda Fixa Brasil"]').value = alvo["Renda Fixa Brasil"];
+        document.querySelector('.target-input[data-cat="Multimercado"]').value = alvo["Multimercado"];
+        document.querySelector('.target-input[data-cat="Renda Variavel Global"]').value = alvo["Renda Variavel Global"];
+        document.querySelector('.target-input[data-cat="Renda Fixa Global"]').value = alvo["Renda Fixa Global"];
+        document.querySelector('.target-input[data-cat="Alternativo"]').value = alvo["Alternativo"];
+        document.querySelector('.target-input[data-cat="Fundos Imobiliários"]').value = alvo["Fundos Imobiliários"];
+        document.querySelector('.target-input[data-cat="Caixa"]').value = alvo["Caixa"];
+        
+        // Atualiza o nome do cliente no topo do Dashboard
+        const clientNameEl = document.getElementById('clientName');
+        if (clientNameEl) clientNameEl.innerText = "Conta: " + contaEncontrada;
+
+        return true;
+    } else {
+        // Se não achar nada, zera tudo para não misturar com o cliente anterior
+        document.querySelectorAll('.target-input').forEach(input => input.value = 0);
+        const clientNameEl = document.getElementById('clientName');
+        if (clientNameEl) clientNameEl.innerText = "Não Identificado";
+        return false;
+    }
 }
 
 async function loadGlossaryFromDrive() {
@@ -255,6 +307,33 @@ const urlExterior = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2p
                     dict[ativoKey].extras.localizacao = traduzirPaisParaRegiao(row[3]); 
                 }
             }
+        }
+        // 5. CARREGA A ABA DE CLIENTES (ALOCAÇÃO ALVO)
+        const urlClientes = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=2133570502&single=true&output=csv";
+        
+        if (urlClientes) {
+            const resCli = await fetch(urlClientes, { cache: 'no-store' });
+            const textCli = await resCli.text();
+            const wbCli = XLSX.read(textCli, { type: 'string' });
+            const jsonCli = XLSX.utils.sheet_to_json(wbCli.Sheets[wbCli.SheetNames[0]]);
+            
+            globalGlossarioClientes = {};
+            jsonCli.forEach(row => {
+                // Forçamos a conta para string para evitar erros de leitura com zeros
+                const conta = row["CLIENTES"] ? row["CLIENTES"].toString().trim() : "";
+                if (conta) {
+                    globalGlossarioClientes[conta] = {
+                        "Renda Variavel Brasil": parseFloat(row["RV BRASIL"]) || 0,
+                        "Renda Fixa Brasil": parseFloat(row["RF BRASIL"]) || 0,
+                        "Multimercado": parseFloat(row["MULTIMERCADO"]) || 0,
+                        "Renda Variavel Global": parseFloat(row["RV GLOBAL"]) || 0,
+                        "Renda Fixa Global": parseFloat(row["RF GLOBAL"]) || 0,
+                        "Alternativo": parseFloat(row["ALTERNATIVO"]) || 0,
+                        "Fundos Imobiliários": parseFloat(row["FIIS"]) || 0,
+                        "Caixa": parseFloat(row["CAIXA"]) || 0
+                    };
+                }
+            });
         }
 
         console.log("Glossário online carregado com sucesso (Acentos corrigidos)!");
