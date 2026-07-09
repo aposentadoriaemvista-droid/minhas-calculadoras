@@ -151,57 +151,73 @@ async function processarPlanilha() {
         const workbook = XLSX.read(data, { type: 'array' });
         const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
         // --- NOVO: BUSCA DE CONTA DO CLIENTE ---
-        // Junta o nome do arquivo com as primeiras 20 linhas para formar um textão
-        let textoBusca = file.name + " ";
-        for (let i = 0; i < Math.min(20, matrix.length); i++) {
-            textoBusca += matrix[i].join(" ") + " ";
-        }
-        // Aciona o Detetive
-        buscarContaEPreencherAlvos(textoBusca);
+       // --- NOVO: CAPTURA CIRÚRGICA DA CONTA DO CLIENTE ---
+        // Ele vai olhar o file.name E o cabeçalho da matrix simultaneamente
+        const contaEncontrada = extrairContaCliente(file.name, matrix);
+        buscarContaEPreencherAlvos(contaEncontrada);
         // ----------------------------------------
         analisarCarteira(matrix, glossary);
     };
     reader.readAsArrayBuffer(file);
 }
 
-// Função Inteligente que vasculha o arquivo em busca da conta do cliente
-function buscarContaEPreencherAlvos(textoBusca) {
-    if (!globalGlossarioClientes || Object.keys(globalGlossarioClientes).length === 0) return false;
+// 1. O Extrator de Precisão (Busca a conta no arquivo ou no cabeçalho)
+function extrairContaCliente(nomeArquivo, matrix) {
+    let conta = null;
     
-    const contasCadastradas = Object.keys(globalGlossarioClientes);
-    let contaEncontrada = null;
-
-    for (let conta of contasCadastradas) {
-        // Procura a conta exata no meio de todo o texto do Excel ou do Título
-        if (textoBusca.includes(conta)) {
-            contaEncontrada = conta;
-            break;
+    // TENTATIVA 1: Extrair do nome do arquivo (ex: "Posição Consolidada - 2541929.xlsx")
+    // Puxa qualquer sequência de números que venha logo após um traço "-"
+    const matchArquivo = nomeArquivo.match(/-\s*(\d+)/);
+    if (matchArquivo && matchArquivo[1]) {
+        conta = matchArquivo[1];
+    }
+    
+    // TENTATIVA 2: Se não achou no nome, procura nas 10 primeiras linhas da planilha
+    if (!conta) {
+        for (let i = 0; i < Math.min(10, matrix.length); i++) {
+            const linhaTexto = matrix[i].join(" "); 
+            // Procura o padrão exato "Conta: 241316" ignorando espaços extras
+            const matchLinha = linhaTexto.match(/Conta\s*:\s*(\d+)/i);
+            if (matchLinha && matchLinha[1]) {
+                conta = matchLinha[1];
+                break;
+            }
         }
     }
+    
+    return conta;
+}
 
-    if (contaEncontrada) {
-        const alvo = globalGlossarioClientes[contaEncontrada];
+// 2. O Preenchedor Inteligente (Agora recebe o número exato da conta)
+function buscarContaEPreencherAlvos(contaExtraida) {
+    // Atualiza o painel com o número da conta (mesmo que não tenha alvo definido)
+    const clientNameEl = document.getElementById('clientName');
+    
+    if (!globalGlossarioClientes || Object.keys(globalGlossarioClientes).length === 0) {
+        if (clientNameEl) clientNameEl.innerText = contaExtraida ? "Conta: " + contaExtraida : "Não Identificada";
+        return false;
+    }
+
+    // Se achou a conta e ela existe no Glossário do Google Sheets
+    if (contaExtraida && globalGlossarioClientes[contaExtraida]) {
+        const alvo = globalGlossarioClientes[contaExtraida];
         
         // Preenche os Inputs da barra lateral
-        document.querySelector('.target-input[data-cat="Renda Variavel Brasil"]').value = alvo["Renda Variavel Brasil"];
-        document.querySelector('.target-input[data-cat="Renda Fixa Brasil"]').value = alvo["Renda Fixa Brasil"];
-        document.querySelector('.target-input[data-cat="Multimercado"]').value = alvo["Multimercado"];
-        document.querySelector('.target-input[data-cat="Renda Variavel Global"]').value = alvo["Renda Variavel Global"];
-        document.querySelector('.target-input[data-cat="Renda Fixa Global"]').value = alvo["Renda Fixa Global"];
-        document.querySelector('.target-input[data-cat="Alternativo"]').value = alvo["Alternativo"];
-        document.querySelector('.target-input[data-cat="Fundos Imobiliários"]').value = alvo["Fundos Imobiliários"];
-        document.querySelector('.target-input[data-cat="Caixa"]').value = alvo["Caixa"];
+        document.querySelector('.target-input[data-cat="Renda Variavel Brasil"]').value = alvo["Renda Variavel Brasil"] || 0;
+        document.querySelector('.target-input[data-cat="Renda Fixa Brasil"]').value = alvo["Renda Fixa Brasil"] || 0;
+        document.querySelector('.target-input[data-cat="Multimercado"]').value = alvo["Multimercado"] || 0;
+        document.querySelector('.target-input[data-cat="Renda Variavel Global"]').value = alvo["Renda Variavel Global"] || 0;
+        document.querySelector('.target-input[data-cat="Renda Fixa Global"]').value = alvo["Renda Fixa Global"] || 0;
+        document.querySelector('.target-input[data-cat="Alternativo"]').value = alvo["Alternativo"] || 0;
+        document.querySelector('.target-input[data-cat="Fundos Imobiliários"]').value = alvo["Fundos Imobiliários"] || 0;
+        document.querySelector('.target-input[data-cat="Caixa"]').value = alvo["Caixa"] || 0;
         
-        // Atualiza o nome do cliente no topo do Dashboard
-        const clientNameEl = document.getElementById('clientName');
-        if (clientNameEl) clientNameEl.innerText = "Conta: " + contaEncontrada;
-
+        if (clientNameEl) clientNameEl.innerText = "Conta: " + contaExtraida;
         return true;
     } else {
-        // Se não achar nada, zera tudo para não misturar com o cliente anterior
+        // Se a conta não existir no Glossário, zera os inputs de segurança
         document.querySelectorAll('.target-input').forEach(input => input.value = 0);
-        const clientNameEl = document.getElementById('clientName');
-        if (clientNameEl) clientNameEl.innerText = "Não Identificado";
+        if (clientNameEl) clientNameEl.innerText = contaExtraida ? "Conta: " + contaExtraida + " (S/ Alvo)" : "Conta Não Identificada";
         return false;
     }
 }
