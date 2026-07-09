@@ -34,6 +34,18 @@ function formatarDataExcel(valor) {
     return valor.toString().trim();
 }
 
+// Corretor Inteligente de Datas (Coloca as barras "/" automaticamente)
+function formatarDataMascara(str) {
+    if (!str || str === "-") return "-";
+    let nums = str.replace(/\D/g, ''); // Arranca tudo que não for número
+    if (nums.length === 8) {
+        return `${nums.substring(0,2)}/${nums.substring(2,4)}/${nums.substring(4,8)}`;
+    } else if (nums.length === 6) {
+        return `${nums.substring(0,2)}/${nums.substring(2,4)}/20${nums.substring(4,6)}`;
+    }
+    return str; // Retorna original se já tiver formatado certo
+}
+
 // 1. Dicionário Inteligente que une diferentes formas de escrever o mesmo banco
 function limparNomeEmissor(emissor) {
     if (!emissor || emissor === "-") return "Indefinido";
@@ -529,10 +541,15 @@ function fecharModal() {
     document.getElementById('manGlobalLocal').value = 'Não Classificado';
     
     // Limpa os elementos específicos de Renda Fixa
+    // Limpa os elementos específicos de Renda Fixa
     document.getElementById('manRfEmissor').value = '';
     document.getElementById('manRfVencimento').value = '';
     if (document.getElementById('manRfTaxaTipo')) document.getElementById('manRfTaxaTipo').value = '% CDI';
-    if (document.getElementById('manRfTaxaValor')) document.getElementById('manRfTaxaValor').value = '';
+    if (document.getElementById('manRfTaxaValor')) {
+        document.getElementById('manRfTaxaValor').value = '';
+        document.getElementById('manRfTaxaValor').type = 'number';
+        document.getElementById('manRfTaxaValor').placeholder = 'Valor (ex: 6)';
+    }
 }
 
 function adicionarAtivoManual() {
@@ -558,18 +575,27 @@ function adicionarAtivoManual() {
         // Compila o tipo selecionado e o valor em uma string padronizada aceita pelo interpretador do sistema
         const tipoTaxa = document.getElementById('manRfTaxaTipo').value;
         const valorTaxa = parseFloat(document.getElementById('manRfTaxaValor').value) || 0;
+        const inputValor = document.getElementById('manRfTaxaValor').value;
         let taxaFormatada = "-";
         
-        if (valorTaxa > 0) {
-            if (tipoTaxa === "% CDI") taxaFormatada = `${valorTaxa}% CDI`;
-            else if (tipoTaxa === "CDI +") taxaFormatada = `CDI + ${valorTaxa}%`;
-            else if (tipoTaxa === "IPCA +") taxaFormatada = `IPCA + ${valorTaxa}%`;
-            else if (tipoTaxa === "PRE") taxaFormatada = `${valorTaxa}% PRE`;
+       if (tipoTaxa === "OUTRO") {
+            taxaFormatada = inputValor || "-";
+        } else {
+            // Se for padrão, exige um número e formata bonitinho
+            const valorTaxa = parseFloat(inputValor) || 0;
+            if (valorTaxa > 0) {
+                if (tipoTaxa === "% CDI") taxaFormatada = `${valorTaxa}% CDI`;
+                else if (tipoTaxa === "CDI +") taxaFormatada = `CDI + ${valorTaxa}%`;
+                else if (tipoTaxa === "IPCA +") taxaFormatada = `IPCA + ${valorTaxa}%`;
+                else if (tipoTaxa === "PRE") taxaFormatada = `${valorTaxa}% PRE`;
+                else if (tipoTaxa === "SELIC +") taxaFormatada = `SELIC + ${valorTaxa}%`;
+                else if (tipoTaxa === "IGPM +") taxaFormatada = `IGPM + ${valorTaxa}%`;
+            }
         }
 
         extrasAtivo = {
             emissor: document.getElementById('manRfEmissor').value || "Indefinido",
-            vencimento: document.getElementById('manRfVencimento').value || "-",
+            vencimento: formatarDataMascara(document.getElementById('manRfVencimento').value) || "-",
             taxa: taxaFormatada
         };
     }
@@ -1695,7 +1721,7 @@ function diffMeses(d1, d2) {
     return months <= 0 ? 0 : months;
 }
 
-function estimarTaxaAnual(taxaStr, pCDI, pIPCA) {
+function estimarTaxaAnual(taxaStr, pCDI, pIPCA, pSelic, pIGPM) {
     if(!taxaStr || taxaStr === "-") return pCDI / 100; // Padrão Conservador
     let t = taxaStr.toUpperCase().replace(/\s/g, '').replace(',', '.');
     
@@ -1710,21 +1736,29 @@ function estimarTaxaAnual(taxaStr, pCDI, pIPCA) {
         let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
         return ((pIPCA + fixedPart) / 100);
     }
+    if (t.includes('SELIC') || t.includes('LFT')) {
+        let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
+        return ((pSelic + fixedPart) / 100);
+    }
+    if (t.includes('IGPM') || t.includes('IGP-M')) {
+        let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
+        return ((pIGPM + fixedPart) / 100);
+    }
+    
     let val = parseFloat(t.replace('%', '')); if (!isNaN(val)) return val / 100;
     return pCDI / 100; 
 }
 
-function calcularValorNoVencimento(ativo, pCDI, pIPCA) {
+function calcularValorNoVencimento(ativo, pCDI, pIPCA, pSelic, pIGPM) {
     const vencimento = parseDataBR(ativo.extras?.vencimento);
-    if (!vencimento) return ativo.valor; // Se não tem vencimento, assume o valor atual no fluxo
+    if (!vencimento) return ativo.valor; 
     
     const hoje = new Date();
     if (vencimento <= hoje) return ativo.valor;
 
-    // Cupom não capitaliza juros no montante final
     if (ativo.nome.toUpperCase().includes("CUPOM") || ativo.nome.toUpperCase().includes("MENSAL")) return ativo.valor; 
 
-    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA);
+    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA, pSelic, pIGPM);
     const taxaMensal = Math.pow(1 + taxaAnual, 1/12) - 1;
     const meses = diffMeses(hoje, vencimento);
     
@@ -1761,15 +1795,44 @@ function renderizarAbaRF(cat, dadosCat, tabEl) {
                 </div>
             </div>
             
-            <div style="display: flex; gap: 20px; margin-top: 20px;">
+            <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
                 <div>
                     <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção CDI (% a.a.)</label><br>
-                    <input type="number" id="projCDI" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5);" onchange="atualizarGraficosRF('${cat}')">
+                    <input type="number" id="projCDI" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
                 </div>
                 <div>
                     <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IPCA (% a.a.)</label><br>
-                    <input type="number" id="projIPCA" value="4.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5);" onchange="atualizarGraficosRF('${cat}')">
+                    <input type="number" id="projIPCA" value="4.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
                 </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção Selic (% a.a.)</label><br>
+                    <input type="number" id="projSelic" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IGPM (% a.a.)</label><br>
+                    <input type="number" id="projIGPM" value="5.0" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <!-- NOVO: CAMPO DE SIMULAÇÃO DE APORTE INDEPENDENTE -->
+                <div style="border-left: 1px solid var(--border-color); padding-left: 20px; margin-left: 10px;">
+                    <label style="font-size:0.8rem; color:var(--accent-primary); font-weight: bold;">Taxa Simulação Novo Aporte (% a.a.)</label><br>
+                    <input type="number" id="taxaSimulacao" value="12.0" step="0.1" style="width: 120px; margin-top: 5px; background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid var(--accent-primary); padding: 8px; border-radius: 4px; font-weight: bold;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                        <label style="font-size:0.8rem; color:var(--accent-primary); font-weight: bold;">Venc. do Aporte</label><br>
+                        <select id="anoAlvoFGC" style="width: 100px; margin-top: 5px; background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid var(--accent-primary); padding: 8px; border-radius: 4px; font-weight: bold;" onchange="atualizarGraficosRF('${cat}')">
+                            <option value="MAX">Sempre</option>
+                            <option value="2026">2026</option>
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                            <option value="2031">2031</option>
+                            <option value="2032">2032</option>
+                            <option value="2033">2033</option>
+                            <option value="2034">2034</option>
+                            <option value="2035">2035</option>
+                        </select>
+                    </div>
             </div>
         </div>
 
@@ -1835,6 +1898,9 @@ function atualizarGraficosRF(cat) {
 
     const pCDI = parseFloat(document.getElementById('projCDI')?.value) || 10.5;
     const pIPCA = parseFloat(document.getElementById('projIPCA')?.value) || 4.5;
+    const pSelic = parseFloat(document.getElementById('projSelic')?.value) || 10.5;
+    const pIGPM = parseFloat(document.getElementById('projIGPM')?.value) || 5.0;
+    const taxaSim = parseFloat(document.getElementById('taxaSimulacao')?.value) || 12.0; // <-- Adicione esta linha
 
     const dadosMapAnual = {};
     const porBanco = {};
@@ -1888,9 +1954,14 @@ function atualizarGraficosRF(cat) {
         });
     }
 
-   // D) Desenha as Barras do FGC
+  // D) Desenha as Barras do FGC (Com Filtro de Ano Alvo)
     let fgcHtml = '';
     const hoje = new Date();
+    
+    // Captura o Ano Alvo escolhido pelo Assessor
+    const anoAlvoStr = document.getElementById('anoAlvoFGC')?.value || "MAX";
+    let dataAlvoMaxima = new Date(3000, 11, 31); 
+    if (anoAlvoStr !== "MAX") dataAlvoMaxima = new Date(parseInt(anoAlvoStr), 11, 31); 
 
     Object.keys(porBanco).sort((a,b) => porBanco[b].totalFGC - porBanco[a].totalFGC).forEach(banco => {
         if(porBanco[banco].totalFGC === 0) return; 
@@ -1906,20 +1977,29 @@ function atualizarGraficosRF(cat) {
             let datasCriticas = [];
             ativosDoBanco.forEach(a => {
                 const dt = parseDataBR(a.extras?.vencimento);
-                if (dt && dt >= hoje) datasCriticas.push(dt);
+                // Só considera a data crítica se ela acontecer ANTES ou DURANTE o ano alvo do novo aporte
+                if (dt && dt >= hoje && dt <= dataAlvoMaxima) datasCriticas.push(dt);
             });
+            
+            // Adiciona a própria data de resgate do novo aporte como data crítica final
+            if (anoAlvoStr !== "MAX" && dataAlvoMaxima >= hoje) datasCriticas.push(dataAlvoMaxima);
+
+            // Ordena e remove duplicatas para otimizar
             datasCriticas.sort((a, b) => a - b);
+            datasCriticas = [...new Set(datasCriticas.map(d => d.getTime()))].map(t => new Date(t));
 
             if (datasCriticas.length > 0) {
                 tetoSegurancaAcumulado = 9999999999; 
-                const taxaSimulacaoMensal = Math.pow(1 + (pCDI / 100), 1/12) - 1;
+                const taxaSimulacaoMensal = Math.pow(1 + (taxaSim / 100), 1/12) - 1;
 
                 datasCriticas.forEach(dataCritica => {
                     let saldoProjetadoNaData = 0;
-                    ativosDoBanco.forEach(a => saldoProjetadoNaData += calcularValorProjetadoEmData(a, dataCritica, pCDI, pIPCA));
+                    ativosDoBanco.forEach(a => saldoProjetadoNaData += calcularValorProjetadoEmData(a, dataCritica, pCDI, pIPCA, pSelic, pIGPM));
+                    
                     const gapFuturo = Math.max(0, LIMITE_FGC - saldoProjetadoNaData);
                     const mesesAteData = diffMeses(hoje, dataCritica);
                     const aportePermitidoIsolado = gapFuturo / Math.pow(1 + taxaSimulacaoMensal, mesesAteData);
+                    
                     if (aportePermitidoIsolado < tetoSegurancaAcumulado) tetoSegurancaAcumulado = aportePermitidoIsolado;
                 });
             }
@@ -1927,6 +2007,11 @@ function atualizarGraficosRF(cat) {
 
         const potencialAporte = Math.max(0, tetoSegurancaAcumulado);
         let corAporteText = potencialAporte > 0 ? 'var(--success)' : 'var(--danger)';
+        
+        let textoAporte = `Potencial de Aporte Hoje: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong>`;
+        if (anoAlvoStr !== "MAX") {
+            textoAporte = `Aporte p/ ${anoAlvoStr}: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong>`;
+        }
 
         fgcHtml += `
         <div style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
@@ -1939,7 +2024,7 @@ function atualizarGraficosRF(cat) {
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
                 <span>${percentualUso.toFixed(1)}% do teto</span>
-                <span>Potencial de Aporte: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></span>
+                <span>${textoAporte}</span>
             </div>
         </div>`;
     });
@@ -2014,6 +2099,8 @@ function abrirFluxoMensal(cat) {
     const dadosCat = globalDetalheMap[cat];
     const pCDI = parseFloat(document.getElementById('projCDI')?.value) || 10.5;
     const pIPCA = parseFloat(document.getElementById('projIPCA')?.value) || 4.5;
+    const pSelic = parseFloat(document.getElementById('projSelic')?.value) || 10.5;
+    const pIGPM = parseFloat(document.getElementById('projIGPM')?.value) || 5.0;
 
     const dadosMapMensal = {};
     let minDate = new Date(3000, 0, 1); 
@@ -2025,7 +2112,7 @@ function abrirFluxoMensal(cat) {
             if (dt < minDate) minDate = dt; 
             if (dt > maxDate) maxDate = dt; 
             const mesAno = `${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()}`;
-            dadosMapMensal[mesAno] = (dadosMapMensal[mesAno] || 0) + calcularValorNoVencimento(at, pCDI, pIPCA);
+            dadosMapMensal[mesAno] = (dadosMapMensal[mesAno] || 0) + calcularValorNoVencimento(at, pCDI, pIPCA, pSelic, pIGPM);
         }
     });
 
@@ -2050,23 +2137,20 @@ function abrirFluxoMensal(cat) {
 }
 
 // Função Auxiliar: Calcula o valor de um ativo em uma data futura específica
-function calcularValorProjetadoEmData(ativo, dataFutura, pCDI, pIPCA) {
+function calcularValorProjetadoEmData(ativo, dataFutura, pCDI, pIPCA, pSelic, pIGPM) {
     const hoje = new Date();
     const vencimento = parseDataBR(ativo.extras?.vencimento);
 
-    // Se já venceu antes da data futura, o dinheiro saiu do banco (Zera o risco FGC)
     if (!vencimento || vencimento < dataFutura) return 0; 
-    
     if (dataFutura <= hoje) return ativo.valor;
     if (ativo.nome.toUpperCase().includes("CUPOM") || ativo.nome.toUpperCase().includes("MENSAL")) return ativo.valor;
 
-    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA);
+    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA, pSelic, pIGPM);
     const taxaMensal = Math.pow(1 + taxaAnual, 1/12) - 1;
     const meses = diffMeses(hoje, dataFutura);
 
     return ativo.valor * Math.pow(1 + taxaMensal, meses);
 }
-
 // 5. EDIÇÃO RÁPIDA NA TABELA
 // 5. EDIÇÃO RÁPIDA NA TABELA COM MODAL PREMIUM
 // EDIÇÃO RÁPIDA DE RF COM MODAL ELEGANTE
@@ -2100,7 +2184,14 @@ function editarCampoRF(cat, index, campo) {
 
     document.getElementById('btnSalvarEditRf').onclick = () => {
         if (!ativo.extras) ativo.extras = {};
-        ativo.extras[campo] = document.getElementById('tempEditRf').value.trim() || "-";
+        
+        // Se for a data, passa pelo corretor inteligente!
+        if (campo === 'vencimento') {
+            ativo.extras[campo] = formatarDataMascara(document.getElementById('tempEditRf').value.trim()) || "-";
+        } else {
+            ativo.extras[campo] = document.getElementById('tempEditRf').value.trim() || "-";
+        }
+        
         document.body.removeChild(dialog);
         recalcularTudoERenderizar();
     };

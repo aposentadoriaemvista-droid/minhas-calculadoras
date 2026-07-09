@@ -297,11 +297,14 @@
             <input type="text" id="manRfVencimento" placeholder="Vencimento (DD/MM/AAAA)">
             
             <div style="display: flex; gap: 8px; width: 100%;">
-                <select id="manRfTaxaTipo" style="flex: 1.2; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <select id="manRfTaxaTipo" style="flex: 1.2; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="if(this.value==='OUTRO'){document.getElementById('manRfTaxaValor').type='text';document.getElementById('manRfTaxaValor').placeholder='Digite a taxa livre';}else{document.getElementById('manRfTaxaValor').type='number';document.getElementById('manRfTaxaValor').placeholder='Valor (ex: 6)';}">
                     <option value="% CDI">% do CDI (ex: 110% CDI)</option>
                     <option value="CDI +">CDI + % (ex: CDI + 2%)</option>
                     <option value="IPCA +">IPCA + % (ex: IPCA + 6%)</option>
                     <option value="PRE">Prefixado % (ex: 12.5% PRE)</option>
+                    <option value="SELIC +">Selic + % (ex: Selic + 2%)</option>
+                    <option value="IGPM +">IGPM + % (ex: IGPM + 4%)</option>
+                    <option value="OUTRO">Outro / Texto Livre</option>
                 </select>
                 <input type="number" id="manRfTaxaValor" placeholder="Valor (ex: 6)" step="0.01" style="flex: 0.8; min-width: 0;">
             </div>
