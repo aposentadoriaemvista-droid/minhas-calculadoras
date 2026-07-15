@@ -106,7 +106,8 @@ function limparNomeEmissor(emissor) {
     if (nome.includes("RICO")) return "RICO INVESTIMENTOS";
     if (nome.includes("NUBANK") || nome.includes("NU PAGAMENTOS") || nome.includes("NU")) return "NUBANK";
     if (nome.includes("CAIXA") || nome.includes("CEF")) return "CAIXA ECONOMICA FEDERAL";
-    if (nome.includes("BRASIL") && !nome.includes("TESOURO")) return "BANCO DO BRASIL";
+    if (nome.includes("BANCO DO BRASIL")) return "BANCO DO BRASIL";
+    if (nome.includes("ANDBANK")) return "ANDBANK";
     if (nome.includes("BNDES")) return "BNDES";
     if (nome.includes("TESOURO") || nome.includes("NTN") || nome.includes("LTN") || nome.includes("LFT")) return "TESOURO NACIONAL";
 
