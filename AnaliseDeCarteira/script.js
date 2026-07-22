@@ -729,6 +729,9 @@ function adicionarAtivoManual() {
 // ==========================================
 // MÓDULO NOVO: IMPORTAÇÃO DE ATIVOS VIA XML
 // ==========================================
+// ==========================================
+// MÓDULO NOVO: IMPORTAÇÃO DE ATIVOS VIA XML
+// ==========================================
 async function importarPlanilhaXML(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -756,17 +759,19 @@ async function importarPlanilhaXML(event) {
                 let valor = parseFloat(valorString) || 0;
                 const sub = node.querySelector("subclasse")?.textContent || "Outros";
 
-                // Traduz a classe do XML para as 8 Categorias Oficiais do Sistema
+                // 1. CORREÇÃO DA LEITURA DE CLASSE (Aceita siglas e nomes completos)
                 let classeFinal = "Caixa";
-                if (classeRaw.toUpperCase().includes("FII")) classeFinal = "Fundos Imobiliários";
-                else if (classeRaw.toUpperCase().includes("RF BRASIL")) classeFinal = "Renda Fixa Brasil";
-                else if (classeRaw.toUpperCase().includes("RV BRASIL") || classeRaw.toUpperCase().includes("AÇÕES")) classeFinal = "Renda Variavel Brasil";
-                else if (classeRaw.toUpperCase().includes("RF GLOBAL")) classeFinal = "Renda Fixa Global";
-                else if (classeRaw.toUpperCase().includes("RV GLOBAL")) classeFinal = "Renda Variavel Global";
-                else if (classeRaw.toUpperCase().includes("MULTIMERCADO")) classeFinal = "Multimercado";
-                else if (classeRaw.toUpperCase().includes("ALTERNATIVO")) classeFinal = "Alternativo";
+                const cRawUpper = classeRaw.toUpperCase();
+                
+                if (cRawUpper.includes("FII") || cRawUpper.includes("IMOBILIÁRIO")) classeFinal = "Fundos Imobiliários";
+                else if (cRawUpper.includes("RF BRASIL") || cRawUpper.includes("RENDA FIXA BRASIL")) classeFinal = "Renda Fixa Brasil";
+                else if (cRawUpper.includes("RV BRASIL") || cRawUpper.includes("RENDA VARIAVEL BRASIL") || cRawUpper.includes("AÇÕES") || cRawUpper.includes("ACOES")) classeFinal = "Renda Variavel Brasil";
+                else if (cRawUpper.includes("RF GLOBAL") || cRawUpper.includes("RENDA FIXA GLOBAL")) classeFinal = "Renda Fixa Global";
+                else if (cRawUpper.includes("RV GLOBAL") || cRawUpper.includes("RENDA VARIAVEL GLOBAL")) classeFinal = "Renda Variavel Global";
+                else if (cRawUpper.includes("MULTIMERCADO")) classeFinal = "Multimercado";
+                else if (cRawUpper.includes("ALTERNATIVO")) classeFinal = "Alternativo";
 
-                // Conversão de moeda para ativos globais (O XML deve enviar o valor em Dólar)
+                // Conversão de moeda para ativos globais
                 if (classeFinal === "Renda Variavel Global" || classeFinal === "Renda Fixa Global") {
                     valor = valor * cotacaoDolarGlobal;
                 }
@@ -784,11 +789,33 @@ async function importarPlanilhaXML(event) {
                         };
                     } 
                     else if (classeFinal === "Renda Fixa Brasil") {
-                        // Passamos o emissor pelo limpador do FGC e a data pelo corretor de barras!
+                        
+                        // 2. CORREÇÃO DA DATA (Trata o padrão americano do XML YYYY-MM-DD)
+                        let dataXML = detalhes.querySelector("vencimento")?.textContent || "-";
+                        let dataAjustada = dataXML;
+                        if (dataXML.match(/^\d{4}-\d{2}-\d{2}$/)) { // Identifica o formato 2030-06-24
+                            const partes = dataXML.split('-');
+                            dataAjustada = `${partes[2]}/${partes[1]}/${partes[0]}`; // Inverte para 24/06/2030
+                        } else {
+                            dataAjustada = formatarDataMascara(dataXML); // Usa a máscara padrão se vier diferente
+                        }
+
+                        // 3. CORREÇÃO DA TAXA (Junta o indexador e a taxa se o XML mandar separado)
+                        let taxaXML = detalhes.querySelector("taxa")?.textContent || "-";
+                        let indexadorXML = detalhes.querySelector("indexador")?.textContent || "";
+                        
+                        if (taxaXML !== "-" && !taxaXML.includes("%") && indexadorXML) {
+                            if (indexadorXML.includes("+")) {
+                                taxaXML = `${indexadorXML} ${taxaXML}%`; // Ex: SELIC + 10%
+                            } else {
+                                taxaXML = `${taxaXML}% ${indexadorXML}`; // Ex: 115% CDI
+                            }
+                        }
+
                         extrasAtivo = {
                             emissor: limparNomeEmissor(detalhes.querySelector("emissor")?.textContent || "Indefinido"),
-                            vencimento: formatarDataMascara(detalhes.querySelector("vencimento")?.textContent || "-"),
-                            taxa: detalhes.querySelector("taxa")?.textContent || "-"
+                            vencimento: dataAjustada,
+                            taxa: taxaXML
                         };
                     } 
                     else if (classeFinal === "Renda Variavel Global" || classeFinal === "Renda Fixa Global") {
