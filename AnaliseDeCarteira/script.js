@@ -726,85 +726,109 @@ function adicionarAtivoManual() {
 }
 // 3. Lê o Excel Offshore e injeta no Sistema (Agora aceitando zeros)
 // 3. Lê o Excel Offshore e injeta no Sistema (Versão Blindada)
-async function importarPlanilhaOffshore(event) {
+// ==========================================
+// MÓDULO NOVO: IMPORTAÇÃO DE ATIVOS VIA XML
+// ==========================================
+async function importarPlanilhaXML(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Tenta atualizar a cotação antes de processar
+    // Atualiza a cotação do dólar para caso haja ativos globais no XML
     await initApp(); 
 
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+            const xmlText = e.target.result;
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
+            const ativosNode = xmlDoc.getElementsByTagName("ativo");
             let contagem = 0;
 
-            // Começa a ler da Linha 2 (índice 1), pulando os cabeçalhos
-            for (let i = 1; i < matrix.length; i++) {
-                const row = matrix[i];
-                if (!row || row.length === 0) continue;
+            for (let i = 0; i < ativosNode.length; i++) {
+                const node = ativosNode[i];
+                
+                // Extração dos dados básicos
+                const classeRaw = node.getAttribute("classe") || "Caixa";
+                const nome = node.querySelector("nome")?.textContent || "Ativo Indefinido";
+                const valorString = node.querySelector("valor")?.textContent || "0";
+                let valor = parseFloat(valorString) || 0;
+                const sub = node.querySelector("subclasse")?.textContent || "Outros";
 
-                const nomeAtivo = row[0];
-                const codigo = row[1];
-                
-                // SEGURANÇA 1: Se a linha não tiver Nome nem Código, ela é vazia e deve ser pulada
-                if (!nomeAtivo && !codigo) continue;
+                // Traduz a classe do XML para as 8 Categorias Oficiais do Sistema
+                let classeFinal = "Caixa";
+                if (classeRaw.toUpperCase().includes("FII")) classeFinal = "Fundos Imobiliários";
+                else if (classeRaw.toUpperCase().includes("RF BRASIL")) classeFinal = "Renda Fixa Brasil";
+                else if (classeRaw.toUpperCase().includes("RV BRASIL") || classeRaw.toUpperCase().includes("AÇÕES")) classeFinal = "Renda Variavel Brasil";
+                else if (classeRaw.toUpperCase().includes("RF GLOBAL")) classeFinal = "Renda Fixa Global";
+                else if (classeRaw.toUpperCase().includes("RV GLOBAL")) classeFinal = "Renda Variavel Global";
+                else if (classeRaw.toUpperCase().includes("MULTIMERCADO")) classeFinal = "Multimercado";
+                else if (classeRaw.toUpperCase().includes("ALTERNATIVO")) classeFinal = "Alternativo";
 
-                const setor = row[2] || "Não Classificado";
-                const paisLocal = row[3] || "Não Classificado";
-                const classePlanilha = row[4] || "Renda Variavel Global"; 
-                
-                // SEGURANÇA 2: Se o valor estiver vazio, em branco ou for texto, transforma em ZERO (0)
-                let rawValor = row[5];
-                let valorDolar = 0; 
-                
-                if (rawValor !== undefined && rawValor !== null && rawValor !== "") {
-                    if (typeof rawValor === 'string') {
-                        valorDolar = parseFloat(rawValor.replace(',', '.'));
-                    } else {
-                        valorDolar = parseFloat(rawValor);
+                // Conversão de moeda para ativos globais (O XML deve enviar o valor em Dólar)
+                if (classeFinal === "Renda Variavel Global" || classeFinal === "Renda Fixa Global") {
+                    valor = valor * cotacaoDolarGlobal;
+                }
+
+                // Extrator Específico de Detalhes (Extras)
+                let extrasAtivo = {};
+                const detalhes = node.querySelector("detalhes");
+
+                if (detalhes) {
+                    if (classeFinal === "Fundos Imobiliários") {
+                        extrasAtivo = {
+                            classeFii: detalhes.querySelector("classe_fi")?.textContent || "-",
+                            gestora: detalhes.querySelector("gestora")?.textContent || "-",
+                            indexador: detalhes.querySelector("indexador")?.textContent || "-"
+                        };
+                    } 
+                    else if (classeFinal === "Renda Fixa Brasil") {
+                        // Passamos o emissor pelo limpador do FGC e a data pelo corretor de barras!
+                        extrasAtivo = {
+                            emissor: limparNomeEmissor(detalhes.querySelector("emissor")?.textContent || "Indefinido"),
+                            vencimento: formatarDataMascara(detalhes.querySelector("vencimento")?.textContent || "-"),
+                            taxa: detalhes.querySelector("taxa")?.textContent || "-"
+                        };
+                    } 
+                    else if (classeFinal === "Renda Variavel Global" || classeFinal === "Renda Fixa Global") {
+                        extrasAtivo = {
+                            setor: detalhes.querySelector("setor")?.textContent || "Não Classificado",
+                            localizacao: detalhes.querySelector("localizacao")?.textContent || "Não Classificado"
+                        };
+                    } 
+                    else if (classeFinal === "Renda Variavel Brasil") {
+                        extrasAtivo = {
+                            classeRV: detalhes.querySelector("classe_rv")?.textContent || "Não Classificado"
+                        };
                     }
                 }
-                if (isNaN(valorDolar)) valorDolar = 0;
 
-                const nomeFinal = codigo ? codigo.toString().toUpperCase() : nomeAtivo.toString();
-                const regiaoMapeada = traduzirPaisParaRegiao(paisLocal);
+                // Injeta no Motor Principal
+                if (!globalDetalheMap[classeFinal]) globalDetalheMap[classeFinal] = { total: 0, assets: [] };
+                globalDetalheMap[classeFinal].total += valor;
+                globalDetalheMap[classeFinal].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
                 
-                // Multiplica o ZERO (ou o valor real) pela cotação
-                const valorEmReais = valorDolar * cotacaoDolarGlobal;
-
-                if (!globalDetalheMap[classePlanilha]) {
-                    globalDetalheMap[classePlanilha] = { total: 0, assets: [] };
-                }
-
-                globalDetalheMap[classePlanilha].total += valorEmReais;
-                globalDetalheMap[classePlanilha].assets.push({
-                    nome: nomeFinal,
-                    valor: valorEmReais, // Fica guardado em Reais (R$ 0.00) nos cálculos
-                    sub: "Dólar",
-                    extras: { setor: setor, localizacao: regiaoMapeada }
-                });
                 contagem++;
             }
 
-            // Exibe as mensagens corretas
             if (contagem > 0) {
                 recalcularTudoERenderizar();
-                alert(`Sucesso! ${contagem} ativos importados.\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+                alert(`🚀 Sucesso! ${contagem} ativos importados perfeitamente via XML.`);
             } else {
-                alert("Aviso: A planilha foi lida, mas não encontramos nenhum ativo escrito da linha 2 em diante. Lembre-se de colocar ao menos o Nome ou Código!");
+                alert("Aviso: O arquivo XML foi lido, mas a estrutura <ativo> não foi encontrada.");
             }
+
         } catch (err) {
-            console.error(err);
-            alert("Erro interno ao ler a planilha. Verifique se ela não está corrompida.");
+            console.error("Erro na leitura do XML:", err);
+            alert("Erro crítico ao processar o arquivo XML. Verifique se o código está formatado corretamente.");
         } finally {
-            event.target.value = ''; // Limpa o botão para permitir subir a mesma planilha de novo
+            // Fecha a janela de importação e reseta o botão
+            document.getElementById('modalImportacao').style.display = 'none';
+            event.target.value = ''; 
         }
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsText(file);
 }
 
 function excluirAtivo(classe, index) {

@@ -349,6 +349,12 @@
                 🇺🇸 Extrato Avenue 
             </label>
         </div>
+        <!-- NOVO BOTÃO: LEITOR DE XML -->
+            <input type="file" id="xmlUpload" accept=".xml" hidden onchange="importarPlanilhaXML(event)">
+            <label for="xmlUpload" class="btn-upload" style="margin: 0; border-color: #f59e0b; color: #f59e0b;">
+                ⚡ Importar XML (Ativos Manuais)
+            </label>
+        </div>
 
         <div class="modal-actions" style="margin-top: 25px;">
             <button class="btn-upload danger" style="width: 100%;" onclick="document.getElementById('modalImportacao').style.display='none'">Cancelar</button>
