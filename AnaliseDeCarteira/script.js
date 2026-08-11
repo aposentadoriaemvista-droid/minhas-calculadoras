@@ -14,6 +14,8 @@ let chartRVGlobal = null;
 let chartRFGlobal = null;
 let chartSetorGlobalRV = null;
 let chartSetorGlobalRF = null;
+let chartAcoesRV = null;
+let chartFundosRV = null;
 
 // Carrega o pacote de Mapas do Google
 google.charts.load('current', {
@@ -318,6 +320,7 @@ const urlExterior = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2p
                     if (!dict[ativo].extras) dict[ativo].extras = {};
                     
                     dict[ativo].extras.classeRV = row[1] || "Não Classificado"; // Coluna 2 = Classe/Estratégia
+                    dict[ativo].extras.caps = row[6] || "Não Classificado"; // Coluna G (Caps)
                 }
             }
         }
@@ -653,9 +656,11 @@ function fecharModal() {
     document.getElementById('manFiiClasse').value = '';
     document.getElementById('manFiiGestora').value = '';
     document.getElementById('manFiiIndexador').value = '';
-    document.getElementById('manRvClasse').value = 'Não Classificado'; 
     document.getElementById('manGlobalSetor').value = 'Não Classificado'; 
     document.getElementById('manGlobalLocal').value = 'Não Classificado';
+
+    document.getElementById('manRvClasse').value = 'Não Classificado'; 
+    if (document.getElementById('manRvCaps')) document.getElementById('manRvCaps').value = 'Não Classificado';
     
     // Limpa os elementos específicos de Renda Fixa
     // Limpa os elementos específicos de Renda Fixa
@@ -687,7 +692,10 @@ function adicionarAtivoManual() {
     } else if (classe === "Fundos Imobiliários") {
         extrasAtivo = { classeFii: document.getElementById('manFiiClasse').value || "-", gestora: document.getElementById('manFiiGestora').value || "-", indexador: document.getElementById('manFiiIndexador').value || "-" };
     } else if (classe === "Renda Variavel Brasil") {
-        extrasAtivo = { classeRV: document.getElementById('manRvClasse').value || "Não Classificado" };
+        extrasAtivo = { 
+            classeRV: document.getElementById('manRvClasse').value || "Não Classificado",
+            caps: document.getElementById('manRvCaps').value || "Não Classificado"
+        };
     } else if (classe === "Renda Fixa Brasil") {
         // Compila o tipo selecionado e o valor em uma string padronizada aceita pelo interpretador do sistema
         const tipoTaxa = document.getElementById('manRfTaxaTipo').value;
@@ -826,7 +834,8 @@ async function importarPlanilhaXML(event) {
                     } 
                     else if (classeFinal === "Renda Variavel Brasil") {
                         extrasAtivo = {
-                            classeRV: detalhes.querySelector("classe_rv")?.textContent || "Não Classificado"
+                            classeRV: detalhes.querySelector("classe_rv")?.textContent || "Não Classificado",
+                            caps: detalhes.querySelector("caps")?.textContent || "Não Classificado"
                         };
                     }
                 }
@@ -1301,115 +1310,172 @@ function renderChartGestoras(dadosGestoras) {
     });
 }
 // --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL ---
+// --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL (AÇÕES X FUNDOS) ---
 function renderizarAbaRV(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
     
-    // 1. Somar valores por "Classe de RV"
-    const resumoClassesRV = {};
+    const acoes = [];
+    const fundos = [];
+    const resumoSetores = {};
+    const resumoCaps = {};
+
     assets.forEach(a => {
-        const classe = (a.extras && a.extras.classeRV && a.extras.classeRV !== "-") ? a.extras.classeRV : "Não Classificado";
-        resumoClassesRV[classe] = (resumoClassesRV[classe] || 0) + a.valor;
+        const nomeUpper = a.nome.toUpperCase();
+        // Filtro Inteligente: Se tem "FIA", "FUNDO", "FIC" ou tem mais de 6 caracteres e um espaço = É Fundo.
+        const isFundo = nomeUpper.includes(" FIA") || nomeUpper.includes("FUNDO") || nomeUpper.includes("FIC ") || nomeUpper.includes("CAPITAL") || (nomeUpper.length > 6 && nomeUpper.includes(" "));
+
+        if (isFundo) {
+            fundos.push(a);
+            const caps = (a.extras && a.extras.caps && a.extras.caps !== "-") ? a.extras.caps : "Não Classificado";
+            resumoCaps[caps] = (resumoCaps[caps] || 0) + a.valor;
+        } else {
+            acoes.push(a);
+            const classeRV = (a.extras && a.extras.classeRV && a.extras.classeRV !== "-") ? a.extras.classeRV : "Não Classificado";
+            resumoSetores[classeRV] = (resumoSetores[classeRV] || 0) + a.valor;
+        }
     });
 
-    // 2. Montar o Container do Gráfico (Maior e centralizado)
-    const graficoRVHtml = `
-        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
-            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 600px;">
-                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Estratégia / Setor</h4>
-                <div style="position: relative; height: 260px; width: 100%;">
-                    <canvas id="chartRV"></canvas>
+    const graficosDuplosHtml = `
+        <div class="fii-top-panels" style="align-items: stretch; margin-bottom: 25px;">
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #3b82f6; min-height: 280px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Ações: Exposição por Setor</h4>
+                <div style="position: relative; height: 220px; width: 100%;">
+                    <canvas id="chartSetoresRV"></canvas>
+                </div>
+            </div>
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #8b5cf6; min-height: 280px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Fundos: Exposição por Caps</h4>
+                <div style="position: relative; height: 220px; width: 100%;">
+                    <canvas id="chartCapsFundos"></canvas>
                 </div>
             </div>
         </div>
     `;
 
-    // 3. Montar as Linhas da Tabela com o Botão de Edição
-    let rowsHtml = assets.map((a, index) => {
-        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
-        const classeRV = a.extras?.classeRV || 'Não Classificado';
+    const gerarTabelaRV = (lista, isFundo) => {
+        if (lista.length === 0) return `<tr><td colspan="5" style="text-align: center; padding: 15px; color: var(--text-muted);">Nenhum ativo alocado.</td></tr>`;
+        return lista.map((a) => {
+            const originalIndex = dadosCat.assets.indexOf(a);
+            const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
+            
+            let badgeHtml = "";
+            if (isFundo) {
+                const capValue = a.extras?.caps || 'Não Classificado';
+                badgeHtml = `<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${capValue}</span>
+                             <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'caps')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Cap">✏️</button>`;
+            } else {
+                const setorValue = a.extras?.classeRV || 'Não Classificado';
+                badgeHtml = `<span class="badge" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">${setorValue}</span>
+                             <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'classeRV')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Setor">✏️</button>`;
+            }
 
-        return `
-            <tr>
-                <td><strong>${a.nome}</strong></td>
-                <td>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${classeRV}</span>
-                        <button onclick="editarClasseRV('${cat}', ${index})" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-muted); padding: 0;" title="Alterar Classe">✏️</button>
-                    </div>
-                </td>
-                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
-                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
-            </tr>
-        `;
-    }).join('');
+            return `
+                <tr>
+                    <td><strong>${a.nome}</strong></td>
+                    <td><div style="display: flex; align-items: center; gap: 8px;">${badgeHtml}</div></td>
+                    <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                    <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${originalIndex})" title="Remover Ativo">×</button></td>
+                </tr>
+            `;
+        }).join('');
+    };
 
-    const cabecalhoEspecial = `<th>Ativo</th><th>Estratégia / Classe</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
+    const htmlCompleto = `
+        <div class="card" style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+                <h3 style="margin: 0; border: none; padding: 0;">${cat}</h3>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Total na Classe</span><br>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${dadosCat.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
+                </div>
+            </div>
+            
+            ${graficosDuplosHtml}
+            
+            <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                    <span style="color: #3b82f6;">📈 Ações Diretas (Padrão)</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+                </div>
+                <div class="acc-content" style="padding: 0; display: block;">
+                    <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+                        <thead><tr><th>Ação</th><th>Setor</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+                        <tbody>${gerarTabelaRV(acoes, false)}</tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                    <span style="color: #8b5cf6;">📊 Fundos de Ações (FIA)</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+                </div>
+                <div class="acc-content" style="padding: 0; display: block;">
+                    <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+                        <thead><tr><th>Fundo</th><th>Estratégia (Caps)</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+                        <tbody>${gerarTabelaRV(fundos, true)}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
     
-    // Injeta o HTML na aba
-    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficoRVHtml);
+    tabEl.innerHTML = htmlCompleto;
 
-    // 4. Desenha o gráfico
-    renderChartRV(resumoClassesRV);
+    renderChartDuploRV('chartSetoresRV', resumoSetores, 'acoes');
+    renderChartDuploRV('chartCapsFundos', resumoCaps, 'fundos');
 }
 
-// --- FUNÇÃO DO GRÁFICO DE RV ---
-function renderChartRV(dadosClasses) {
-    const ctx = document.getElementById('chartRV');
+// --- FUNÇÃO DE GRÁFICOS E EDIÇÃO DA RV ---
+function renderChartDuploRV(canvasId, dados, tipo) {
+    const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    if (chartClassesRV) chartClassesRV.destroy();
+    if (tipo === 'acoes' && chartAcoesRV) chartAcoesRV.destroy();
+    if (tipo === 'fundos' && chartFundosRV) chartFundosRV.destroy();
 
-    const labelsRaw = Object.keys(dadosClasses);
-    const dataRaw = Object.values(dadosClasses);
-    const totalRV = dataRaw.reduce((acc, val) => acc + val, 0);
+    const labelsRaw = Object.keys(dados);
+    const dataRaw = Object.values(dados);
+    const total = dataRaw.reduce((acc, val) => acc + val, 0);
 
-    const labelsComPerc = labelsRaw.map((nome, index) => {
-        const perc = ((dataRaw[index] / totalRV) * 100).toFixed(1);
-        return `${nome} (${perc}%)`;
-    });
+    if(total === 0) return; // Não desenha gráfico vazio
 
-    chartClassesRV = new Chart(ctx.getContext('2d'), {
+    const labelsComPerc = labelsRaw.map((nome, index) => `${nome} (${((dataRaw[index] / total) * 100).toFixed(1)}%)`);
+
+    const newChart = new Chart(ctx.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: labelsComPerc,
             datasets: [{
                 data: dataRaw,
-                backgroundColor: [
-                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
-                    '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'
-                ],
-                borderColor: '#1f2937',
-                borderWidth: 2
+                backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#f97316'],
+                borderColor: '#1f2937', borderWidth: 2
             }]
         },
         options: {
             maintainAspectRatio: false,
-            plugins: {
-                legend: { 
-                    position: 'bottom', // Move a legenda para baixo, criando colunas automaticamente
-                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 }, padding: 15 }
-                }
-            }
+            plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 10, font: { size: 9 }, padding: 10 } } }
         }
     });
+
+    if (tipo === 'acoes') chartAcoesRV = newChart;
+    if (tipo === 'fundos') chartFundosRV = newChart;
 }
-// --- FUNÇÃO PARA EDITAR CLASSE DE RV MANUALMENTE ---
-function editarClasseRV(cat, index) {
+
+function editarCampoRV(cat, index, campo) {
     const ativo = globalDetalheMap[cat].assets[index];
-    const classeAtual = ativo.extras?.classeRV || 'Não Classificado';
-    const novaClasse = prompt(`Defina a nova Estratégia/Setor para o ativo ${ativo.nome}:`, classeAtual);
+    const valorAtual = ativo.extras?.[campo] || 'Não Classificado';
     
-    // Se o usuário digitou algo e não cancelou
-    if (novaClasse !== null && novaClasse.trim() !== "") {
+    const titulo = campo === 'caps' ? `Defina a Capitalização (Small, Large, Híbrido) para o fundo:` : `Defina o Setor para a ação:`;
+    const novoValor = prompt(`${titulo}\nAtivo: ${ativo.nome}`, valorAtual);
+    
+    if (novoValor !== null && novoValor.trim() !== "") {
         if (!ativo.extras) ativo.extras = {};
-        ativo.extras.classeRV = novaClasse.trim();
-        
-        // Recalcula o projeto para atualizar tabelas e gráficos em tempo real
+        ativo.extras[campo] = novoValor.trim();
         recalcularTudoERenderizar();
     }
 }
-
 // ==========================================
 // MÓDULO: ATIVOS GLOBAIS (RV e RF com Mapa Múndi)
 // ==========================================
