@@ -707,7 +707,66 @@ const simRenda = parseFloat(document.getElementById('sim-renda').value);
     function formatNumberInput(e) { let value = e.target.value.replace(/\D/g, ''); if (value) { e.target.value = new Intl.NumberFormat('pt-BR').format(value); } else { e.target.value = ''; } }
     function unformatNumber(value) { return parseFloat(String(value).replace(/\./g, '').replace(',', '.')) || 0; }
     document.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
-    function generateFullProjection(inputs, goals, taxaAnual) { const retirementGoal = goals.find(g => g.type === 'aposentadoria'); if (!retirementGoal) return { accumulation: [], decumulation: [] }; const anosParaAposentar = retirementGoal.age - inputs.idadeAtual; const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age; let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }]; let saldo = inputs.patrimonioInicial; let pmtAnual = inputs.aporteMensal * 12; let totalAportado = inputs.patrimonioInicial; for (let ano = 1; ano <= anosParaAposentar; ano++) { const jurosDoAno = saldo * taxaAnual; let resgatesDoAno = 0; const currentAge = inputs.idadeAtual + ano; goals.forEach(goal => { if (goal.age === currentAge && goal.type !== 'aposentadoria') { resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); } }); saldo += jurosDoAno + pmtAnual + resgatesDoAno; totalAportado += pmtAnual; saldo = saldo < 0 ? 0 : saldo; accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno, jurosAcumulados: (accumulation[ano-1].jurosAcumulados || 0) + jurosDoAno }); pmtAnual *= (1 + (inputs.aporteGrowth || 0)); } let decumulation = []; const rendaComplementarNecessaria = Math.max(0, (retirementGoal.value || 0) - (retirementGoal.postRetirementIncome || 0)); const saqueAnual = rendaComplementarNecessaria * 12; for (let ano = 1; ano <= anosDeAposentadoria; ano++) { const juros = saldo * taxaAnual; saldo += juros - saqueAnual; if (saldo < 0) saldo = 0; decumulation.push({ ano, idade: retirementGoal.age + ano, saldoFinal: saldo }); } return { accumulation, decumulation }; }
+
+function generateFullProjection(inputs, goals, taxaAnual) { 
+        const retirementGoal = goals.find(g => g.type === 'aposentadoria'); 
+        if (!retirementGoal) return { accumulation: [], decumulation: [] }; 
+        
+        const anosParaAposentar = retirementGoal.age - inputs.idadeAtual; 
+        const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age; 
+        
+        let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }]; 
+        let saldo = inputs.patrimonioInicial; 
+        let pmtAnual = inputs.aporteMensal * 12; 
+        let totalAportado = inputs.patrimonioInicial; 
+        
+        // Fase de Acúmulo (Antes da Aposentadoria)
+        for (let ano = 1; ano <= anosParaAposentar; ano++) { 
+            const jurosDoAno = saldo * taxaAnual; 
+            let resgatesDoAno = 0; 
+            const currentAge = inputs.idadeAtual + ano; 
+            
+            goals.forEach(goal => { 
+                if (goal.age === currentAge && goal.type !== 'aposentadoria') { 
+                    resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); 
+                } 
+            }); 
+            
+            saldo += jurosDoAno + pmtAnual + resgatesDoAno; 
+            totalAportado += pmtAnual; 
+            saldo = saldo < 0 ? 0 : saldo; 
+            accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno, jurosAcumulados: (accumulation[ano-1].jurosAcumulados || 0) + jurosDoAno }); 
+            pmtAnual *= (1 + (inputs.aporteGrowth || 0)); 
+        } 
+        
+        let decumulation = []; 
+        const rendaComplementarNecessaria = Math.max(0, (retirementGoal.value || 0) - (retirementGoal.postRetirementIncome || 0)); 
+        const saqueAnual = rendaComplementarNecessaria * 12; 
+        
+        // Fase de Desacumulação (Pós Aposentadoria)
+        for (let ano = 1; ano <= anosDeAposentadoria; ano++) { 
+            const currentAge = retirementGoal.age + ano;
+            const juros = saldo * taxaAnual; 
+            let resgatesDoAno = 0;
+            
+            // NOVO: Verificação de eventos na fase de aposentadoria
+            goals.forEach(goal => { 
+                if (goal.age === currentAge && goal.type !== 'aposentadoria') { 
+                    resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); 
+                } 
+            });
+            
+            saldo += juros - saqueAnual + resgatesDoAno; 
+            if (saldo < 0) saldo = 0; 
+            decumulation.push({ ano, idade: currentAge, saldoFinal: saldo }); 
+        } 
+        
+        return { accumulation, decumulation }; 
+    }
+
+
+
+    
     function calculateImpactAnalysis(fullProjection, analysisInputs) { const { idadeAtual, userGoals, retirementGoal, taxaJurosAtual, metaIdeal, metaMinima, aporteGrowth } = analysisInputs; const analysis = []; const intermediateEvents = userGoals.filter(g => g.type !== 'aposentadoria' && g.age < retirementGoal.age).sort((a,b) => a.age - b.age); intermediateEvents.forEach(goal => { const anoDoObjetivo = goal.age - idadeAtual; const projectionPoint = fullProjection.accumulation[anoDoObjetivo]; if (!projectionPoint) return; const patrimonioNoFinalDoAno = projectionPoint.saldoFinal; const patrimonioNoInicioDoAno = fullProjection.accumulation[anoDoObjetivo - 1]?.saldoFinal || analysisInputs.patrimonioInicial; const anosRestantesParaAposentar = retirementGoal.age - goal.age; const novoAporteIdeal = calculateRequiredPMT(patrimonioNoFinalDoAno, metaIdeal, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth); const novoAporteMinimo = calculateRequiredPMT(patrimonioNoFinalDoAno, metaMinima, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth); analysis.push({ type: goal.type, description: goal.description, age: goal.age, patrimonioAntes: patrimonioNoInicioDoAno, value: goal.value, patrimonioDepois: patrimonioNoFinalDoAno, novoAporteIdeal, novoAporteMinimo }); }); return analysis; }
     function calculatePresentValue(pmtAnual, i, n) { if (n <= 0) return 0; if (i === 0) return pmtAnual * n; return pmtAnual * ((1 - Math.pow(1 + i, -n)) / i); }
     function calculateRequiredPMT(vp, vf, i, n, pmtGrowth) { if (n <= 0) return vf > vp ? Infinity : 0; let pmtAnual = 0; if (Math.abs(i - (pmtGrowth||0)) > 1e-9) { const term1 = vf - vp * Math.pow(1 + i, n); const term2 = (Math.pow(1 + i, n) - Math.pow(1 + (pmtGrowth||0), n)) / (i - (pmtGrowth||0)); if (term2 === 0) return Infinity; pmtAnual = term1 / term2; } else { if (n === 0) return Infinity; pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n - 1)); } return pmtAnual > 0 ? pmtAnual / 12 : 0; }
