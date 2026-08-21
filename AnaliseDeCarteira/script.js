@@ -1311,23 +1311,26 @@ function renderChartGestoras(dadosGestoras) {
 }
 // --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL ---
 // --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL (AÇÕES X FUNDOS) ---
+// --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL (AÇÕES X FUNDOS) ---
 function renderizarAbaRV(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
     
     const acoes = [];
     const fundos = [];
     const resumoSetores = {};
-    const resumoCaps = {};
+    const resumoCapsTotal = {}; // Agora soma Ações e Fundos!
 
     assets.forEach(a => {
         const nomeUpper = a.nome.toUpperCase();
         // Filtro Inteligente: Se tem "FIA", "FUNDO", "FIC" ou tem mais de 6 caracteres e um espaço = É Fundo.
         const isFundo = nomeUpper.includes(" FIA") || nomeUpper.includes("FUNDO") || nomeUpper.includes("FIC ") || nomeUpper.includes("CAPITAL") || (nomeUpper.length > 6 && nomeUpper.includes(" "));
 
+        // Todos os ativos de RV (Ações e Fundos) recebem e somam a tag de Caps
+        const caps = (a.extras && a.extras.caps && a.extras.caps !== "-") ? a.extras.caps : "Não Classificado";
+        resumoCapsTotal[caps] = (resumoCapsTotal[caps] || 0) + a.valor;
+
         if (isFundo) {
             fundos.push(a);
-            const caps = (a.extras && a.extras.caps && a.extras.caps !== "-") ? a.extras.caps : "Não Classificado";
-            resumoCaps[caps] = (resumoCaps[caps] || 0) + a.valor;
         } else {
             acoes.push(a);
             const classeRV = (a.extras && a.extras.classeRV && a.extras.classeRV !== "-") ? a.extras.classeRV : "Não Classificado";
@@ -1344,7 +1347,7 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
                 </div>
             </div>
             <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #8b5cf6; min-height: 280px;">
-                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Fundos: Exposição por Caps</h4>
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Carteira Total RV: Exposição por Caps</h4>
                 <div style="position: relative; height: 220px; width: 100%;">
                     <canvas id="chartCapsFundos"></canvas>
                 </div>
@@ -1353,26 +1356,32 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
     `;
 
     const gerarTabelaRV = (lista, isFundo) => {
-        if (lista.length === 0) return `<tr><td colspan="5" style="text-align: center; padding: 15px; color: var(--text-muted);">Nenhum ativo alocado.</td></tr>`;
+        if (lista.length === 0) return `<tr><td colspan="${isFundo ? 5 : 6}" style="text-align: center; padding: 15px; color: var(--text-muted);">Nenhum ativo alocado.</td></tr>`;
         return lista.map((a) => {
             const originalIndex = dadosCat.assets.indexOf(a);
             const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
             
-            let badgeHtml = "";
+            const capValue = a.extras?.caps || 'Não Classificado';
+            const badgeCaps = `<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${capValue}</span>
+                               <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'caps')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Cap">✏️</button>`;
+
+            let tdCentral = "";
             if (isFundo) {
-                const capValue = a.extras?.caps || 'Não Classificado';
-                badgeHtml = `<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${capValue}</span>
-                             <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'caps')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Cap">✏️</button>`;
+                tdCentral = `<td><div style="display: flex; align-items: center; gap: 8px;">${badgeCaps}</div></td>`;
             } else {
                 const setorValue = a.extras?.classeRV || 'Não Classificado';
-                badgeHtml = `<span class="badge" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">${setorValue}</span>
-                             <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'classeRV')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Setor">✏️</button>`;
+                const badgeSetor = `<span class="badge" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">${setorValue}</span>
+                                    <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'classeRV')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Setor">✏️</button>`;
+                
+                // Para Ações, renderiza duas colunas centrais: Setor e Caps
+                tdCentral = `<td><div style="display: flex; align-items: center; gap: 8px;">${badgeSetor}</div></td>
+                             <td><div style="display: flex; align-items: center; gap: 8px;">${badgeCaps}</div></td>`;
             }
 
             return `
                 <tr>
                     <td><strong>${a.nome}</strong></td>
-                    <td><div style="display: flex; align-items: center; gap: 8px;">${badgeHtml}</div></td>
+                    ${tdCentral}
                     <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
                     <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${originalIndex})" title="Remover Ativo">×</button></td>
@@ -1400,7 +1409,7 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
                 </div>
                 <div class="acc-content" style="padding: 0; display: block;">
                     <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
-                        <thead><tr><th>Ação</th><th>Setor</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+                        <thead><tr><th>Ação</th><th>Setor</th><th>Estratégia (Caps)</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
                         <tbody>${gerarTabelaRV(acoes, false)}</tbody>
                     </table>
                 </div>
@@ -1423,10 +1432,10 @@ function renderizarAbaRV(cat, dadosCat, tabEl) {
     
     tabEl.innerHTML = htmlCompleto;
 
+    // Constrói os dois gráficos passando os novos dados somados
     renderChartDuploRV('chartSetoresRV', resumoSetores, 'acoes');
-    renderChartDuploRV('chartCapsFundos', resumoCaps, 'fundos');
+    renderChartDuploRV('chartCapsFundos', resumoCapsTotal, 'fundos');
 }
-
 // --- FUNÇÃO DE GRÁFICOS E EDIÇÃO DA RV ---
 function renderChartDuploRV(canvasId, dados, tipo) {
     const ctx = document.getElementById(canvasId);

@@ -224,8 +224,10 @@
             <input type="text" id="manFiiIndexador" placeholder="Indexador (ex: IPCA, CDI)">
 
         </div>
-       <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
-            <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de Ações</p>
+     <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
+            <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de RV</p>
+            
+            <label style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: -5px;">Setor de Atuação (Para Ações):</label>
             <select id="manRvClasse" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
                 <option value="Não Classificado" selected>Selecione o Setor...</option>
                 <option value="Agro">Agro</option>
@@ -250,7 +252,8 @@
                 <option value="Tesouro">Tesouro</option>
                 <option value="Outros">Outros</option>
             </select>
-            <label style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: -5px;">Se for Fundo de Ação (Caps):</label>
+
+            <label style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: -5px;">Estratégia / Capitalização (Caps):</label>
             <select id="manRvCaps" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
                 <option value="Não Classificado" selected>Selecione o Cap...</option>
                 <option value="Large">Large Caps</option>
