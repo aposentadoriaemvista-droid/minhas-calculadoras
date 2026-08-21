@@ -38,8 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('resumo-mensal').innerHTML = `<div class="summary-highlight">Seu potencial de aporte mensal inicial é de: <strong>${formatCurrency(aporte)}</strong></div>`;
         return aporte;
     }
-
-    const addGoalBtn = document.getElementById('add-goal-btn');
+const addGoalBtn = document.getElementById('add-goal-btn');
     addGoalBtn.addEventListener('click', () => {
         const list = document.getElementById('goals-list');
         const newItem = document.createElement('div');
@@ -47,12 +46,35 @@ document.addEventListener('DOMContentLoaded', () => {
         newItem.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;"><h4>Novo Objetivo/Evento</h4><button class="remove-button" onclick="this.closest('.goal-item').remove()">×</button></div>
             <div class="goal-grid">
-                <div class="form-group"><label>Tipo</label><select class="goal-type"><option value="objetivo">Objetivo (Saída)</option><option value="evento">Evento (Entrada)</option></select></div>
-                <div class="form-group"><label>Descrição</label><input type="text" class="goal-description" placeholder="Ex: Comprar Carro"></div>
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select class="goal-type">
+                        <option value="objetivo">Objetivo (Saída Única)</option>
+                        <option value="evento">Evento (Entrada Única)</option>
+                        <option value="saida_mensal">Saída Recorrente (Mensal)</option>
+                        <option value="entrada_mensal">Entrada Recorrente (Mensal)</option>
+                        <option value="saida_anual">Saída Recorrente (Anual)</option>
+                        <option value="entrada_anual">Entrada Recorrente (Anual)</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Descrição</label><input type="text" class="goal-description" placeholder="Ex: Comprar Carro / Herança"></div>
                 <div class="form-group"><label>Valor (R$)</label><input type="text" class="formatted-number" id="goal-value" placeholder="80.000"></div>
-                <div class="form-group"><label>Com que idade?</label><input type="text" class="formatted-number" id="goal-age" placeholder="30"></div>
+                <div class="form-group"><label>Com que idade (Início)?</label><input type="text" class="formatted-number" id="goal-age" placeholder="30"></div>
+                <div class="form-group duration-group hidden"><label>Duração (Anos)</label><input type="text" class="formatted-number" id="goal-duration" placeholder="4"></div>
             </div>`;
         list.appendChild(newItem);
+        
+        // Mostrar/ocultar campo de duração dinamicamente
+        const typeSelect = newItem.querySelector('.goal-type');
+        const durationGroup = newItem.querySelector('.duration-group');
+        typeSelect.addEventListener('change', (e) => {
+            if (e.target.value.includes('mensal') || e.target.value.includes('anual')) {
+                durationGroup.classList.remove('hidden');
+            } else {
+                durationGroup.classList.add('hidden');
+            }
+        });
+        
         newItem.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
     });
 
@@ -163,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let userGoals = [];
         document.querySelectorAll('.goal-item').forEach(item => {
-            const goal = { type: item.querySelector('.goal-type').value, description: item.querySelector('.goal-description').value, value: unformatNumber(item.querySelector('[id="goal-value"]')?.value), age: unformatNumber(item.querySelector('[id="goal-age"]')?.value) };
+            const goal = { type: item.querySelector('.goal-type').value, description: item.querySelector('.goal-description').value, value: unformatNumber(item.querySelector('[id="goal-value"]')?.value), age: unformatNumber(item.querySelector('[id="goal-age"]')?.value), duration: unformatNumber(item.querySelector('[id="goal-duration"]')?.value) || 1 };
             if (goal.type === 'aposentadoria') {
                 goal.lifeExpectancy = unformatNumber(item.querySelector('[id="goal-life-expectancy"]')?.value) || 100;
                 goal.postRetirementIncome = unformatNumber(item.querySelector('[id="goal-post-retirement-income"]')?.value) || 0;
@@ -500,21 +522,28 @@ const simRenda = parseFloat(document.getElementById('sim-renda').value);
         let simulatedGoals = JSON.parse(JSON.stringify(originalResults.userGoals));
 
 
-        // NOVO: Loop para varrer e adicionar os objetivos manuais criados na simulação
+       // NOVO: Loop para varrer e adicionar os objetivos manuais criados na simulação
         document.querySelectorAll('#sim-goals-list .goal-item').forEach(item => {
             const type = item.querySelector('.sim-goal-type').value;
             const valueStr = item.querySelector('.sim-goal-value').value;
             const ageStr = item.querySelector('.sim-goal-age').value;
             
+            // FALTAVA ISSO AQUI: Capturar o valor do input de duração
+            const durationStr = item.querySelector('.sim-goal-duration')?.value;
+            
             const value = unformatNumber(valueStr);
             const age = parseInt(ageStr);
+            
+            // FALTAVA ISSO AQUI: Transformar em número (ou 1 se estiver vazio)
+            const duration = parseInt(durationStr) || 1;
 
             if (value > 0 && age > simulatedInputs.idadeAtual) {
                 simulatedGoals.push({
                     type: type,
                     description: 'Simulação Dinâmica',
                     value: value,
-                    age: age
+                    age: age,
+                    duration: duration // Adicionando a duração no objetivo simulado!
                 });
             }
         });
@@ -726,11 +755,25 @@ function generateFullProjection(inputs, goals, taxaAnual) {
             let resgatesDoAno = 0; 
             const currentAge = inputs.idadeAtual + ano; 
             
-            goals.forEach(goal => { 
-                if (goal.age === currentAge && goal.type !== 'aposentadoria') { 
-                    resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); 
+           goals.forEach(goal => { 
+                if (goal.type !== 'aposentadoria') { 
+                    const idadeFim = goal.age + (goal.duration || 1) - 1; // Calcula a última idade do evento
+                    
+                    if (currentAge >= goal.age && currentAge <= idadeFim) {
+                        let valorAnual = goal.value;
+                        // Se for recorrente mensal, multiplica por 12 (ex: 11 mil por mês = 132k no ano)
+                        if (goal.type.includes('mensal')) {
+                            valorAnual *= 12;
+                        }
+                        
+                        if (goal.type.includes('saida') || goal.type === 'objetivo') {
+                            resgatesDoAno -= valorAnual;
+                        } else if (goal.type.includes('entrada') || goal.type === 'evento') {
+                            resgatesDoAno += valorAnual;
+                        }
+                    }
                 } 
-            }); 
+            });
             
             saldo += jurosDoAno + pmtAnual + resgatesDoAno; 
             totalAportado += pmtAnual; 
@@ -750,9 +793,23 @@ function generateFullProjection(inputs, goals, taxaAnual) {
             let resgatesDoAno = 0;
             
             // NOVO: Verificação de eventos na fase de aposentadoria
-            goals.forEach(goal => { 
-                if (goal.age === currentAge && goal.type !== 'aposentadoria') { 
-                    resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); 
+           goals.forEach(goal => { 
+                if (goal.type !== 'aposentadoria') { 
+                    const idadeFim = goal.age + (goal.duration || 1) - 1; // Calcula a última idade do evento
+                    
+                    if (currentAge >= goal.age && currentAge <= idadeFim) {
+                        let valorAnual = goal.value;
+                        // Se for recorrente mensal, multiplica por 12 (ex: 11 mil por mês = 132k no ano)
+                        if (goal.type.includes('mensal')) {
+                            valorAnual *= 12;
+                        }
+                        
+                        if (goal.type.includes('saida') || goal.type === 'objetivo') {
+                            resgatesDoAno -= valorAnual;
+                        } else if (goal.type.includes('entrada') || goal.type === 'evento') {
+                            resgatesDoAno += valorAnual;
+                        }
+                    }
                 } 
             });
             
