@@ -829,7 +829,6 @@ function generateFullProjection(inputs, goals, taxaAnual) {
     function calculateRequiredPMT(vp, vf, i, n, pmtGrowth) { if (n <= 0) return vf > vp ? Infinity : 0; let pmtAnual = 0; if (Math.abs(i - (pmtGrowth||0)) > 1e-9) { const term1 = vf - vp * Math.pow(1 + i, n); const term2 = (Math.pow(1 + i, n) - Math.pow(1 + (pmtGrowth||0), n)) / (i - (pmtGrowth||0)); if (term2 === 0) return Infinity; pmtAnual = term1 / term2; } else { if (n === 0) return Infinity; pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n - 1)); } return pmtAnual > 0 ? pmtAnual / 12 : 0; }
     
     document.getElementById('generate-report-btn').addEventListener('click', () => {
-        // Usa os resultados globais que já foram calculados na memória
         if (!lastResults || !lastResults.inputs) {
             alert('Por favor, gere o planejamento primeiro antes de emitir o relatório.');
             return;
@@ -840,7 +839,7 @@ function generateFullProjection(inputs, goals, taxaAnual) {
 
         const reportButton = document.getElementById('generate-report-btn');
         const originalButtonText = reportButton.textContent;
-        reportButton.textContent = 'Gerando PDF...';
+        reportButton.textContent = 'Processando Gráficos em Alta Resolução...';
         reportButton.disabled = true;
 
         const res = lastResults;
@@ -850,177 +849,212 @@ function generateFullProjection(inputs, goals, taxaAnual) {
         
         const rendaComplementar = Math.max(0, res.retirementGoal.value - res.retirementGoal.postRetirementIncome);
 
-        // html2canvas com scale: 2 para dobrar a resolução da imagem no PDF
-        html2canvas(document.getElementById('chart-container'), { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
-            const chartImage = canvas.toDataURL('image/png');
-            const impactHTML = document.getElementById('impact-analysis-container')?.innerHTML || '';
-            const tableHTML = document.querySelector('.projection-table').outerHTML;
+        // --- TRUQUE DE MESTRE: AUMENTAR O GRÁFICO TEMPORARIAMENTE ---
+        const chartContainer = document.getElementById('chart-container');
+        const originalWidth = chartContainer.style.width;
+        const originalHeight = chartContainer.style.height;
+        
+        // Forçamos proporções ideais para impressão A4 deitado (Widescreen)
+        chartContainer.style.width = '1400px';
+        chartContainer.style.height = '700px';
+        
+        // Mandamos o Chart.js se redesenhar no novo espaço
+        if (projectionChartInstance) projectionChartInstance.resize();
 
-            // Injetando CSS focado em impressão e a nova estrutura de páginas
-            reportContainer.innerHTML = `
-                <style>
-                    @media print {
-                        @page { size: A4; margin: 0; }
-                        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-family: 'Poppins', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; }
-                        
-                        /* Esconde o sistema e mostra apenas o PDF */
-                        #app-container { display: none !important; }
-                        #report-page { display: block !important; position: relative; }
-                        
-                        /* Configuração Padrão da Página A4 */
-                        .page { width: 210mm; height: 296mm; padding: 20mm; box-sizing: border-box; page-break-after: always; position: relative; background: #fff; }
-                        .page-auto { width: 210mm; padding: 20mm; box-sizing: border-box; background: #fff; page-break-inside: auto; }
-                        
-                        /* PAGINA 1: Capa (Cores da Identidade) */
-                        .cover { background-color: #1B4043; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-                        .cover-logo { width: 140px; height: 140px; background-color: #f8f9f3; border: 4px solid #d4af37; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-bottom: 40px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-                        .cover-logo span { color: #1B4043; font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -1px; }
-                        .cover h1 { color: #f6e27f; font-size: 42px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 15px; }
-                        .cover h2 { font-size: 22px; font-weight: 400; color: #f8f9f3; margin-bottom: 80px; letter-spacing: 1px; }
-                        .cover .client-details { border-top: 1px solid #2e8b57; padding-top: 40px; width: 70%; font-size: 16px; color: #f8f9f3; }
-                        .cover .client-details strong { color: #d4af37; display: block; margin-bottom: 5px; font-size: 24px; }
-                        
-                        /* Componentes de Texto e Dados */
-                        h3.section-title { color: #1B4043; font-size: 24px; border-bottom: 2px solid #d4af37; padding-bottom: 8px; margin-top: 0; margin-bottom: 25px; text-transform: uppercase; }
-                        
-                        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-                        .info-box { background-color: #f8f9f3; border-left: 5px solid #2e8b57; padding: 20px; border-radius: 0 8px 8px 0; }
-                        .info-box .label { font-size: 13px; color: #666; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; display: block; }
-                        .info-box .value { font-size: 22px; color: #1B4043; font-weight: 700; }
-                        
-                        /* Cenários */
-                        .scenario-box { padding: 25px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px; page-break-inside: avoid; }
-                        .scenario-box.ideal { background-color: rgba(46, 139, 87, 0.05); border-color: #2e8b57; border-left: 8px solid #2e8b57; }
-                        .scenario-box.ideal h4 { color: #2e8b57; }
-                        .scenario-box.minimo { background-color: rgba(212, 175, 55, 0.05); border-color: #d4af37; border-left: 8px solid #d4af37; }
-                        .scenario-box.minimo h4 { color: #d4af37; }
-                        .scenario-box h4 { margin: 0 0 20px 0; font-size: 18px; text-transform: uppercase; }
-                        
-                        .metric-row { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.05); padding: 10px 0; }
-                        .metric-row:last-child { border: none; padding-bottom: 0; }
-                        
-                        /* Gráfico de Alta Resolução */
-                        .chart-container-print { text-align: center; margin: 30px 0; background: #f8f9f3; padding: 20px; border-radius: 12px; }
-                        .chart-container-print img { max-width: 100%; height: auto; border-radius: 8px; background: #fff; }
-                        
-                        /* Tabela Detalhada */
-                        .projection-table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
-                        .projection-table tr { page-break-inside: avoid; page-break-after: auto; }
-                        .projection-table th { background-color: #1B4043; color: white; padding: 10px; text-align: right; }
-                        .projection-table th:first-child { text-align: center; }
-                        .projection-table td { padding: 10px; border-bottom: 1px solid #ddd; text-align: right; }
-                        .projection-table td:first-child { text-align: center; }
-                        .projection-table tr:nth-child(even) td { background-color: #f8f9f3; }
-                        
-                        .footer { position: absolute; bottom: 15mm; left: 20mm; right: 20mm; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 10px; }
-                    }
-                </style>
+        // Aguardamos 800ms para dar tempo da animação do gráfico terminar de desenhar
+        setTimeout(() => {
+            html2canvas(chartContainer, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
                 
-                <!-- PÁGINA 1: A Capa -->
-                <div class="page cover">
-                    <div class="cover-logo">
-                       <img src="AEV.png.png" alt="Logo Aposentadoria em Vista" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
-                    </div>
-                    <h1>Aposentadoria em Vista</h1>
-                    <h2>Plano Financeiro Estratégico</h2>
+                // --- DEVOLVEMOS O GRÁFICO AO TAMANHO ORIGINAL DA TELA ---
+                chartContainer.style.width = originalWidth;
+                chartContainer.style.height = originalHeight;
+                if (projectionChartInstance) projectionChartInstance.resize();
+
+                const chartImage = canvas.toDataURL('image/png');
+                const impactHTML = document.getElementById('impact-analysis-container')?.innerHTML || '';
+                const tableHTML = document.querySelector('.projection-table').outerHTML;
+
+                // Injetando CSS focado em impressão e a nova estrutura de páginas
+                reportContainer.innerHTML = `
+                    <style>
+                        @media print {
+                            @page { size: A4; margin: 0; }
+                            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-family: 'Poppins', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; }
+                            
+                            /* Esconde o sistema e mostra apenas o PDF */
+                            #app-container { display: none !important; }
+                            #report-page { display: block !important; position: relative; }
+                            
+                            /* Configuração Padrão da Página A4 */
+                            .page { width: 210mm; height: 296mm; padding: 20mm; box-sizing: border-box; page-break-after: always; position: relative; background: #fff; }
+                            .page-auto { width: 210mm; padding: 20mm; box-sizing: border-box; background: #fff; page-break-inside: auto; }
+                            
+                            /* PAGINA 1: Capa (Cores da Identidade) */
+                            .cover { background-color: #1B4043; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+                            .cover-logo { width: 140px; height: 140px; background-color: #f8f9f3; border: 4px solid #d4af37; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-bottom: 40px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+                            .cover h1 { color: #f6e27f; font-size: 42px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 15px; }
+                            .cover h2 { font-size: 22px; font-weight: 400; color: #f8f9f3; margin-bottom: 80px; letter-spacing: 1px; }
+                            .cover .client-details { border-top: 1px solid #2e8b57; padding-top: 40px; width: 70%; font-size: 16px; color: #f8f9f3; }
+                            .cover .client-details strong { color: #d4af37; display: block; margin-bottom: 5px; font-size: 24px; }
+                            
+                            /* Componentes de Texto e Dados */
+                            h3.section-title { color: #1B4043; font-size: 24px; border-bottom: 2px solid #d4af37; padding-bottom: 8px; margin-top: 0; margin-bottom: 25px; text-transform: uppercase; }
+                            
+                            .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                            .info-box { background-color: #f8f9f3; border-left: 5px solid #2e8b57; padding: 20px; border-radius: 0 8px 8px 0; }
+                            .info-box .label { font-size: 13px; color: #666; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; display: block; }
+                            .info-box .value { font-size: 22px; color: #1B4043; font-weight: 700; }
+                            
+                            /* Cenários */
+                            .scenario-box { padding: 25px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px; page-break-inside: avoid; }
+                            .scenario-box.ideal { background-color: rgba(46, 139, 87, 0.05); border-color: #2e8b57; border-left: 8px solid #2e8b57; }
+                            .scenario-box.ideal h4 { color: #2e8b57; }
+                            .scenario-box.minimo { background-color: rgba(212, 175, 55, 0.05); border-color: #d4af37; border-left: 8px solid #d4af37; }
+                            .scenario-box.minimo h4 { color: #d4af37; }
+                            .scenario-box h4 { margin: 0 0 20px 0; font-size: 18px; text-transform: uppercase; }
+                            
+                            .metric-row { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.05); padding: 10px 0; }
+                            .metric-row:last-child { border: none; padding-bottom: 0; }
+                            
+                            /* Gráfico de Alta Resolução */
+                            .chart-container-print { text-align: center; margin: 10px 0 20px 0; background: #fff; padding: 10px; border-radius: 12px; }
+                            .chart-container-print img { max-width: 100%; height: auto; border-radius: 8px; }
+                            
+                            /* Legenda Manual Nitida */
+                            .pdf-legend { display: flex; justify-content: center; gap: 25px; font-size: 14px; margin-bottom: 30px; }
+                            .pdf-legend span { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #333; }
+                            .pdf-legend .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+                            
+                            /* Tabela Detalhada */
+                            .projection-table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
+                            .projection-table tr { page-break-inside: avoid; page-break-after: auto; }
+                            .projection-table th { background-color: #1B4043; color: white; padding: 10px; text-align: right; }
+                            .projection-table th:first-child { text-align: center; }
+                            .projection-table td { padding: 10px; border-bottom: 1px solid #ddd; text-align: right; }
+                            .projection-table td:first-child { text-align: center; }
+                            .projection-table tr:nth-child(even) td { background-color: #f8f9f3; }
+                            
+                            .footer { position: absolute; bottom: 15mm; left: 20mm; right: 20mm; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 10px; }
+                        }
+                    </style>
                     
-                    <div class="client-details">
-                        Preparado exclusivamente para:<br>
-                        <strong>${userName}</strong>
-                        ${userEmail}<br><br>
-                        Data de emissão: ${today}
-                    </div>
-                </div>
-
-                <!-- PÁGINA 2: Diagnóstico e Metas -->
-                <div class="page">
-                    <h3 class="section-title">1. Seu Ponto de Partida</h3>
-                    <div class="grid-2">
-                        <div class="info-box">
-                            <span class="label">Idade Atual</span>
-                            <span class="value">${res.inputs.idadeAtual} anos</span>
+                    <!-- PÁGINA 1: A Capa -->
+                    <div class="page cover">
+                        <div class="cover-logo">
+                            <img src="AEV.png.png" alt="Logo Aposentadoria em Vista" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
                         </div>
-                        <div class="info-box">
-                            <span class="label">Patrimônio Investido</span>
-                            <span class="value">${formatCurrency(res.inputs.patrimonioInicial)}</span>
-                        </div>
-                        <div class="info-box">
-                            <span class="label">Aporte Mensal Atual</span>
-                            <span class="value">${formatCurrency(res.inputs.aporteMensal)}</span>
-                        </div>
-                        <div class="info-box" style="border-left-color: #d4af37;">
-                            <span class="label">Perfil de Risco</span>
-                            <span class="value">${res.inputs.perfilRisco} (${(res.taxaJurosAtual*100).toFixed(0)}% a.a.)</span>
+                        <h1>Aposentadoria em Vista</h1>
+                        <h2>Plano Financeiro Estratégico</h2>
+                        
+                        <div class="client-details">
+                            Preparado exclusivamente para:<br>
+                            <strong>${userName}</strong>
+                            ${userEmail}<br><br>
+                            Data de emissão: ${today}
                         </div>
                     </div>
 
-                    <h3 class="section-title" style="margin-top: 40px;">2. O Destino (Sua Aposentadoria)</h3>
-                    <div class="grid-2">
-                        <div class="info-box">
-                            <span class="label">Idade Alvo</span>
-                            <span class="value">${res.retirementGoal.age} anos</span>
+                    <!-- PÁGINA 2: Diagnóstico e Metas -->
+                    <div class="page">
+                        <h3 class="section-title">1. Seu Ponto de Partida</h3>
+                        <div class="grid-2">
+                            <div class="info-box">
+                                <span class="label">Idade Atual</span>
+                                <span class="value">${res.inputs.idadeAtual} anos</span>
+                            </div>
+                            <div class="info-box">
+                                <span class="label">Patrimônio Investido</span>
+                                <span class="value">${formatCurrency(res.inputs.patrimonioInicial)}</span>
+                            </div>
+                            <div class="info-box">
+                                <span class="label">Aporte Mensal Atual</span>
+                                <span class="value">${formatCurrency(res.inputs.aporteMensal)}</span>
+                            </div>
+                            <div class="info-box" style="border-left-color: #d4af37;">
+                                <span class="label">Perfil de Risco</span>
+                                <span class="value">${res.inputs.perfilRisco} (${(res.taxaJurosAtual*100).toFixed(0)}% a.a.)</span>
+                            </div>
                         </div>
-                        <div class="info-box">
-                            <span class="label">Renda Total Desejada</span>
-                            <span class="value">${formatCurrency(res.retirementGoal.value)}</span>
+
+                        <h3 class="section-title" style="margin-top: 40px;">2. O Destino (Sua Aposentadoria)</h3>
+                        <div class="grid-2">
+                            <div class="info-box">
+                                <span class="label">Idade Alvo</span>
+                                <span class="value">${res.retirementGoal.age} anos</span>
+                            </div>
+                            <div class="info-box">
+                                <span class="label">Renda Total Desejada</span>
+                                <span class="value">${formatCurrency(res.retirementGoal.value)}</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="info-box" style="background-color: #1B4043; border-left: 5px solid #d4af37;">
-                        <span class="label" style="color: #f8f9f3;">Renda Mensal Necessária dos Investimentos</span>
-                        <span class="value" style="color: #f6e27f; font-size: 28px;">${formatCurrency(rendaComplementar)}</span>
-                    </div>
-                    <div class="footer">Documento Confidencial - Aposentadoria em Vista | Página 2</div>
-                </div>
-
-                <!-- PÁGINA 3: Projeção e Caminho -->
-                <div class="page">
-                    <h3 class="section-title">3. O Caminho para a Conquista</h3>
-                    
-                    <div class="chart-container-print">
-                        <img src="${chartImage}" alt="Gráfico de Projeção">
-                    </div>
-
-                    <div class="grid-2">
-                        <div class="scenario-box minimo">
-                            <h4>Cenário Mínimo</h4>
-                            <div class="metric-row"><span>Meta de Patrimônio:</span> <strong>${formatCurrency(res.metaMinima)}</strong></div>
-                            <div class="metric-row"><span>Aporte Mensal Necessário:</span> <strong>${isFinite(res.aporteMinimo) ? formatCurrency(res.aporteMinimo) : 'Inatingível'}</strong></div>
+                        <div class="info-box" style="background-color: #1B4043; border-left: 5px solid #d4af37;">
+                            <span class="label" style="color: #f8f9f3;">Renda Mensal Necessária dos Investimentos</span>
+                            <span class="value" style="color: #f6e27f; font-size: 28px;">${formatCurrency(rendaComplementar)}</span>
                         </div>
-                        <div class="scenario-box ideal">
-                            <h4>Cenário Ideal</h4>
-                            <div class="metric-row"><span>Meta de Patrimônio:</span> <strong>${formatCurrency(res.metaIdeal)}</strong></div>
-                            <div class="metric-row"><span>Aporte Mensal Necessário:</span> <strong>${isFinite(res.aporteIdeal) ? formatCurrency(res.aporteIdeal) : 'Inatingível'}</strong></div>
-                        </div>
+                        <div class="footer">Documento Confidencial - Aposentadoria em Vista | Página 2</div>
                     </div>
-                    <div class="footer">Documento Confidencial - Aposentadoria em Vista | Página 3</div>
-                </div>
 
-                <!-- PÁGINA 4: Tabelas Dinâmicas (Permite quebra automática) -->
-                <div class="page-auto">
-                    ${impactHTML ? `
-                        <h3 class="section-title">Análise de Impacto de Eventos</h3>
-                        ${impactHTML}
-                        <br><br>
-                    ` : ''}
-                    <h3 class="section-title">Evolução Detalhada Ano a Ano</h3>
-                    ${tableHTML}
-                </div>
-            `;
+                    <!-- PÁGINA 3: Projeção e Caminho -->
+                    <div class="page">
+                        <h3 class="section-title">3. O Caminho para a Conquista</h3>
+                        
+                        <div class="chart-container-print">
+                            <img src="${chartImage}" alt="Gráfico de Projeção em Alta Resolução">
+                        </div>
+                        
+                        <!-- Legenda Vetorial injetada via HTML -->
+                        <div class="pdf-legend">
+                            <span><div class="dot" style="background-color: #66F6F1;"></div> Seus Investimentos</span>
+                            <span><div class="dot" style="background-color: #FFC300;"></div> Cenário Mínimo</span>
+                            <span><div class="dot" style="background-color: #00C49F;"></div> Cenário Ideal</span>
+                        </div>
 
-            // Aplica a impressão
-            setTimeout(() => {
-                window.print(); 
-                reportContainer.innerHTML = ''; // Limpa após a impressão
+                        <div class="grid-2">
+                            <div class="scenario-box minimo">
+                                <h4>Cenário Mínimo</h4>
+                                <div class="metric-row"><span>Meta de Patrimônio:</span> <strong>${formatCurrency(res.metaMinima)}</strong></div>
+                                <div class="metric-row"><span>Aporte Mensal Necessário:</span> <strong>${isFinite(res.aporteMinimo) ? formatCurrency(res.aporteMinimo) : 'Inatingível'}</strong></div>
+                            </div>
+                            <div class="scenario-box ideal">
+                                <h4>Cenário Ideal</h4>
+                                <div class="metric-row"><span>Meta de Patrimônio:</span> <strong>${formatCurrency(res.metaIdeal)}</strong></div>
+                                <div class="metric-row"><span>Aporte Mensal Necessário:</span> <strong>${isFinite(res.aporteIdeal) ? formatCurrency(res.aporteIdeal) : 'Inatingível'}</strong></div>
+                            </div>
+                        </div>
+                        <div class="footer">Documento Confidencial - Aposentadoria em Vista | Página 3</div>
+                    </div>
+
+                    <!-- PÁGINA 4: Tabelas Dinâmicas -->
+                    <div class="page-auto">
+                        ${impactHTML ? `
+                            <h3 class="section-title">Análise de Impacto de Eventos</h3>
+                            ${impactHTML}
+                            <br><br>
+                        ` : ''}
+                        <h3 class="section-title">Evolução Detalhada Ano a Ano</h3>
+                        ${tableHTML}
+                    </div>
+                `;
+
+                // Aplica a impressão
+                setTimeout(() => {
+                    window.print(); 
+                    reportContainer.innerHTML = ''; // Limpa após a impressão
+                    reportButton.textContent = originalButtonText;
+                    reportButton.disabled = false;
+                }, 500); 
+
+            }).catch(error => {
+                console.error('Erro ao gerar relatório:', error);
+                alert('Ocorreu um erro ao gerar o relatório. Tente novamente.');
                 reportButton.textContent = originalButtonText;
                 reportButton.disabled = false;
-            }, 500); // 500ms para garantir que o navegador renderizou o DOM pesado
-
-        }).catch(error => {
-            console.error('Erro ao gerar relatório:', error);
-            alert('Ocorreu um erro ao gerar o relatório. Tente novamente.');
-            reportButton.textContent = originalButtonText;
-            reportButton.disabled = false;
-        });
+                // Em caso de erro, devolve o gráfico ao tamanho original pra não quebrar a tela
+                chartContainer.style.width = originalWidth;
+                chartContainer.style.height = originalHeight;
+                if (projectionChartInstance) projectionChartInstance.resize();
+            });
+        }, 800); // 800ms de espera para garantir que o gráfico expandiu perfeitamente antes da foto
     });
 
     updateAporte();

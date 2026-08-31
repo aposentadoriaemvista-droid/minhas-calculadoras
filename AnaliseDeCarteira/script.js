@@ -1033,47 +1033,6 @@ function padronizarSubclasse(subRaw, categoriaMain) {
         default: return "Pós-fixada"; // Valor seguro padrão
     }
 }
-// --- FUNÇÃO PARA GERAR O PDF ---
-// --- FUNÇÃO PARA GERAR O PDF ---
-// --- FUNÇÃO PARA GERAR O PDF ---
-function gerarPDF() {
-    const sidebar = document.querySelector('.sidebar');
-    const mainContent = document.querySelector('.main-content');
-    
-    // 1. Escondemos a barra lateral temporariamente para o conteúdo ir para a posição zero (esquerda)
-    sidebar.style.display = 'none';
-    
-    // 2. Rolamos a página para o topo absoluto para garantir que não há cortes verticais
-    window.scrollTo(0, 0);
-    
-    const opt = {
-        margin:       10, 
-        filename:     `Relatorio_Estrategico_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-            scale: 2, 
-            useCORS: true,
-            scrollX: 0, // Garante que a foto começa exatamente no pixel 0
-            scrollY: 0
-        }, 
-        jsPDF:        { 
-            unit: 'mm', 
-            format: 'a3', 
-            orientation: 'landscape' 
-        }
-    };
-
-    alert("Preparando o PDF. Aguarde um momento...");
-    
-    // 3. Geramos o PDF. O .then() garante que o código dentro dele só roda APÓS o PDF estar pronto
-    html2pdf().set(opt).from(mainContent).save().then(() => {
-        // 4. Devolvemos a barra lateral à tela como se nada tivesse acontecido!
-        sidebar.style.display = 'block';
-    });
-}
-// 0. Configurações Iniciais para o Tema Escuro (Chart.js)
-Chart.defaults.color = '#94a3b8'; // Cor do texto das legendas e eixos
-Chart.defaults.borderColor = '#374151'; // Cor das linhas de grade do gráfico
 
 // Lógica de alternância de abas
 function abrirAba(evento, idAba) {
@@ -2440,4 +2399,174 @@ function editarCampoRF(cat, index, campo) {
     };
     
     document.getElementById('btnCancelarEditRf').onclick = () => document.body.removeChild(dialog);
+}
+// --- NOVO MOTOR DE EXPORTAÇÃO PDF (TEMPLATE FANTASMA BLINDADO) ---
+// --- NOVO MOTOR DE EXPORTAÇÃO PDF (COM LOGO E GRÁFICOS REAIS) ---
+function gerarPDF() {
+    alert("Construindo o relatório gerencial. Isso pode levar alguns segundos...");
+
+    // 1. O TRUQUE MÁGICO: Forçamos todas as abas a aparecerem para os gráficos ganharem tamanho físico
+    const conteudosAbas = document.querySelectorAll('.tab-content');
+    conteudosAbas.forEach(aba => aba.style.display = 'block');
+
+    // 2. Forçamos o redimensionamento de todos os gráficos para eles não saírem espremidos
+    const todosOsGraficos = [chartEstrategia, chartGestorasFII, chartAcoesRV, chartFundosRV, chartSetorGlobalRV, chartSetorGlobalRF, refChartFluxoAnual];
+    todosOsGraficos.forEach(grafico => {
+        if (grafico) grafico.resize();
+    });
+
+    // 3. CSS Exclusivo do PDF (Fundo Branco, Texto Escuro)
+    const styleCSS = `
+        <style>
+            .pdf-container { font-family: 'Segoe UI', sans-serif; color: #1f2937; background: #ffffff; width: 100%; }
+            .pdf-page { padding: 40px; box-sizing: border-box; page-break-after: always; }
+            .pdf-cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 800px; }
+            .pdf-subtitle { font-size: 18pt; color: #6b7280; margin-bottom: 50px; text-transform: uppercase; letter-spacing: 2px; }
+            .pdf-value { font-size: 36pt; color: #c5a059; font-weight: bold; margin-top: 10px; }
+            .pdf-h2 { color: #0ea5e9; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; font-size: 18pt; margin-bottom: 20px; text-transform: uppercase; }
+            .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 10pt; }
+            .pdf-table th { background: #f8fafc; color: #374151; padding: 12px 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; }
+            .pdf-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937; }
+            .pdf-chart-box { text-align: center; margin: 25px 0; display: flex; justify-content: center; gap: 20px; align-items: center; height: 250px; }
+            .pdf-chart-box img { max-width: 100%; max-height: 250px; object-fit: contain; }
+            .text-right { text-align: right !important; }
+        </style>
+    `;
+
+    // 4. Extrator seguro das fotos dos gráficos
+    const getChartImg = (chartObj) => {
+        if (!chartObj) return '';
+        try {
+            return `<img src="${chartObj.toBase64Image()}">`;
+        } catch(e) {
+            console.warn("Aviso: Gráfico pulado na exportação.", e);
+            return '';
+        }
+    };
+
+    const clienteName = document.getElementById('clientName').innerText;
+    const totalFormatado = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+    let htmlContent = `<div class="pdf-container">${styleCSS}`;
+
+    // --- PÁGINA 1: CAPA COM LOGO AEV ---
+    htmlContent += `
+        <div class="pdf-page pdf-cover">
+            <!-- AQUI ENTRA A LOGO QUE ESTÁ NA SUA PASTA -->
+            <img src="AEV.png" alt="AEV Seguros" style="max-width: 280px; max-height: 120px; margin-bottom: 40px; object-fit: contain;">
+            
+            <div class="pdf-subtitle">Planejamento Estratégico de Alocação</div>
+            
+            <div style="font-size: 12pt; color: #9ca3af; margin-top: 60px; text-transform: uppercase;">Conta / Cliente</div>
+            <div style="font-size: 24pt; font-weight: bold; color: #111827; margin-top: 5px;">${clienteName}</div>
+            
+            <div style="font-size: 12pt; color: #9ca3af; margin-top: 40px; text-transform: uppercase;">Patrimônio Consolidado</div>
+            <div class="pdf-value">${totalFormatado}</div>
+            
+            <div style="margin-top: 100px; font-size: 10pt; color: #9ca3af;">Documento gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+        </div>
+    `;
+
+    // --- PÁGINA 2: RESUMO ESTRATÉGICO ---
+    let rebalanceRows = "";
+    const aporte = parseFloat(document.getElementById('valorAporte').value) || 0;
+    const totFuturo = totalPatrimonio + aporte;
+
+    Object.keys(currentPortfolio).forEach(cat => {
+        const targetInput = document.querySelector(`.target-input[data-cat="${cat}"]`);
+        if(!targetInput) return;
+        
+        const target = parseFloat(targetInput.value) || 0;
+        const atual = currentPortfolio[cat];
+        const percAtual = totalPatrimonio > 0 ? (atual / totalPatrimonio * 100) : 0;
+        const idealFuturo = (target / 100) * totFuturo;
+        const diff = idealFuturo - atual;
+        
+        let status = "✓ OK";
+        let color = "#374151";
+        if (diff > 0.01) { status = `Alocar R$ ${diff.toLocaleString('pt-BR', {maximumFractionDigits:0})}`; color = "#0ea5e9"; }
+        else if (diff < -0.01) { status = `Reduzir R$ ${Math.abs(diff).toLocaleString('pt-BR', {maximumFractionDigits:0})}`; color = "#ef4444"; }
+
+        rebalanceRows += `
+            <tr>
+                <td><strong>${cat}</strong></td>
+                <td>${percAtual.toFixed(1)}%</td>
+                <td>${target}%</td>
+                <td style="color: ${color}; font-weight: bold;">${status}</td>
+            </tr>`;
+    });
+
+    htmlContent += `
+        <div class="pdf-page">
+            <h2 class="pdf-h2">Resumo Estratégico</h2>
+            <div class="pdf-chart-box">
+                ${getChartImg(chartEstrategia)}
+            </div>
+            
+            <h3 style="color: #1f2937; margin-top: 30px; font-size: 14pt;">Plano de Execução (Rebalanceamento)</h3>
+            <p style="font-size: 9pt; color: #6b7280; margin-top: -10px;">Simulação com aporte de R$ ${aporte.toLocaleString('pt-BR')}</p>
+            <table class="pdf-table">
+                <thead><tr><th>Categoria</th><th>Atual %</th><th>Alvo %</th><th>Ação Sugerida</th></tr></thead>
+                <tbody>${rebalanceRows}</tbody>
+            </table>
+        </div>
+    `;
+
+    // --- PÁGINAS DINÂMICAS: GRÁFICOS + LISTAGEM DE CADA ABA ---
+    Object.keys(globalDetalheMap).forEach(cat => {
+        const dadosCat = globalDetalheMap[cat];
+        if (dadosCat.total <= 0.01) return;
+
+        // Distribui o gráfico correto para cada página
+        let graficosHTML = "";
+        if (cat === "Fundos Imobiliários") graficosHTML = getChartImg(chartGestorasFII);
+        else if (cat === "Renda Variavel Brasil") graficosHTML = `${getChartImg(chartAcoesRV)}${getChartImg(chartFundosRV)}`;
+        else if (cat === "Renda Variavel Global") graficosHTML = getChartImg(chartSetorGlobalRV);
+        else if (cat === "Renda Fixa Global") graficosHTML = getChartImg(chartSetorGlobalRF);
+        else if (cat === "Renda Fixa Brasil") graficosHTML = getChartImg(refChartFluxoAnual);
+
+        let rowsAtivos = dadosCat.assets.sort((a,b) => b.valor - a.valor).map(a => {
+            const perc = ((a.valor / dadosCat.total) * 100).toFixed(1);
+            return `
+                <tr>
+                    <td><strong>${a.nome}</strong></td>
+                    <td style="color: #6b7280;">${a.sub}</td>
+                    <td class="text-right">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    <td class="text-right">${perc}%</td>
+                </tr>`;
+        }).join('');
+
+        htmlContent += `
+            <div class="pdf-page">
+                <h2 class="pdf-h2">${cat}</h2>
+                <p style="font-size: 11pt; color: #4b5563;"><strong>Total Alocado:</strong> R$ ${dadosCat.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                
+                <div class="pdf-chart-box">
+                    ${graficosHTML}
+                </div>
+                
+                <table class="pdf-table">
+                    <thead><tr><th>Ativo</th><th>Detalhe/Subclasse</th><th class="text-right">Valor (R$)</th><th class="text-right">Peso</th></tr></thead>
+                    <tbody>${rowsAtivos}</tbody>
+                </table>
+            </div>
+        `;
+    });
+
+    htmlContent += `</div>`;
+
+    // 5. RESTAURA AS ABAS PARA O ESTADO ORIGINAL (Escondidas)
+    conteudosAbas.forEach(aba => aba.style.display = '');
+
+    // 6. GERAÇÃO DO PDF
+    const opt = {
+        margin:       10, 
+        filename:     `Relatorio_Alocacao_${clienteName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+    };
+
+    html2pdf().set(opt).from(htmlContent).save();
 }
