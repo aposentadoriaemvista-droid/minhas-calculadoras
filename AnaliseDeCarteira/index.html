@@ -6,6 +6,8 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
     <div class="app-shell">
@@ -44,7 +46,10 @@
             </div>
             <div class="sidebar-section">
     <h3>4. Gestão Manual</h3>
-    <button class="btn-upload secondary" onclick="document.getElementById('modalAtivo').style.display='flex'">➕ Adicionar Ativo</button>
+    
+    <button class="btn-upload secondary" onclick="document.getElementById('modalAtivo').style.display='flex'">➕ Adicionar Único</button>
+    
+    <button class="btn-upload secondary" style="margin-top: 10px; border-color: #f59e0b; color: #f59e0b;" onclick="document.getElementById('modalImportacao').style.display='flex'">Importar Planilha</button>
 </div>
 
             <div class="sidebar-section">
@@ -219,12 +224,101 @@
             <input type="text" id="manFiiIndexador" placeholder="Indexador (ex: IPCA, CDI)">
 
         </div>
-        <!-- NOVA Caixinha das Ações (RV) -->
-        <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
-            <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de Ações</p>
-            <input type="text" id="manRvClasse" placeholder="Estratégia / Setor (ex: Dividendos, Bancos)">
+     <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
+            <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de RV</p>
+            
+            <label style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: -5px;">Setor de Atuação (Para Ações):</label>
+            <select id="manRvClasse" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione o Setor...</option>
+                <option value="Agro">Agro</option>
+                <option value="Construção civil">Construção civil</option>
+                <option value="Diversificado">Diversificado</option>
+                <option value="Educação">Educação</option>
+                <option value="Eletrica">Eletrica</option>
+                <option value="Financeiro">Financeiro</option>
+                <option value="Holding">Holding</option>
+                <option value="Industria">Industria</option>
+                <option value="Locadoras">Locadoras</option>
+                <option value="Metalurgia">Metalurgia</option>
+                <option value="Mineração">Mineração</option>
+                <option value="Papel e Celulose">Papel e Celulose</option>
+                <option value="Petroleo Gas E Energia">Petroleo Gas E Energia</option>
+                <option value="Sidelurgia">Sidelurgia</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Telecomunicação">Telecomunicação</option>
+                <option value="Varejo">Varejo</option>
+                <option value="Varejo Turismo">Varejo Turismo</option>
+                <option value="Alimentacao">Alimentacao</option>
+                <option value="Tesouro">Tesouro</option>
+                <option value="Outros">Outros</option>
+            </select>
+
+            <label style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: -5px;">Estratégia / Capitalização (Caps):</label>
+            <select id="manRvCaps" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione o Cap...</option>
+                <option value="Large">Large Caps</option>
+                <option value="Small">Small Caps</option>
+                <option value="Híbrido">Híbrido</option>
+            </select>
         </div>
 
+      <div id="camposExtraGlobal" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(245, 158, 11, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #f59e0b;">
+            <p style="margin: 0; font-size: 0.8rem; color: #f59e0b; font-weight: bold;">Campos Específicos Globais</p>
+            
+            <select id="manGlobalSetor" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione o Setor...</option>
+                <option value="Agro">Agro</option>
+                <option value="Construção civil">Construção civil</option>
+                <option value="Diversificado">Diversificado</option>
+                <option value="Educação">Educação</option>
+                <option value="Eletrica">Eletrica</option>
+                <option value="Financeiro">Financeiro</option>
+                <option value="Holding">Holding</option>
+                <option value="Industria">Industria</option>
+                <option value="Locadoras">Locadoras</option>
+                <option value="Metalurgia">Metalurgia</option>
+                <option value="Mineração">Mineração</option>
+                <option value="Papel e Celulose">Papel e Celulose</option>
+                <option value="Petroleo Gas E Energia">Petroleo Gas E Energia</option>
+                <option value="Sidelurgia">Sidelurgia</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Telecomunicação">Telecomunicação</option>
+                <option value="Varejo">Varejo</option>
+                <option value="Varejo Turismo">Varejo Turismo</option>
+                <option value="Alimentacao">Alimentacao</option>
+                <option value="Tesouro">Tesouro</option>
+                <option value="Outros">Outros</option>
+            </select>
+
+            <select id="manGlobalLocal" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
+                <option value="Não Classificado" selected>Selecione a Região...</option>
+                <option value="América do Norte">América do Norte</option>
+                <option value="América Latina">América Latina</option>
+                <option value="Europa">Europa</option>
+                <option value="África">África</option>
+                <option value="Ásia">Ásia</option>
+                <option value="Oceania">Oceania</option>
+            </select>
+        </div>
+
+       <div id="camposExtraRF" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(16, 185, 129, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--success);">
+            <p style="margin: 0; font-size: 0.8rem; color: var(--success); font-weight: bold;">Campos Específicos de Renda Fixa</p>
+            <input type="text" id="manRfEmissor" placeholder="Emissor (ex: Banco Master, Tesouro)">
+            <input type="text" id="manRfVencimento" placeholder="Vencimento (DD/MM/AAAA)">
+            
+            <div style="display: flex; gap: 8px; width: 100%;">
+                <select id="manRfTaxaTipo" style="flex: 1.2; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="if(this.value==='OUTRO'){document.getElementById('manRfTaxaValor').type='text';document.getElementById('manRfTaxaValor').placeholder='Digite a taxa livre';}else{document.getElementById('manRfTaxaValor').type='number';document.getElementById('manRfTaxaValor').placeholder='Valor (ex: 6)';}">
+                    <option value="% CDI">% do CDI (ex: 110% CDI)</option>
+                    <option value="CDI +">CDI + % (ex: CDI + 2%)</option>
+                    <option value="IPCA +">IPCA + % (ex: IPCA + 6%)</option>
+                    <option value="PRE">Prefixado % (ex: 12.5% PRE)</option>
+                    <option value="SELIC +">Selic + % (ex: Selic + 2%)</option>
+                    <option value="IGPM +">IGPM + % (ex: IGPM + 4%)</option>
+                    <option value="OUTRO">Outro / Texto Livre</option>
+                </select>
+                <input type="number" id="manRfTaxaValor" placeholder="Valor (ex: 6)" step="0.01" style="flex: 0.8; min-width: 0;">
+            </div>
+        </div>
 
         
         <select id="manSub">
@@ -239,11 +333,57 @@
             <option value="Fundo Imobiliário">Fundo Imobiliário</option>
         </select>
 
-        <input type="number" id="manValor" placeholder="Valor (R$)">
+        <input type="number" id="manValor" placeholder="Valor (R$ nac. / US$ globais)">
         
         <div class="modal-actions">
             <button class="btn-upload" onclick="adicionarAtivoManual()">Salvar</button>
             <button class="btn-upload danger" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+<div id="modalImportacao" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h3>Escolha a Fonte dos Dados</h3>
+        <p style="color: var(--text-muted); margin-top: -10px; margin-bottom: 20px; font-size: 0.9rem;">
+            Selecione o tipo de arquivo que você deseja importar:
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <input type="file" id="excelOffshore" accept=".xlsx, .xls, .csv" hidden onchange="importarPlanilhaOffshore(event)">
+            <label for="excelOffshore" class="btn-upload" style="margin: 0; border-color: #0ea5e9; color: #0ea5e9;">
+                📊 Planilha Padrão (Excel)
+            </label>
+
+            <input type="file" id="excelAvenue" accept=".xlsx, .xls, .csv, .pdf" hidden onchange="importarPlanilhaAvenue(event)">
+            <label for="excelAvenue" class="btn-upload" style="margin: 0; border-color: #10b981; color: #10b981;">
+                🇺🇸 Extrato Avenue 
+            </label>
+        </div>
+        <!-- NOVO BOTÃO: LEITOR DE XML -->
+            <input type="file" id="xmlUpload" accept=".xml" hidden onchange="importarPlanilhaXML(event)">
+            <label for="xmlUpload" class="btn-upload" style="margin: 0; border-color: #f59e0b; color: #f59e0b;">
+                ⚡ Importar XML (Ativos Manuais)
+            </label>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 25px;">
+            <button class="btn-upload danger" style="width: 100%;" onclick="document.getElementById('modalImportacao').style.display='none'">Cancelar</button>
+        </div>
+    </div>
+</div>
+<div id="modalFluxoMensal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="width: 90%; max-width: 1000px; padding: 25px;">
+        <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; color: var(--text-main);">Fluxo de Caixa Mensal Detalhado</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: -5px;">Arraste para os lados para visualizar os vencimentos futuros.</p>
+        
+        <div style="overflow-x: auto; margin-top: 15px; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; background: rgba(31, 41, 55, 0.3);">
+            <div style="min-width: 800px; height: 320px;">
+                <canvas id="chartFluxoMensal"></canvas>
+            </div>
+        </div>
+        
+        <div class="modal-actions" style="margin-top: 25px;">
+            <button class="btn-upload danger" onclick="document.getElementById('modalFluxoMensal').style.display='none'">Fechar Visão Mensal</button>
         </div>
     </div>
 </div>

@@ -6,11 +6,138 @@ let totalPatrimonio = 0;
 let chartSimEstrategia = null;
 let chartSimSubclasses = null;
 let globalDetalheMap = {}; // Guardará os ativos atuais
+let globalGlossarioClientes = {}; // Guardará os alvos por número de conta
 let globalSubclassesMap = {};
 let chartGestorasFII = null;
 let chartClassesRV = null;
+let chartRVGlobal = null;
+let chartRFGlobal = null;
+let chartSetorGlobalRV = null;
+let chartSetorGlobalRF = null;
+let chartAcoesRV = null;
+let chartFundosRV = null;
+
+// Carrega o pacote de Mapas do Google
+google.charts.load('current', {
+    'packages': ['geochart']
+});
+
+let cotacaoDolarGlobal = 5.00; // Valor padrão de segurança
 
 
+// Função para traduzir a data "quebrada" do Excel
+// Função auxiliar para traduzir a data do Excel
+function formatarDataExcel(valor) {
+    if (!valor) return "-";
+    if (typeof valor === 'number') {
+        const data = new Date(Math.round((valor - 25569) * 86400 * 1000));
+        data.setMinutes(data.getMinutes() + data.getTimezoneOffset());
+        return `${data.getDate().toString().padStart(2, '0')}/${(data.getMonth()+1).toString().padStart(2, '0')}/${data.getFullYear()}`;
+    }
+    return valor.toString().trim();
+}
+
+// Corretor Inteligente de Porcentagens e Decimais (Para Alocação Alvo)
+function lerPercentual(valor) {
+    if (valor === undefined || valor === null || valor === "") return 0;
+    
+    let str = valor.toString().trim();
+    
+    // 1. Se a pessoa digitou com "%" (Ex: "40%" ou "17,5%")
+    if (str.includes('%')) {
+        str = str.replace('%', ''); // Arranca o símbolo para não atrapalhar
+    } 
+    // 2. Se o Excel transformou matematicamente "40%" em "0.4"
+    else if (typeof valor === 'number' && valor > 0 && valor < 1) {
+        return valor * 100; // Multiplica para voltar a ser 40
+    }
+
+    // 3. Lida com o problema da vírgula brasileira (transforma "17,5" em "17.5")
+    str = str.replace(',', '.');
+
+    // 4. Converte o texto limpo para número real com segurança
+    return parseFloat(str) || 0;
+}
+// Corretor Inteligente de Datas (Coloca as barras "/" automaticamente)
+function formatarDataMascara(str) {
+    if (!str || str === "-") return "-";
+    let nums = str.replace(/\D/g, ''); // Arranca tudo que não for número
+    if (nums.length === 8) {
+        return `${nums.substring(0,2)}/${nums.substring(2,4)}/${nums.substring(4,8)}`;
+    } else if (nums.length === 6) {
+        return `${nums.substring(0,2)}/${nums.substring(2,4)}/20${nums.substring(4,6)}`;
+    }
+    return str; // Retorna original se já tiver formatado certo
+}
+
+// 1. Dicionário Inteligente que une diferentes formas de escrever o mesmo banco
+function limparNomeEmissor(emissor) {
+    if (!emissor || emissor === "-") return "Indefinido";
+    let nome = emissor.toString().toUpperCase();
+    
+    // Remove siglas de produtos que poluem o nome (CDB, LCA, LCI, etc.)
+    const siglas = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB', 'CRA', 'CRI', 'DEB', 'LF', 'LIG', 'CDCA'];
+    siglas.forEach(sigla => {
+        const regex = new RegExp(`\\b${sigla}\\b`, 'g');
+        nome = nome.replace(regex, '');
+    });
+    
+    // Limpa caracteres especiais, hífens soltos e espaços duplos
+    nome = nome.replace(/^[-/\s]+/, '').replace(/[-/\s]+$/, '').replace(/\s+/g, ' ').trim();
+    
+    // Dicionário de Agrupamento Institucional
+    if (nome.includes("MASTER") || nome.includes("WILL")) return "BANCO MASTER";
+    if (nome.includes("C6")) return "BANCO C6";
+    if (nome.includes("BTG")) return "BTG PACTUAL";
+    if (nome.includes("XP") || nome.includes("X P")) return "XP INVESTIMENTOS";
+    if (nome.includes("ITAU") || nome.includes("ITAÚ")) return "ITAÚ UNIBANCO";
+    if (nome.includes("BRADESCO")) return "BANCO BRADESCO";
+    if (nome.includes("SANTANDER")) return "BANCO SANTANDER";
+    if (nome.includes("SAFRA")) return "BANCO SAFRA";
+    if (nome.includes("DAYCOVAL")) return "BANCO DAYCOVAL";
+    if (nome.includes("PINE")) return "BANCO PINE";
+    if (nome.includes("BMG")) return "BANCO BMG";
+    if (nome.includes("BV") || nome.includes("VOTORANTIM")) return "BANCO BV";
+    if (nome.includes("PAN")) return "BANCO PAN";
+    if (nome.includes("ORIGINAL")) return "BANCO ORIGINAL";
+    if (nome.includes("INTER")) return "BANCO INTER";
+    if (nome.includes("BRB")) return "BANCO BRB";
+    if (nome.includes("FIBRA")) return "BANCO FIBRA";
+    if (nome.includes("ABC")) return "BANCO ABC";
+    if (nome.includes("ALFA")) return "BANCO ALFA";
+    if (nome.includes("RICO")) return "RICO INVESTIMENTOS";
+    if (nome.includes("NUBANK") || nome.includes("NU PAGAMENTOS") || nome.includes("NU")) return "NUBANK";
+    if (nome.includes("CAIXA") || nome.includes("CEF")) return "CAIXA ECONOMICA FEDERAL";
+    if (nome.includes("BANCO DO BRASIL")) return "BANCO DO BRASIL";
+    if (nome.includes("ANDBANK")) return "ANDBANK";
+    if (nome.includes("BNDES")) return "BNDES";
+    if (nome.includes("TESOURO") || nome.includes("NTN") || nome.includes("LTN") || nome.includes("LFT")) return "TESOURO NACIONAL";
+
+    return nome || "Outros";
+}
+
+// 2. Extrai o banco do Excel e já aplica a limpeza
+function extrairBanco(nome) { 
+    if (!nome) return "Outros";
+    let nomeLimpo = nome.toUpperCase()
+        .replace(/\s*-\s*\d{2}\/\d{2}\/\d{2,4}/g, '') // Tira datas como "- 12/12/2025"
+        .replace(/\s*-\s*[A-ZÇ]{3}\s*[\/-]\s*\d{2,4}/gi, '') // Tira "- MAI/2025"
+        .replace(/\s+-\s+$/, '') // Tira hífens no final
+        .trim();
+
+    return limparNomeEmissor(nomeLimpo); // Passa no filtro de agrupamento
+}
+// Função que roda invisível quando o site abre para pegar o Dólar de agora
+async function initApp() {
+    try {
+        const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+        const data = await res.json();
+        cotacaoDolarGlobal = parseFloat(data.USDBRL.bid);
+    } catch (e) {
+        console.warn("API de Dólar falhou. Usando R$ 5,00 como base.");
+    }
+}
+initApp();
 
 // 1. Mapeamento Inteligente com 8 Categorias
 const mapToSeven = (subclasseXp, ativo) => {
@@ -47,9 +174,76 @@ async function processarPlanilha() {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+        // --- NOVO: BUSCA DE CONTA DO CLIENTE ---
+       // --- NOVO: CAPTURA CIRÚRGICA DA CONTA DO CLIENTE ---
+        // Ele vai olhar o file.name E o cabeçalho da matrix simultaneamente
+        const contaEncontrada = extrairContaCliente(file.name, matrix);
+        buscarContaEPreencherAlvos(contaEncontrada);
+        // ----------------------------------------
         analisarCarteira(matrix, glossary);
     };
     reader.readAsArrayBuffer(file);
+}
+
+// 1. O Extrator de Precisão (Busca a conta no arquivo ou no cabeçalho)
+function extrairContaCliente(nomeArquivo, matrix) {
+    let conta = null;
+    
+    // TENTATIVA 1: Extrair do nome do arquivo (ex: "Posição Consolidada - 2541929.xlsx")
+    // Puxa qualquer sequência de números que venha logo após um traço "-"
+    const matchArquivo = nomeArquivo.match(/-\s*(\d+)/);
+    if (matchArquivo && matchArquivo[1]) {
+        conta = matchArquivo[1];
+    }
+    
+    // TENTATIVA 2: Se não achou no nome, procura nas 10 primeiras linhas da planilha
+    if (!conta) {
+        for (let i = 0; i < Math.min(10, matrix.length); i++) {
+            const linhaTexto = matrix[i].join(" "); 
+            // Procura o padrão exato "Conta: 241316" ignorando espaços extras
+            const matchLinha = linhaTexto.match(/Conta\s*:\s*(\d+)/i);
+            if (matchLinha && matchLinha[1]) {
+                conta = matchLinha[1];
+                break;
+            }
+        }
+    }
+    
+    return conta;
+}
+
+// 2. O Preenchedor Inteligente (Agora recebe o número exato da conta)
+function buscarContaEPreencherAlvos(contaExtraida) {
+    // Atualiza o painel com o número da conta (mesmo que não tenha alvo definido)
+    const clientNameEl = document.getElementById('clientName');
+    
+    if (!globalGlossarioClientes || Object.keys(globalGlossarioClientes).length === 0) {
+        if (clientNameEl) clientNameEl.innerText = contaExtraida ? "Conta: " + contaExtraida : "Não Identificada";
+        return false;
+    }
+
+    // Se achou a conta e ela existe no Glossário do Google Sheets
+    if (contaExtraida && globalGlossarioClientes[contaExtraida]) {
+        const alvo = globalGlossarioClientes[contaExtraida];
+        
+        // Preenche os Inputs da barra lateral
+        document.querySelector('.target-input[data-cat="Renda Variavel Brasil"]').value = alvo["Renda Variavel Brasil"] || 0;
+        document.querySelector('.target-input[data-cat="Renda Fixa Brasil"]').value = alvo["Renda Fixa Brasil"] || 0;
+        document.querySelector('.target-input[data-cat="Multimercado"]').value = alvo["Multimercado"] || 0;
+        document.querySelector('.target-input[data-cat="Renda Variavel Global"]').value = alvo["Renda Variavel Global"] || 0;
+        document.querySelector('.target-input[data-cat="Renda Fixa Global"]').value = alvo["Renda Fixa Global"] || 0;
+        document.querySelector('.target-input[data-cat="Alternativo"]').value = alvo["Alternativo"] || 0;
+        document.querySelector('.target-input[data-cat="Fundos Imobiliários"]').value = alvo["Fundos Imobiliários"] || 0;
+        document.querySelector('.target-input[data-cat="Caixa"]').value = alvo["Caixa"] || 0;
+        
+        if (clientNameEl) clientNameEl.innerText = "Conta: " + contaExtraida;
+        return true;
+    } else {
+        // Se a conta não existir no Glossário, zera os inputs de segurança
+        document.querySelectorAll('.target-input').forEach(input => input.value = 0);
+        if (clientNameEl) clientNameEl.innerText = contaExtraida ? "Conta: " + contaExtraida + " (S/ Alvo)" : "Conta Não Identificada";
+        return false;
+    }
 }
 
 async function loadGlossaryFromDrive() {
@@ -59,7 +253,7 @@ async function loadGlossaryFromDrive() {
     // URL 2: Nova Aba de FIIs
     // Lembre-se de colar o seu link com o GID real aqui
     const urlFIIs = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=747525089&single=true&output=csv";
-
+const urlExterior = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=644052208&single=true&output=csv";
     const dict = {};
 
     try {
@@ -126,8 +320,61 @@ async function loadGlossaryFromDrive() {
                     if (!dict[ativo].extras) dict[ativo].extras = {};
                     
                     dict[ativo].extras.classeRV = row[1] || "Não Classificado"; // Coluna 2 = Classe/Estratégia
+                    dict[ativo].extras.caps = row[6] || "Não Classificado"; // Coluna G (Caps)
                 }
             }
+        }
+        // 4. CARREGA A ABA EXTERIOR (Mapeia o Ticker -> Setor e País)
+        if (urlExterior && urlExterior !== "") {
+            const resExt = await fetch(urlExterior, { cache: 'no-store' });
+            const wbExt = XLSX.read(await resExt.text(), { type: 'string' });
+            const matrixExt = XLSX.utils.sheet_to_json(wbExt.Sheets[wbExt.SheetNames[0]], { header: 1 });
+
+            for (let i = 1; i < matrixExt.length; i++) { 
+                const row = matrixExt[i];
+                if (!row || row.length === 0) continue;
+                
+                const nome = norm(row[0]);
+                const codigo = norm(row[1]);
+                
+                // Na Avenue, o Ativo vem pelo código (Ex: GOVT, SPY). Se não tiver código, usa o nome.
+                const ativoKey = codigo ? codigo.toUpperCase() : (nome ? nome.toUpperCase() : null);
+                if (ativoKey) {
+                    if (!dict[ativoKey]) dict[ativoKey] = { cat: row[4] || "Renda Variavel Global", subclasse: "Dólar", extras: {} };
+                    if (!dict[ativoKey].extras) dict[ativoKey].extras = {};
+                    
+                    dict[ativoKey].extras.setor = row[2] || "Não Classificado";
+                    // Já traduz o país (ex: EUA -> América do Norte) para o mapa múndi entender
+                    dict[ativoKey].extras.localizacao = traduzirPaisParaRegiao(row[3]); 
+                }
+            }
+        }
+        // 5. CARREGA A ABA DE CLIENTES (ALOCAÇÃO ALVO)
+        const urlClientes = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2phiCxHiXMKh6mR-X2q0VkUQMUgWBNslaYnYuQs3rEfuyuiebd8drxq9n1ZzC_dVnQXVAe/pub?gid=2133570502&single=true&output=csv";
+        
+        if (urlClientes) {
+            const resCli = await fetch(urlClientes, { cache: 'no-store' });
+            const textCli = await resCli.text();
+            const wbCli = XLSX.read(textCli, { type: 'string' });
+            const jsonCli = XLSX.utils.sheet_to_json(wbCli.Sheets[wbCli.SheetNames[0]]);
+            
+            globalGlossarioClientes = {};
+            jsonCli.forEach(row => {
+                // Forçamos a conta para string para evitar erros de leitura com zeros
+                const conta = row["CLIENTES"] ? row["CLIENTES"].toString().trim() : "";
+                if (conta) {
+                    globalGlossarioClientes[conta] = {
+                        "Renda Variavel Brasil": lerPercentual(row["RV BRASIL"]) || 0,
+                        "Renda Fixa Brasil": lerPercentual(row["RF BRASIL"]) || 0,
+                        "Multimercado": lerPercentual(row["MULTIMERCADO"]) || 0,
+                        "Renda Variavel Global": lerPercentual(row["RV GLOBAL"]) || 0,
+                        "Renda Fixa Global": lerPercentual(row["RF GLOBAL"]) || 0,
+                        "Alternativo": lerPercentual(row["ALTERNATIVO"]) || 0,
+                        "Fundos Imobiliários": lerPercentual(row["FIIS"]) || 0,
+                        "Caixa": lerPercentual(row["CAIXA"]) || 0
+                    };
+                }
+            });
         }
 
         console.log("Glossário online carregado com sucesso (Acentos corrigidos)!");
@@ -148,7 +395,7 @@ function analisarCarteira(matrix, glossary) {
     const detalheMap = {};
     totalPatrimonio = 0;
     let currentXpCategory = "Caixa";
-    let colPosicaoIdx = -1;
+    let colPosicaoIdx = -1, colVencIdx = -1, colTaxaIdx = -1, colEmissorIdx = -1;
 
     matrix.forEach(row => {
         if(!row || row.length === 0) return;
@@ -162,7 +409,14 @@ function analisarCarteira(matrix, glossary) {
             let idx = rowStr.indexOf(v);
             if (idx !== -1) { foundValor = idx; break; }
         }
-        if (foundValor !== -1) { colPosicaoIdx = foundValor; return; }
+       if (foundValor !== -1) { 
+            colPosicaoIdx = foundValor; 
+            // Sensor Renda Fixa: Verifica onde estão as colunas na planilha
+            colVencIdx = rowStr.findIndex(c => c && c.toUpperCase().includes("VENCIMENTO"));
+            colTaxaIdx = rowStr.findIndex(c => c && (c.toUpperCase().includes("TAXA") || c.toUpperCase().includes("RENTABILIDADE") || c.toUpperCase().includes("INDEXADOR")));
+            colEmissorIdx = rowStr.findIndex(c => c && (c.toUpperCase().includes("EMISSOR") || c.toUpperCase().includes("INSTITUIÇÃO")));
+            return; 
+        }
 
         if (currentXpCategory.toLowerCase().includes("proventos")) return;
 
@@ -178,7 +432,19 @@ function analisarCarteira(matrix, glossary) {
                 let subNome = padronizarSubclasse(subRaw, topico); // Usa o nosso novo filtro inteligente!
                 
                 // NOVO: Captura os extras do glossário se existirem
-                let extrasAtivo = (gData && gData.extras) ? gData.extras : {};
+                // Clona os extras para não sujar o glossário
+                let extrasAtivo = (gData && gData.extras) ? { ...gData.extras } : {};
+
+                // SE FOR RENDA FIXA: Salva os dados específicos que o robô achou
+                // SE FOR RENDA FIXA: Salva os dados específicos
+                if (topico === "Renda Fixa Brasil" || topico === "Renda Fixa Global") {
+                    // O Emissor agora é puxado com extrema precisão usando a sua função de Regex!
+                    extrasAtivo.emissor = extrairBanco(nomeAtivo);
+                    
+                    // Vencimento e Taxa continuam sendo puxados da coluna do Excel
+                    extrasAtivo.vencimento = (colVencIdx !== -1 && row[colVencIdx]) ? formatarDataExcel(row[colVencIdx]) : "-";
+                    extrasAtivo.taxa = (colTaxaIdx !== -1 && row[colTaxaIdx]) ? norm(row[colTaxaIdx]) : "-";
+                }
 
                 estrategiaMap[topico] += valor;
                 totalPatrimonio += valor;
@@ -371,67 +637,234 @@ document.getElementById('excelFile').addEventListener('change', function() {
 // Função para mostrar/esconder os campos específicos de FII no Modal
 // Função para mostrar/esconder os campos específicos no Modal
 function verificarCamposExtras() {
-    const classe = document.getElementById('manClasse').value;
-    const divFII = document.getElementById('camposExtraFII');
-    const divRV = document.getElementById('camposExtraRV'); // Pega a nova div
-    
-    // Primeiro, esconde tudo para garantir que não fiquem duas caixinhas abertas
-    divFII.style.display = 'none';
-    divRV.style.display = 'none';
+    document.getElementById('camposExtraFII').style.display = 'none';
+    document.getElementById('camposExtraRV').style.display = 'none';
+    document.getElementById('camposExtraGlobal').style.display = 'none';
+    document.getElementById('camposExtraRF').style.display = 'none';
 
-    // Depois, mostra apenas a caixinha correta
-    if (classe === "Fundos Imobiliários") {
-        divFII.style.display = 'flex';
-    } else if (classe === "Renda Variavel Brasil") {
-        divRV.style.display = 'flex';
-    }
+    const classe = document.getElementById('manClasse').value;
+    if (classe === "Fundos Imobiliários") document.getElementById('camposExtraFII').style.display = 'flex';
+    else if (classe === "Renda Variavel Brasil") document.getElementById('camposExtraRV').style.display = 'flex';
+    else if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") document.getElementById('camposExtraGlobal').style.display = 'flex';
+    else if (classe === "Renda Fixa Brasil") document.getElementById('camposExtraRF').style.display = 'flex';
 }
 
-// Melhoria na hora de fechar o modal para limpar todos os campos
 function fecharModal() {
     document.getElementById('modalAtivo').style.display = 'none';
-    
-    // Limpa todos os inputs
     document.getElementById('manNome').value = '';
     document.getElementById('manValor').value = '';
     document.getElementById('manFiiClasse').value = '';
     document.getElementById('manFiiGestora').value = '';
     document.getElementById('manFiiIndexador').value = '';
-    document.getElementById('manRvClasse').value = ''; // Limpa o novo input de RV
+    document.getElementById('manGlobalSetor').value = 'Não Classificado'; 
+    document.getElementById('manGlobalLocal').value = 'Não Classificado';
+
+    document.getElementById('manRvClasse').value = 'Não Classificado'; 
+    if (document.getElementById('manRvCaps')) document.getElementById('manRvCaps').value = 'Não Classificado';
+    
+    // Limpa os elementos específicos de Renda Fixa
+    // Limpa os elementos específicos de Renda Fixa
+    document.getElementById('manRfEmissor').value = '';
+    document.getElementById('manRfVencimento').value = '';
+    if (document.getElementById('manRfTaxaTipo')) document.getElementById('manRfTaxaTipo').value = '% CDI';
+    if (document.getElementById('manRfTaxaValor')) {
+        document.getElementById('manRfTaxaValor').value = '';
+        document.getElementById('manRfTaxaValor').type = 'number';
+        document.getElementById('manRfTaxaValor').placeholder = 'Valor (ex: 6)';
+    }
 }
 
-// Função de adicionar ativo atualizada
 function adicionarAtivoManual() {
     const nome = document.getElementById('manNome').value;
     const classe = document.getElementById('manClasse').value;
     const sub = document.getElementById('manSub').value; 
-    const valor = parseFloat(document.getElementById('manValor').value) || 0;
+    let valorInput = parseFloat(document.getElementById('manValor').value);
+    if (isNaN(valorInput)) valorInput = 0; 
 
-    if (!nome || !sub || valor <= 0) return alert("Preencha todos os campos obrigatórios!");
+    if (!nome || !sub) return alert("Preencha todos os campos obrigatórios!");
 
-    // Captura os dados extras dependendo da classe escolhida
     let extrasAtivo = {};
-    
-    if (classe === "Fundos Imobiliários") {
-        extrasAtivo = {
-            classeFii: document.getElementById('manFiiClasse').value || "-",
-            gestora: document.getElementById('manFiiGestora').value || "-",
-            indexador: document.getElementById('manFiiIndexador').value || "-"
-        };
+    let valorFinalReais = valorInput;
+
+    if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
+        valorFinalReais = valorInput * cotacaoDolarGlobal;
+        extrasAtivo = { setor: document.getElementById('manGlobalSetor').value || "Não Classificado", localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado" };
+    } else if (classe === "Fundos Imobiliários") {
+        extrasAtivo = { classeFii: document.getElementById('manFiiClasse').value || "-", gestora: document.getElementById('manFiiGestora').value || "-", indexador: document.getElementById('manFiiIndexador').value || "-" };
     } else if (classe === "Renda Variavel Brasil") {
+        extrasAtivo = { 
+            classeRV: document.getElementById('manRvClasse').value || "Não Classificado",
+            caps: document.getElementById('manRvCaps').value || "Não Classificado"
+        };
+    } else if (classe === "Renda Fixa Brasil") {
+        // Compila o tipo selecionado e o valor em uma string padronizada aceita pelo interpretador do sistema
+        const tipoTaxa = document.getElementById('manRfTaxaTipo').value;
+        const valorTaxa = parseFloat(document.getElementById('manRfTaxaValor').value) || 0;
+        const inputValor = document.getElementById('manRfTaxaValor').value;
+        let taxaFormatada = "-";
+        
+       if (tipoTaxa === "OUTRO") {
+            taxaFormatada = inputValor || "-";
+        } else {
+            // Se for padrão, exige um número e formata bonitinho
+            const valorTaxa = parseFloat(inputValor) || 0;
+            if (valorTaxa > 0) {
+                if (tipoTaxa === "% CDI") taxaFormatada = `${valorTaxa}% CDI`;
+                else if (tipoTaxa === "CDI +") taxaFormatada = `CDI + ${valorTaxa}%`;
+                else if (tipoTaxa === "IPCA +") taxaFormatada = `IPCA + ${valorTaxa}%`;
+                else if (tipoTaxa === "PRE") taxaFormatada = `${valorTaxa}% PRE`;
+                else if (tipoTaxa === "SELIC +") taxaFormatada = `SELIC + ${valorTaxa}%`;
+                else if (tipoTaxa === "IGPM +") taxaFormatada = `IGPM + ${valorTaxa}%`;
+            }
+        }
+
         extrasAtivo = {
-            classeRV: document.getElementById('manRvClasse').value || "Não Classificado"
+            emissor: document.getElementById('manRfEmissor').value || "Indefinido",
+            vencimento: formatarDataMascara(document.getElementById('manRfVencimento').value) || "-",
+            taxa: taxaFormatada
         };
     }
 
     if (!globalDetalheMap[classe]) globalDetalheMap[classe] = { total: 0, assets: [] };
-    globalDetalheMap[classe].total += valor;
-    
-    // Enviando o extrasAtivo junto com o ativo manual
-    globalDetalheMap[classe].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
+    globalDetalheMap[classe].total += valorFinalReais;
+    globalDetalheMap[classe].assets.push({ nome: nome, valor: valorFinalReais, sub: sub, extras: extrasAtivo });
     
     recalcularTudoERenderizar();
     fecharModal(); 
+}
+// 3. Lê o Excel Offshore e injeta no Sistema (Agora aceitando zeros)
+// 3. Lê o Excel Offshore e injeta no Sistema (Versão Blindada)
+// ==========================================
+// MÓDULO NOVO: IMPORTAÇÃO DE ATIVOS VIA XML
+// ==========================================
+// ==========================================
+// MÓDULO NOVO: IMPORTAÇÃO DE ATIVOS VIA XML
+// ==========================================
+async function importarPlanilhaXML(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Atualiza a cotação do dólar para caso haja ativos globais no XML
+    await initApp(); 
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const xmlText = e.target.result;
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+            const ativosNode = xmlDoc.getElementsByTagName("ativo");
+            let contagem = 0;
+
+            for (let i = 0; i < ativosNode.length; i++) {
+                const node = ativosNode[i];
+                
+                // Extração dos dados básicos
+                const classeRaw = node.getAttribute("classe") || "Caixa";
+                const nome = node.querySelector("nome")?.textContent || "Ativo Indefinido";
+                const valorString = node.querySelector("valor")?.textContent || "0";
+                let valor = parseFloat(valorString) || 0;
+                const sub = node.querySelector("subclasse")?.textContent || "Outros";
+
+                // 1. CORREÇÃO DA LEITURA DE CLASSE (Aceita siglas e nomes completos)
+                let classeFinal = "Caixa";
+                const cRawUpper = classeRaw.toUpperCase();
+                
+                if (cRawUpper.includes("FII") || cRawUpper.includes("IMOBILIÁRIO")) classeFinal = "Fundos Imobiliários";
+                else if (cRawUpper.includes("RF BRASIL") || cRawUpper.includes("RENDA FIXA BRASIL")) classeFinal = "Renda Fixa Brasil";
+                else if (cRawUpper.includes("RV BRASIL") || cRawUpper.includes("RENDA VARIAVEL BRASIL") || cRawUpper.includes("AÇÕES") || cRawUpper.includes("ACOES")) classeFinal = "Renda Variavel Brasil";
+                else if (cRawUpper.includes("RF GLOBAL") || cRawUpper.includes("RENDA FIXA GLOBAL")) classeFinal = "Renda Fixa Global";
+                else if (cRawUpper.includes("RV GLOBAL") || cRawUpper.includes("RENDA VARIAVEL GLOBAL")) classeFinal = "Renda Variavel Global";
+                else if (cRawUpper.includes("MULTIMERCADO")) classeFinal = "Multimercado";
+                else if (cRawUpper.includes("ALTERNATIVO")) classeFinal = "Alternativo";
+
+                // Conversão de moeda para ativos globais
+                if (classeFinal === "Renda Variavel Global" || classeFinal === "Renda Fixa Global") {
+                    valor = valor * cotacaoDolarGlobal;
+                }
+
+                // Extrator Específico de Detalhes (Extras)
+                let extrasAtivo = {};
+                const detalhes = node.querySelector("detalhes");
+
+                if (detalhes) {
+                    if (classeFinal === "Fundos Imobiliários") {
+                        extrasAtivo = {
+                            classeFii: detalhes.querySelector("classe_fi")?.textContent || "-",
+                            gestora: detalhes.querySelector("gestora")?.textContent || "-",
+                            indexador: detalhes.querySelector("indexador")?.textContent || "-"
+                        };
+                    } 
+                    else if (classeFinal === "Renda Fixa Brasil") {
+                        
+                        // 2. CORREÇÃO DA DATA (Trata o padrão americano do XML YYYY-MM-DD)
+                        let dataXML = detalhes.querySelector("vencimento")?.textContent || "-";
+                        let dataAjustada = dataXML;
+                        if (dataXML.match(/^\d{4}-\d{2}-\d{2}$/)) { // Identifica o formato 2030-06-24
+                            const partes = dataXML.split('-');
+                            dataAjustada = `${partes[2]}/${partes[1]}/${partes[0]}`; // Inverte para 24/06/2030
+                        } else {
+                            dataAjustada = formatarDataMascara(dataXML); // Usa a máscara padrão se vier diferente
+                        }
+
+                        // 3. CORREÇÃO DA TAXA (Junta o indexador e a taxa se o XML mandar separado)
+                        let taxaXML = detalhes.querySelector("taxa")?.textContent || "-";
+                        let indexadorXML = detalhes.querySelector("indexador")?.textContent || "";
+                        
+                        if (taxaXML !== "-" && !taxaXML.includes("%") && indexadorXML) {
+                            if (indexadorXML.includes("+")) {
+                                taxaXML = `${indexadorXML} ${taxaXML}%`; // Ex: SELIC + 10%
+                            } else {
+                                taxaXML = `${taxaXML}% ${indexadorXML}`; // Ex: 115% CDI
+                            }
+                        }
+
+                        extrasAtivo = {
+                            emissor: limparNomeEmissor(detalhes.querySelector("emissor")?.textContent || "Indefinido"),
+                            vencimento: dataAjustada,
+                            taxa: taxaXML
+                        };
+                    } 
+                    else if (classeFinal === "Renda Variavel Global" || classeFinal === "Renda Fixa Global") {
+                        extrasAtivo = {
+                            setor: detalhes.querySelector("setor")?.textContent || "Não Classificado",
+                            localizacao: detalhes.querySelector("localizacao")?.textContent || "Não Classificado"
+                        };
+                    } 
+                    else if (classeFinal === "Renda Variavel Brasil") {
+                        extrasAtivo = {
+                            classeRV: detalhes.querySelector("classe_rv")?.textContent || "Não Classificado",
+                            caps: detalhes.querySelector("caps")?.textContent || "Não Classificado"
+                        };
+                    }
+                }
+
+                // Injeta no Motor Principal
+                if (!globalDetalheMap[classeFinal]) globalDetalheMap[classeFinal] = { total: 0, assets: [] };
+                globalDetalheMap[classeFinal].total += valor;
+                globalDetalheMap[classeFinal].assets.push({ nome: nome, valor: valor, sub: sub, extras: extrasAtivo });
+                
+                contagem++;
+            }
+
+            if (contagem > 0) {
+                recalcularTudoERenderizar();
+                alert(`🚀 Sucesso! ${contagem} ativos importados perfeitamente via XML.`);
+            } else {
+                alert("Aviso: O arquivo XML foi lido, mas a estrutura <ativo> não foi encontrada.");
+            }
+
+        } catch (err) {
+            console.error("Erro na leitura do XML:", err);
+            alert("Erro crítico ao processar o arquivo XML. Verifique se o código está formatado corretamente.");
+        } finally {
+            // Fecha a janela de importação e reseta o botão
+            document.getElementById('modalImportacao').style.display = 'none';
+            event.target.value = ''; 
+        }
+    };
+    reader.readAsText(file);
 }
 
 function excluirAtivo(classe, index) {
@@ -600,47 +1033,6 @@ function padronizarSubclasse(subRaw, categoriaMain) {
         default: return "Pós-fixada"; // Valor seguro padrão
     }
 }
-// --- FUNÇÃO PARA GERAR O PDF ---
-// --- FUNÇÃO PARA GERAR O PDF ---
-// --- FUNÇÃO PARA GERAR O PDF ---
-function gerarPDF() {
-    const sidebar = document.querySelector('.sidebar');
-    const mainContent = document.querySelector('.main-content');
-    
-    // 1. Escondemos a barra lateral temporariamente para o conteúdo ir para a posição zero (esquerda)
-    sidebar.style.display = 'none';
-    
-    // 2. Rolamos a página para o topo absoluto para garantir que não há cortes verticais
-    window.scrollTo(0, 0);
-    
-    const opt = {
-        margin:       10, 
-        filename:     `Relatorio_Estrategico_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-            scale: 2, 
-            useCORS: true,
-            scrollX: 0, // Garante que a foto começa exatamente no pixel 0
-            scrollY: 0
-        }, 
-        jsPDF:        { 
-            unit: 'mm', 
-            format: 'a3', 
-            orientation: 'landscape' 
-        }
-    };
-
-    alert("Preparando o PDF. Aguarde um momento...");
-    
-    // 3. Geramos o PDF. O .then() garante que o código dentro dele só roda APÓS o PDF estar pronto
-    html2pdf().set(opt).from(mainContent).save().then(() => {
-        // 4. Devolvemos a barra lateral à tela como se nada tivesse acontecido!
-        sidebar.style.display = 'block';
-    });
-}
-// 0. Configurações Iniciais para o Tema Escuro (Chart.js)
-Chart.defaults.color = '#94a3b8'; // Cor do texto das legendas e eixos
-Chart.defaults.borderColor = '#374151'; // Cor das linhas de grade do gráfico
 
 // Lógica de alternância de abas
 function abrirAba(evento, idAba) {
@@ -681,7 +1073,10 @@ function renderizarAbasEspecificas(detalhe) {
     // 2. Construtores específicos (Mapeamento arquitetural limpo)
     const construtoresDeAba = {
         "Fundos Imobiliários": renderizarAbaFII,
-        "Renda Variavel Brasil": renderizarAbaRV
+        "Renda Variavel Brasil": renderizarAbaRV,
+        "Renda Variavel Global": renderizarAbaGlobal, // <-- Adicionado
+        "Renda Fixa Global": renderizarAbaGlobal,
+        "Renda Fixa Brasil": renderizarAbaRF // <-- ADICIONADO AQUI!    // <-- Adicionado
         // Futuramente você pode adicionar: "Renda Fixa Brasil": renderizarAbaRFjjbj
     };
 
@@ -799,15 +1194,25 @@ function renderizarAbaFII(cat, dadosCat, tabEl) {
     renderChartGestoras(resumoGestoras);
 }
 
-// Função Auxiliar Modificada (Agora aceita um HTML extra para o topo)
-function htmlTabelaBase(titulo, total, thsHTML, trsHTML, topExtraHTML = "") {
+// Função Auxiliar Modificada (Agora suporta mudança para US$)
+function htmlTabelaBase(titulo, total, thsHTML, trsHTML, topExtraHTML = "", moeda = "R$") {
+    let totalFormatado = "";
+    
+    // Se a aba for global, converte o total em Reais de volta para Dólar na visualização!
+    if (moeda === "US$") {
+        const totalDolar = total / cotacaoDolarGlobal;
+        totalFormatado = `US$ ${totalDolar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    } else {
+        totalFormatado = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
     return `
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
                 <h3 style="margin: 0; border: none; padding: 0;">${titulo}</h3>
                 <div style="text-align: right;">
                     <span style="font-size: 0.8rem; color: var(--text-muted);">Total na Classe</span><br>
-                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">${totalFormatado}</strong>
                 </div>
             </div>
             
@@ -864,91 +1269,1304 @@ function renderChartGestoras(dadosGestoras) {
     });
 }
 // --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL ---
+// --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL (AÇÕES X FUNDOS) ---
+// --- CONSTRUTOR ESPECÍFICO DE RENDA VARIÁVEL (AÇÕES X FUNDOS) ---
 function renderizarAbaRV(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
     
-    // 1. Somar valores por "Classe de RV"
-    const resumoClassesRV = {};
+    const acoes = [];
+    const fundos = [];
+    const resumoSetores = {};
+    const resumoCapsTotal = {}; // Agora soma Ações e Fundos!
+
     assets.forEach(a => {
-        const classe = (a.extras && a.extras.classeRV && a.extras.classeRV !== "-") ? a.extras.classeRV : "Não Classificado";
-        resumoClassesRV[classe] = (resumoClassesRV[classe] || 0) + a.valor;
+        const nomeUpper = a.nome.toUpperCase();
+        // Filtro Inteligente: Se tem "FIA", "FUNDO", "FIC" ou tem mais de 6 caracteres e um espaço = É Fundo.
+        const isFundo = nomeUpper.includes(" FIA") || nomeUpper.includes("FUNDO") || nomeUpper.includes("FIC ") || nomeUpper.includes("CAPITAL") || (nomeUpper.length > 6 && nomeUpper.includes(" "));
+
+        // Todos os ativos de RV (Ações e Fundos) recebem e somam a tag de Caps
+        const caps = (a.extras && a.extras.caps && a.extras.caps !== "-") ? a.extras.caps : "Não Classificado";
+        resumoCapsTotal[caps] = (resumoCapsTotal[caps] || 0) + a.valor;
+
+        if (isFundo) {
+            fundos.push(a);
+        } else {
+            acoes.push(a);
+            const classeRV = (a.extras && a.extras.classeRV && a.extras.classeRV !== "-") ? a.extras.classeRV : "Não Classificado";
+            resumoSetores[classeRV] = (resumoSetores[classeRV] || 0) + a.valor;
+        }
     });
 
-    // 2. Montar o Container do Gráfico (Centralizado e elegante)
-    const graficoRVHtml = `
-        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
-            <div class="fii-gestora-chart-container card" style="width: 100%; max-width: 500px;">
-                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Estratégia / Setor</h4>
-                <div style="position: relative; height: 180px; width: 100%;">
-                    <canvas id="chartRV"></canvas>
+    const graficosDuplosHtml = `
+        <div class="fii-top-panels" style="align-items: stretch; margin-bottom: 25px;">
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #3b82f6; min-height: 280px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Ações: Exposição por Setor</h4>
+                <div style="position: relative; height: 220px; width: 100%;">
+                    <canvas id="chartSetoresRV"></canvas>
+                </div>
+            </div>
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #8b5cf6; min-height: 280px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Carteira Total RV: Exposição por Caps</h4>
+                <div style="position: relative; height: 220px; width: 100%;">
+                    <canvas id="chartCapsFundos"></canvas>
                 </div>
             </div>
         </div>
     `;
 
-    // 3. Montar as Linhas da Tabela
+    const gerarTabelaRV = (lista, isFundo) => {
+        if (lista.length === 0) return `<tr><td colspan="${isFundo ? 5 : 6}" style="text-align: center; padding: 15px; color: var(--text-muted);">Nenhum ativo alocado.</td></tr>`;
+        return lista.map((a) => {
+            const originalIndex = dadosCat.assets.indexOf(a);
+            const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
+            
+            const capValue = a.extras?.caps || 'Não Classificado';
+            const badgeCaps = `<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${capValue}</span>
+                               <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'caps')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Cap">✏️</button>`;
+
+            let tdCentral = "";
+            if (isFundo) {
+                tdCentral = `<td><div style="display: flex; align-items: center; gap: 8px;">${badgeCaps}</div></td>`;
+            } else {
+                const setorValue = a.extras?.classeRV || 'Não Classificado';
+                const badgeSetor = `<span class="badge" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">${setorValue}</span>
+                                    <button onclick="editarCampoRV('${cat}', ${originalIndex}, 'classeRV')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Setor">✏️</button>`;
+                
+                // Para Ações, renderiza duas colunas centrais: Setor e Caps
+                tdCentral = `<td><div style="display: flex; align-items: center; gap: 8px;">${badgeSetor}</div></td>
+                             <td><div style="display: flex; align-items: center; gap: 8px;">${badgeCaps}</div></td>`;
+            }
+
+            return `
+                <tr>
+                    <td><strong>${a.nome}</strong></td>
+                    ${tdCentral}
+                    <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                    <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${originalIndex})" title="Remover Ativo">×</button></td>
+                </tr>
+            `;
+        }).join('');
+    };
+
+    const htmlCompleto = `
+        <div class="card" style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+                <h3 style="margin: 0; border: none; padding: 0;">${cat}</h3>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Total na Classe</span><br>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${dadosCat.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
+                </div>
+            </div>
+            
+            ${graficosDuplosHtml}
+            
+            <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                    <span style="color: #3b82f6;">📈 Ações Diretas (Padrão)</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+                </div>
+                <div class="acc-content" style="padding: 0; display: block;">
+                    <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+                        <thead><tr><th>Ação</th><th>Setor</th><th>Estratégia (Caps)</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+                        <tbody>${gerarTabelaRV(acoes, false)}</tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                    <span style="color: #8b5cf6;">📊 Fundos de Ações (FIA)</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+                </div>
+                <div class="acc-content" style="padding: 0; display: block;">
+                    <table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+                        <thead><tr><th>Fundo</th><th>Estratégia (Caps)</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+                        <tbody>${gerarTabelaRV(fundos, true)}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    tabEl.innerHTML = htmlCompleto;
+
+    // Constrói os dois gráficos passando os novos dados somados
+    renderChartDuploRV('chartSetoresRV', resumoSetores, 'acoes');
+    renderChartDuploRV('chartCapsFundos', resumoCapsTotal, 'fundos');
+}
+// --- FUNÇÃO DE GRÁFICOS E EDIÇÃO DA RV ---
+function renderChartDuploRV(canvasId, dados, tipo) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    if (tipo === 'acoes' && chartAcoesRV) chartAcoesRV.destroy();
+    if (tipo === 'fundos' && chartFundosRV) chartFundosRV.destroy();
+
+    const labelsRaw = Object.keys(dados);
+    const dataRaw = Object.values(dados);
+    const total = dataRaw.reduce((acc, val) => acc + val, 0);
+
+    if(total === 0) return; // Não desenha gráfico vazio
+
+    const labelsComPerc = labelsRaw.map((nome, index) => `${nome} (${((dataRaw[index] / total) * 100).toFixed(1)}%)`);
+
+    const newChart = new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: labelsComPerc,
+            datasets: [{
+                data: dataRaw,
+                backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#f97316'],
+                borderColor: '#1f2937', borderWidth: 2
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 10, font: { size: 9 }, padding: 10 } } }
+        }
+    });
+
+    if (tipo === 'acoes') chartAcoesRV = newChart;
+    if (tipo === 'fundos') chartFundosRV = newChart;
+}
+
+function editarCampoRV(cat, index, campo) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const valorAtual = ativo.extras?.[campo] || 'Não Classificado';
+    
+    const titulo = campo === 'caps' ? `Defina a Capitalização (Small, Large, Híbrido) para o fundo:` : `Defina o Setor para a ação:`;
+    const novoValor = prompt(`${titulo}\nAtivo: ${ativo.nome}`, valorAtual);
+    
+    if (novoValor !== null && novoValor.trim() !== "") {
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras[campo] = novoValor.trim();
+        recalcularTudoERenderizar();
+    }
+}
+// ==========================================
+// MÓDULO: ATIVOS GLOBAIS (RV e RF com Mapa Múndi)
+// ==========================================
+
+function renderizarAbaGlobal(cat, dadosCat, tabEl) {
+    const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
+    
+    const resumoLocais = {};
+    const resumoSetores = {};
+    
+    assets.forEach(a => {
+        const local = (a.extras && a.extras.localizacao && a.extras.localizacao !== "-") ? a.extras.localizacao : "Não Classificado";
+        const setor = (a.extras && a.extras.setor && a.extras.setor !== "-") ? a.extras.setor : "Não Classificado";
+        
+        // Passa para os gráficos já convertido em Dólar!
+        resumoLocais[local] = (resumoLocais[local] || 0) + (a.valor / cotacaoDolarGlobal);
+        resumoSetores[setor] = (resumoSetores[setor] || 0) + (a.valor / cotacaoDolarGlobal);
+    });
+
+    const isRV = cat === "Renda Variavel Global";
+    const chartSetorId = isRV ? "chartSetorRV" : "chartSetorRF";
+    const chartGeoId = isRV ? "chartGeoRV" : "chartGeoRF";
+    const corTema = isRV ? "#f59e0b" : "#0ea5e9";
+
+    // Aplicando overflow: hidden para o mapa não vazar!
+    // Painel Duplo Ampliado (Sem cortes, com mais altura)
+    const graficosDuplosHtml = `
+        <div class="fii-top-panels" style="align-items: stretch;">
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid ${corTema}; min-height: 350px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Setor</h4>
+                <div style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="${chartSetorId}"></canvas>
+                </div>
+            </div>
+            <div class="fii-gestora-chart-container card" style="flex: 1.5; border-top: 3px solid ${corTema}; min-height: 350px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Distribuição Geográfica</h4>
+                <div id="${chartGeoId}" style="width: 100%; height: 300px; display: flex; justify-content: center; align-items: center;"></div>
+            </div>
+        </div>
+    `;
     let rowsHtml = assets.map((a, index) => {
-        const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
-        const classeRV = a.extras?.classeRV || 'Não Classificado';
+        const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
+        const setor = a.extras?.setor || 'Não Classificado';
+        const local = a.extras?.localizacao || 'Não Classificado';
+        
+        // Converte o item da tabela para Dólar
+        const valorEmDolar = a.valor / cotacaoDolarGlobal;
 
         return `
             <tr>
                 <td><strong>${a.nome}</strong></td>
-                <td><span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">${classeRV}</span></td>
-                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: var(--text-muted); font-size: 0.9rem;">${setor}</span>
+                        <button onclick="editarCampoGlobal('${cat}', ${index}, 'setor')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Alterar Setor">✏️</button>
+                    </div>
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid rgba(14, 165, 233, 0.3);">${local}</span>
+                        <button onclick="editarCampoGlobal('${cat}', ${index}, 'localizacao')" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Alterar Localização">✏️</button>
+                    </div>
+                </td>
+                <td style="text-align: right; color: var(--success); font-weight: bold;">US$ ${valorEmDolar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
                 <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
             </tr>
         `;
     }).join('');
 
-    const cabecalhoEspecial = `<th>Ativo</th><th>Estratégia / Classe</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
+    const cabecalhoEspecial = `<th>Ativo</th><th>Setor</th><th>Localização</th><th style="text-align: right;">Valor (US$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
     
-    // Injeta o HTML na aba (reaproveitando o seu htmlTabelaBase)
-    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficoRVHtml);
-
-    // 4. Desenha o gráfico
-    renderChartRV(resumoClassesRV);
+    // Passamos "US$" como o 6º parâmetro para forçar o cabeçalho em dólar!
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, graficosDuplosHtml, "US$");
+    
+    renderChartSetorGlobal(resumoSetores, chartSetorId);
+    renderGeoChartGlobal(resumoLocais, chartGeoId);
 }
 
-// --- FUNÇÃO DO GRÁFICO DE RV ---
-function renderChartRV(dadosClasses) {
-    const ctx = document.getElementById('chartRV');
+// Mapa Múndi atualizado para mostrar "US$" ao passar o mouse
+function renderGeoChartGlobal(dadosLocais, containerId) {
+    if (!google.visualization || !google.visualization.DataTable) {
+        setTimeout(() => renderGeoChartGlobal(dadosLocais, containerId), 500);
+        return;
+    }
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const regionMap = {
+        "América do Norte": { codes: ["021"], index: 1 }, 
+        "América Latina": { codes: ["005", "013", "029"], index: 2 }, 
+        "Europa": { codes: ["154", "155", "151", "039"], index: 3 },
+        "África": { codes: ["015", "014", "011", "018", "017"], index: 4 },
+        "Ásia": { codes: ["143", "030", "034", "035", "145"], index: 5 },
+        "Oceania": { codes: ["053", "054", "057", "061"], index: 6 }
+    };
+
+    var data = new google.visualization.DataTable();
+    data.addColumn('string', 'Região');
+    data.addColumn('number', 'Alocado'); 
+
+    let temDadosNoMapa = false;
+    for (let local in dadosLocais) {
+        let config = regionMap[local];
+        let valorDolar = dadosLocais[local]; // Já chega em dólar
+        
+        if (config && valorDolar > 0) {
+            config.codes.forEach(code => {
+                data.addRow([
+                    {v: code, f: local}, 
+                    {v: config.index, f: 'US$ ' + valorDolar.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                ]);
+            });
+            temDadosNoMapa = true;
+        }
+    }
+
+    if (!temDadosNoMapa) data.addRow(['001', 0]);
+
+    var options = {
+        displayMode: 'regions', resolution: 'subcontinents', backgroundColor: 'transparent', datalessRegionColor: '#374151',
+        colorAxis: { values: [1, 2, 3, 4, 5, 6], colors: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#14b8a6'] },
+        legend: 'none', tooltip: { textStyle: { color: '#1f2937' }, showColorCode: true }
+    };
+
+    
+    var chart = new google.visualization.GeoChart(container);
+    chart.draw(data, options);
+}
+
+// Gráfico de Pizza de Setores
+function renderChartSetorGlobal(dadosSetores, canvasId) {
+    const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    if (chartClassesRV) chartClassesRV.destroy();
+    if (canvasId === "chartSetorRV" && chartSetorGlobalRV) chartSetorGlobalRV.destroy();
+    if (canvasId === "chartSetorRF" && chartSetorGlobalRF) chartSetorGlobalRF.destroy();
 
-    const labelsRaw = Object.keys(dadosClasses);
-    const dataRaw = Object.values(dadosClasses);
-    const totalRV = dataRaw.reduce((acc, val) => acc + val, 0);
+    const labelsRaw = Object.keys(dadosSetores);
+    const dataRaw = Object.values(dadosSetores);
+    const total = dataRaw.reduce((acc, val) => acc + val, 0);
 
-    const labelsComPerc = labelsRaw.map((nome, index) => {
-        const perc = ((dataRaw[index] / totalRV) * 100).toFixed(1);
-        return `${nome} (${perc}%)`;
-    });
+    const labelsComPerc = labelsRaw.map((nome, index) => `${nome} (${((dataRaw[index] / total) * 100).toFixed(1)}%)`);
 
-    chartClassesRV = new Chart(ctx.getContext('2d'), {
+    const newChart = new Chart(ctx.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: labelsComPerc,
             datasets: [{
                 data: dataRaw,
-                backgroundColor: [
-                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
-                    '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'
-                ],
-                borderColor: '#1f2937',
-                borderWidth: 2
+                backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'],
+                borderColor: '#1f2937', borderWidth: 2
             }]
         },
         options: {
             maintainAspectRatio: false,
-            plugins: {
-                legend: { 
-                    position: 'right',
-                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } }
-                }
-            }
+            plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 10, font: { size: 9 }, padding: 10 } } }
         }
     });
+
+    if (canvasId === "chartSetorRV") chartSetorGlobalRV = newChart;
+    else chartSetorGlobalRF = newChart;
+}
+
+
+function editarCampoGlobal(cat, index, campo) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const valorAtual = ativo.extras?.[campo] || 'Não Classificado';
+    const isSetor = campo === 'setor';
+    
+    let optionsHtml = '';
+    
+    if (isSetor) {
+        const setores = ["Agro", "Construção civil", "Diversificado", "Educação", "Eletrica", "Financeiro", "Holding", "Industria", "Locadoras", "Metalurgia", "Mineração", "Papel e Celulose", "Petroleo Gas E Energia", "Sidelurgia", "Tecnologia", "Telecomunicação", "Varejo", "Varejo Turismo"];
+        optionsHtml = setores.map(s => `<option value="${s}">${s}</option>`).join('');
+    } else {
+        const locais = ["América do Norte", "América Latina", "Europa", "África", "Ásia", "Oceania"];
+        optionsHtml = locais.map(l => `<option value="${l}">${l}</option>`).join('');
+    }
+
+    // Cria um modal dinâmico e elegante na tela
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `
+        <div class="modal-content">
+            <h3>Editar ${isSetor ? 'Setor' : 'Localização'}</h3>
+            <p style="color: var(--text-muted); margin-top: -10px;">Ativo: <strong>${ativo.nome}</strong></p>
+            <select id="tempEditSelect" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin: 15px 0;">
+                <option value="Não Classificado">Não Classificado</option>
+                ${optionsHtml}
+            </select>
+            <div class="modal-actions">
+                <button class="btn-upload" id="btnSalvarEdit">Salvar</button>
+                <button class="btn-upload danger" id="btnCancelarEdit">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    
+    // Já deixa a opção atual selecionada no dropdown
+    document.getElementById('tempEditSelect').value = valorAtual;
+
+    // Ações dos botões
+    document.getElementById('btnSalvarEdit').onclick = () => {
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras[campo] = document.getElementById('tempEditSelect').value;
+        document.body.removeChild(dialog);
+        recalcularTudoERenderizar();
+    };
+    
+    document.getElementById('btnCancelarEdit').onclick = () => document.body.removeChild(dialog);
+}
+
+// ==========================================
+// MÓDULO: IMPORTAÇÃO OFFSHORE (PLANILHA EXTERNA)
+// ==========================================
+
+// 1. Dicionário de Países para as 6 Regiões do Cliente
+function traduzirPaisParaRegiao(pais) {
+    if (!pais) return "Não Classificado";
+    const p = pais.toLowerCase().trim();
+    
+    const americaNorte = ['eua', 'estados unidos', 'usa', 'united states', 'canadá', 'canada', 'méxico', 'mexico'];
+    const europa = ['alemanha', 'inglaterra', 'reino unido', 'uk', 'frança', 'espanha', 'itália', 'suíça', 'europa', 'holanda', 'irlanda'];
+    const amLatina = ['brasil', 'argentina', 'chile', 'colômbia', 'peru', 'uruguai', 'américa latina'];
+    const asia = ['china', 'japão', 'japan', 'índia', 'india', 'coreia', 'singapura', 'ásia', 'asia', 'taiwan'];
+    const oceania = ['austrália', 'australia', 'nova zelândia', 'oceania'];
+    const africa = ['áfrica', 'africa', 'áfrica do sul', 'nigeria', 'egito'];
+
+    if (americaNorte.some(x => p.includes(x))) return "América do Norte";
+    if (europa.some(x => p.includes(x))) return "Europa";
+    if (amLatina.some(x => p.includes(x))) return "América Latina";
+    if (asia.some(x => p.includes(x))) return "Ásia";
+    if (oceania.some(x => p.includes(x))) return "Oceania";
+    if (africa.some(x => p.includes(x))) return "África";
+
+    return "Não Classificado"; 
+}
+
+// 2. Busca a Cotação do Dólar em Tempo Real
+async function obterCotacaoDolar() {
+    try {
+        const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+        const data = await res.json();
+        return parseFloat(data.USDBRL.bid);
+    } catch (e) {
+        console.warn("API de Dólar falhou, pedindo manual...");
+        const manual = prompt("Erro ao buscar dólar online. Digite a cotação de hoje (ex: 5.15):", "5.00");
+        return parseFloat(manual.replace(',', '.')) || 5.00;
+    }
+}
+
+// 3. Lê o Excel Offshore Padrão e injeta no Sistema (Versão Blindada)
+async function importarPlanilhaOffshore(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Tenta atualizar a cotação antes de processar
+    await initApp(); 
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+
+            let contagem = 0;
+
+            // Começa a ler da Linha 2 (índice 1), pulando os cabeçalhos
+            for (let i = 1; i < matrix.length; i++) {
+                const row = matrix[i];
+                if (!row || row.length === 0) continue;
+
+                const nomeAtivo = row[0];
+                const codigo = row[1];
+                
+                // SEGURANÇA 1: Se a linha não tiver Nome nem Código, ela é vazia e deve ser pulada
+                if (!nomeAtivo && !codigo) continue;
+
+                const setor = row[2] || "Não Classificado";
+                const paisLocal = row[3] || "Não Classificado";
+                const classePlanilha = row[4] || "Renda Variavel Global"; 
+                
+                // SEGURANÇA 2: Se o valor estiver vazio, em branco ou for texto, transforma em ZERO (0)
+                let rawValor = row[5];
+                let valorDolar = 0; 
+                
+                if (rawValor !== undefined && rawValor !== null && rawValor !== "") {
+                    if (typeof rawValor === 'string') {
+                        valorDolar = parseFloat(rawValor.replace(',', '.'));
+                    } else {
+                        valorDolar = parseFloat(rawValor);
+                    }
+                }
+                if (isNaN(valorDolar)) valorDolar = 0;
+
+                const nomeFinal = codigo ? codigo.toString().toUpperCase() : nomeAtivo.toString();
+                const regiaoMapeada = traduzirPaisParaRegiao(paisLocal);
+                
+                // Multiplica o ZERO (ou o valor real) pela cotação
+                const valorEmReais = valorDolar * cotacaoDolarGlobal;
+
+                if (!globalDetalheMap[classePlanilha]) {
+                    globalDetalheMap[classePlanilha] = { total: 0, assets: [] };
+                }
+
+                globalDetalheMap[classePlanilha].total += valorEmReais;
+                globalDetalheMap[classePlanilha].assets.push({
+                    nome: nomeFinal,
+                    valor: valorEmReais, // Fica guardado em Reais (R$ 0.00) nos cálculos
+                    sub: "Dólar",
+                    extras: { setor: setor, localizacao: regiaoMapeada }
+                });
+                contagem++;
+            }
+
+            // Exibe as mensagens corretas
+            if (contagem > 0) {
+                recalcularTudoERenderizar();
+                alert(`Sucesso! ${contagem} ativos importados.\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+            } else {
+                alert("Aviso: A planilha foi lida, mas não encontramos nenhum ativo escrito da linha 2 em diante. Lembre-se de colocar ao menos o Nome ou Código!");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erro interno ao ler a planilha. Verifique se ela não está corrompida.");
+        } finally {
+            // FECHA O MODAL E LIMPA O INPUT
+            document.getElementById('modalImportacao').style.display = 'none'; 
+            event.target.value = ''; 
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ==========================================
+// MÓDULO NOVO: LEITOR DE EXTRATO AVENUE (PDF)
+// ==========================================
+
+// 1. Inicializa o motor do PDF.js
+const pdfjsLib = window['pdfjs-dist/build/pdf'];
+if (pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+}
+
+async function importarPlanilhaAvenue(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    document.getElementById('modalImportacao').style.display = 'none';
+
+    if (file.type !== "application/pdf") {
+        alert("Por favor, selecione o ficheiro PDF do extrato da Avenue (Posição Consolidada).");
+        event.target.value = '';
+        return;
+    }
+
+    // Baixa a cotação e o Glossário de uma vez!
+    await initApp(); 
+    alert(`Lendo o extrato Avenue e conectando ao Glossário Online...\nCotação US$ usada: R$ ${cotacaoDolarGlobal.toFixed(3)}`);
+    const glossary = await loadGlossaryFromDrive().catch(() => ({}));
+
+    const fileReader = new FileReader();
+    fileReader.onload = async function() {
+        try {
+            const typedarray = new Uint8Array(this.result);
+            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            
+            let contagem = 0;
+            let currentCategory = "Renda Variavel Global"; 
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const items = textContent.items.map(item => item.str.trim()).filter(str => str.length > 0);
+
+                for (let j = 0; j < items.length; j++) {
+                    const strLower = items[j].toLowerCase();
+                    
+                    // RASTREADOR DE CATEGORIA DO PDF
+                    if (strLower.includes("renda fixa")) currentCategory = "Renda Fixa Global";
+                    if (strLower.includes("ações - global") || strLower.includes("ações global")) currentCategory = "Renda Variavel Global";
+
+                    // ENCONTROU UM ATIVO
+                    if (items[j] === "ETF's" || items[j] === "Bonds" || items[j] === "Stocks" || items[j] === "Caixa") {
+                        const ativo = items[j+1]; 
+                        const ativoKey = ativo.toUpperCase();
+                        
+                        let volumeDolar = 0;
+                        let percCount = 0;
+                        let k = j + 2;
+                        
+                        while(k < items.length && percCount < 2) {
+                            if (items[k].includes('%')) {
+                                percCount++;
+                                if (percCount === 2) {
+                                    let volStr = items[k-1];
+                                    volumeDolar = parseFloat(volStr.replace(/\./g, '').replace(',', '.'));
+                                    break;
+                                }
+                            }
+                            k++;
+                        }
+
+                        // INJETA NA PLATAFORMA
+                        if (volumeDolar > 0) {
+                            const valorEmReais = volumeDolar * cotacaoDolarGlobal;
+                            let categoriaFinal = currentCategory;
+                            if (items[j] === "Caixa") categoriaFinal = "Caixa";
+
+                            // ====== INTELIGÊNCIA DO GLOSSÁRIO ======
+                            const gData = glossary[ativoKey];
+                            let setorFinal = "Não Classificado";
+                            let localFinal = "Não Classificado"; // Se não tiver no glossário, fica indefinido (vazio/cinza no mapa)
+
+                            if (gData && gData.extras) {
+                                if (gData.extras.setor && gData.extras.setor !== "-") setorFinal = gData.extras.setor;
+                                if (gData.extras.localizacao && gData.extras.localizacao !== "-") localFinal = gData.extras.localizacao;
+                            }
+                            // ========================================
+
+                            if (!globalDetalheMap[categoriaFinal]) {
+                                globalDetalheMap[categoriaFinal] = { total: 0, assets: [] };
+                            }
+
+                            globalDetalheMap[categoriaFinal].total += valorEmReais;
+                            globalDetalheMap[categoriaFinal].assets.push({
+                                nome: ativoKey,
+                                valor: valorEmReais,
+                                sub: "Dólar",
+                                extras: { setor: setorFinal, localizacao: localFinal }
+                            });
+                            contagem++;
+                        }
+                    }
+                }
+            }
+
+            if (contagem > 0) {
+                recalcularTudoERenderizar();
+                alert(`Sucesso! ${contagem} ativos da Avenue importados com Enriquecimento de Dados.`);
+            } else {
+                alert("Nenhum ativo válido foi encontrado no PDF da Avenue.");
+            }
+
+        } catch (err) {
+            console.error("Erro na extração do PDF:", err);
+            alert("Erro ao processar o PDF. O arquivo pode estar corrompido.");
+        } finally {
+            event.target.value = ''; 
+        }
+    };
+    fileReader.readAsArrayBuffer(file);
+}
+// ==========================================
+// MÓDULO: RENDA FIXA BRASIL (FLUXO, FGC E PROJEÇÕES)
+// ==========================================
+
+let refChartFluxoAnual = null;
+let refChartFluxoMensal = null;
+
+// 1. MATEMÁTICA FINANCEIRA
+function parseDataBR(dataStr) { 
+    if (!dataStr || dataStr === "-") return null; 
+    const p = dataStr.toString().split('/'); 
+    if (p.length === 3) return new Date(p[2], p[1]-1, p[0]); 
+    if (dataStr.toString().includes('-')) return new Date(dataStr);
+    return null; 
+}
+
+function diffMeses(d1, d2) {
+    let months = (d2.getFullYear() - d1.getFullYear()) * 12;
+    months -= d1.getMonth();
+    months += d2.getMonth();
+    return months <= 0 ? 0 : months;
+}
+
+function estimarTaxaAnual(taxaStr, pCDI, pIPCA, pSelic, pIGPM) {
+    if(!taxaStr || taxaStr === "-") return pCDI / 100; // Padrão Conservador
+    let t = taxaStr.toUpperCase().replace(/\s/g, '').replace(',', '.');
+    
+    if (t.includes('CDI')) {
+        const matchPct = t.match(/(\d+[.,]?\d*)%/);
+        if (matchPct) return (pCDI / 100) * (parseFloat(matchPct[1]) / 100);
+        const matchSpread = t.match(/\+(\d+[.,]?\d*)/);
+        if (matchSpread) return (pCDI / 100) + (parseFloat(matchSpread[1]) / 100);
+        return pCDI / 100;
+    }
+    if (t.includes('IPCA') || t.includes('IPC-A')) {
+        let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
+        return ((pIPCA + fixedPart) / 100);
+    }
+    if (t.includes('SELIC') || t.includes('LFT')) {
+        let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
+        return ((pSelic + fixedPart) / 100);
+    }
+    if (t.includes('IGPM') || t.includes('IGP-M')) {
+        let fixedPart = 0; const match = t.match(/[\+\-](\d+\.?\d*)/); if (match) fixedPart = parseFloat(match[1]);
+        return ((pIGPM + fixedPart) / 100);
+    }
+    
+    let val = parseFloat(t.replace('%', '')); if (!isNaN(val)) return val / 100;
+    return pCDI / 100; 
+}
+
+function calcularValorNoVencimento(ativo, pCDI, pIPCA, pSelic, pIGPM) {
+    const vencimento = parseDataBR(ativo.extras?.vencimento);
+    if (!vencimento) return ativo.valor; 
+    
+    const hoje = new Date();
+    if (vencimento <= hoje) return ativo.valor;
+
+    if (ativo.nome.toUpperCase().includes("CUPOM") || ativo.nome.toUpperCase().includes("MENSAL")) return ativo.valor; 
+
+    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA, pSelic, pIGPM);
+    const taxaMensal = Math.pow(1 + taxaAnual, 1/12) - 1;
+    const meses = diffMeses(hoje, vencimento);
+    
+    return ativo.valor * Math.pow(1 + taxaMensal, meses);
+}
+
+// Função Inteligente para Classificar Renda Fixa
+function classificarAtivoRF(nome) {
+    const n = nome.toUpperCase();
+    
+    // 1. FGC (CDB, LCI, LCA, LCD, LC, RDB)
+    const TIPOS_FGC = ['CDB', 'LCI', 'LCA', 'LCD', 'LC', 'RDB'];
+    if (TIPOS_FGC.some(t => n.includes(t))) return "FGC";
+    
+    // 2. Crédito Privado e Tesouro (Tem Vencimento, mas NÃO tem FGC)
+    const TIPOS_CP = ['CRA', 'CRI', 'DEB', 'LF', 'LIG', 'CDCA', 'NTN', 'LTN', 'LFT', 'TESOURO'];
+    if (TIPOS_CP.some(t => n.includes(t))) return "CP_TESOURO";
+    
+    // 3. Fundos de Investimento (Não tem FGC e geralmente não tem Vencimento)
+    return "FUNDOS";
+}
+
+// 2. DESENHO DA ESTRUTURA HTML DA ABA
+// 2. DESENHO DA ESTRUTURA HTML DA ABA (JUROS BLOCADO ABAIXO)
+// 2. DESENHO DA ESTRUTURA HTML DA ABA (JUROS BLOCADO ABAIXO E 3 TABELAS)
+function renderizarAbaRF(cat, dadosCat, tabEl) {
+    const html = `
+        <div class="card" style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
+                <h3 style="margin: 0; padding: 0; border: none;">${cat}</h3>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Patrimônio Presente</span><br>
+                    <strong style="color: var(--gold); font-size: 1.2rem;">R$ ${dadosCat.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção CDI (% a.a.)</label><br>
+                    <input type="number" id="projCDI" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IPCA (% a.a.)</label><br>
+                    <input type="number" id="projIPCA" value="4.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção Selic (% a.a.)</label><br>
+                    <input type="number" id="projSelic" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IGPM (% a.a.)</label><br>
+                    <input type="number" id="projIGPM" value="5.0" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <!-- NOVO: CAMPO DE SIMULAÇÃO DE APORTE INDEPENDENTE -->
+                <div style="border-left: 1px solid var(--border-color); padding-left: 20px; margin-left: 10px;">
+                    <label style="font-size:0.8rem; color:var(--accent-primary); font-weight: bold;">Taxa Simulação Novo Aporte (% a.a.)</label><br>
+                    <input type="number" id="taxaSimulacao" value="12.0" step="0.1" style="width: 120px; margin-top: 5px; background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid var(--accent-primary); padding: 8px; border-radius: 4px; font-weight: bold;" onchange="atualizarGraficosRF('${cat}')">
+                </div>
+                <div>
+                        <label style="font-size:0.8rem; color:var(--accent-primary); font-weight: bold;">Venc. do Aporte</label><br>
+                        <select id="anoAlvoFGC" style="width: 100px; margin-top: 5px; background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid var(--accent-primary); padding: 8px; border-radius: 4px; font-weight: bold;" onchange="atualizarGraficosRF('${cat}')">
+                            <option value="MAX">Sempre</option>
+                            <option value="2026">2026</option>
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                            <option value="2031">2031</option>
+                            <option value="2032">2032</option>
+                            <option value="2033">2033</option>
+                            <option value="2034">2034</option>
+                            <option value="2035">2035</option>
+                        </select>
+                    </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap;">
+            <div class="card" style="flex: 2; min-width: 300px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="border: none; margin: 0; padding: 0; font-size: 1rem;">Fluxo de Vencimentos (Anual)</h3>
+                    <button class="btn-upload" style="margin: 0; padding: 6px 12px; font-size: 0.8rem;" onclick="abrirFluxoMensal('${cat}')">🔎 Ver Mensal</button>
+                </div>
+                <div style="height: 220px; position: relative;">
+                    <canvas id="chartFluxoAnual"></canvas>
+                </div>
+            </div>
+            
+            <div class="card" style="flex: 1.2; min-width: 250px;">
+                <h3 style="border: none; margin: 0 0 15px 0; padding: 0; font-size: 1rem;">Exposição FGC (Risco Emissor)</h3>
+                <div id="containerFGC" style="padding-right: 10px;"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <h3 style="border: none; margin: 0; padding: 0; font-size: 1rem;">Previsão de Juros Mensais Estimados</h3>
+                <div id="totalJurosBadge" style="font-weight: bold; color: var(--accent-primary); font-size: 1.05rem; background: rgba(14, 165, 233, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(14, 165, 233, 0.2);">Total: R$ 0,00/mês</div>
+            </div>
+            <div id="containerRendimentos" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; max-height: 240px; overflow-y: auto; padding-right: 10px;"></div>
+        </div>
+
+        <!-- 3 TABELAS SEPARADAS E CLASSIFICADAS -->
+        <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+            <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                <span style="color: #0ea5e9;">🛡️ Renda Fixa FGC (CDB, LCI, LCA...)</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+            <div class="acc-content" id="tabelaAtivosFGC" style="padding: 0;"></div>
+        </div>
+        
+        <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+            <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                <span style="color: #f59e0b;">🏢 Crédito Privado e Tesouro (CRA, CRI, LF...)</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+            <div class="acc-content" id="tabelaAtivosCP" style="padding: 0;"></div>
+        </div>
+
+        <div class="acc-item" style="border: 1px solid var(--border-color); margin-bottom: 10px;">
+            <div class="acc-header" onclick="toggleAcc(this)" style="background: rgba(31, 41, 55, 0.5);">
+                <span style="color: #8b5cf6;">📊 Fundos de Investimento e Outros</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+            <div class="acc-content" id="tabelaAtivosFundos" style="padding: 0;"></div>
+        </div>
+    `;
+    
+    tabEl.innerHTML = html;
+    atualizarGraficosRF(cat);
+}
+
+// 3. MOTOR DE RENDERIZAÇÃO SECUNDÁRIO (COM REGRAS ESTRITAS)
+function atualizarGraficosRF(cat) {
+    const dadosCat = globalDetalheMap[cat];
+    if(!dadosCat) return;
+
+    const pCDI = parseFloat(document.getElementById('projCDI')?.value) || 10.5;
+    const pIPCA = parseFloat(document.getElementById('projIPCA')?.value) || 4.5;
+    const pSelic = parseFloat(document.getElementById('projSelic')?.value) || 10.5;
+    const pIGPM = parseFloat(document.getElementById('projIGPM')?.value) || 5.0;
+    const taxaSim = parseFloat(document.getElementById('taxaSimulacao')?.value) || 12.0; // <-- Adicione esta linha
+
+    const dadosMapAnual = {};
+    const porBanco = {};
+    const LIMITE_FGC = 250000;
+
+    // Listas para separar as tabelas
+    const listaFGC = [];
+    const listaCP = [];
+    const listaFundos = [];
+
+    dadosCat.assets.forEach(at => {
+        const categoria = classificarAtivoRF(at.nome);
+        const dt = parseDataBR(at.extras?.vencimento);
+
+        // A) Processamento do Fluxo de Caixa Anual (SOMENTE SE TIVER VENCIMENTO VÁLIDO)
+        if (dt) {
+            const valorF = calcularValorNoVencimento(at, pCDI, pIPCA);
+            const ano = dt.getFullYear().toString();
+            dadosMapAnual[ano] = (dadosMapAnual[ano] || 0) + valorF;
+        }
+
+       // B) Processamento Estrito do FGC
+        if (categoria === "FGC") {
+            let emissorBruto = at.extras?.emissor || "Indefinido";
+            
+            // APLICA O AGRUPADOR INTELIGENTE AQUI
+            let emissorLimpo = limparNomeEmissor(emissorBruto); 
+            
+            if (!porBanco[emissorLimpo]) porBanco[emissorLimpo] = { totalFGC: 0, ativosFGC: [] }; 
+            porBanco[emissorLimpo].totalFGC += at.valor;
+            porBanco[emissorLimpo].ativosFGC.push(at);
+            listaFGC.push(at);
+        } else if (categoria === "CP_TESOURO") {
+            listaCP.push(at);
+        } else {
+            listaFundos.push(at);
+        }
+    });
+    
+    // C) Desenha o Gráfico Anual
+    const labelsAnual = Object.keys(dadosMapAnual).sort();
+    const dataAnual = labelsAnual.map(k => dadosMapAnual[k]);
+    
+    const ctxAnual = document.getElementById('chartFluxoAnual');
+    if(ctxAnual) {
+        if(refChartFluxoAnual) refChartFluxoAnual.destroy();
+        refChartFluxoAnual = new Chart(ctxAnual, {
+            type: 'bar',
+            data: { labels: labelsAnual, datasets: [{ label: 'Vencimentos Projetados (R$)', data: dataAnual, backgroundColor: '#10b981', borderRadius: 4 }] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+
+  // D) Desenha as Barras do FGC (Com Filtro de Ano Alvo)
+    let fgcHtml = '';
+    const hoje = new Date();
+    
+    // Captura o Ano Alvo escolhido pelo Assessor
+    const anoAlvoStr = document.getElementById('anoAlvoFGC')?.value || "MAX";
+    let dataAlvoMaxima = new Date(3000, 11, 31); 
+    if (anoAlvoStr !== "MAX") dataAlvoMaxima = new Date(parseInt(anoAlvoStr), 11, 31); 
+
+    Object.keys(porBanco).sort((a,b) => porBanco[b].totalFGC - porBanco[a].totalFGC).forEach(banco => {
+        if(porBanco[banco].totalFGC === 0) return; 
+        
+        const totalAtual = porBanco[banco].totalFGC;
+        const percentualUso = Math.min(100, (totalAtual / LIMITE_FGC) * 100);
+        let corBarra = percentualUso >= 100 ? '#ef4444' : (percentualUso > 80 ? '#f59e0b' : '#0ea5e9');
+
+        let tetoSegurancaAcumulado = Math.max(0, LIMITE_FGC - totalAtual); 
+        const ativosDoBanco = porBanco[banco].ativosFGC;
+
+        if (ativosDoBanco && ativosDoBanco.length > 0) {
+            let datasCriticas = [];
+            ativosDoBanco.forEach(a => {
+                const dt = parseDataBR(a.extras?.vencimento);
+                // Só considera a data crítica se ela acontecer ANTES ou DURANTE o ano alvo do novo aporte
+                if (dt && dt >= hoje && dt <= dataAlvoMaxima) datasCriticas.push(dt);
+            });
+            
+            // Adiciona a própria data de resgate do novo aporte como data crítica final
+            if (anoAlvoStr !== "MAX" && dataAlvoMaxima >= hoje) datasCriticas.push(dataAlvoMaxima);
+
+            // Ordena e remove duplicatas para otimizar
+            datasCriticas.sort((a, b) => a - b);
+            datasCriticas = [...new Set(datasCriticas.map(d => d.getTime()))].map(t => new Date(t));
+
+            if (datasCriticas.length > 0) {
+                tetoSegurancaAcumulado = 9999999999; 
+                const taxaSimulacaoMensal = Math.pow(1 + (taxaSim / 100), 1/12) - 1;
+
+                datasCriticas.forEach(dataCritica => {
+                    let saldoProjetadoNaData = 0;
+                    ativosDoBanco.forEach(a => saldoProjetadoNaData += calcularValorProjetadoEmData(a, dataCritica, pCDI, pIPCA, pSelic, pIGPM));
+                    
+                    const gapFuturo = Math.max(0, LIMITE_FGC - saldoProjetadoNaData);
+                    const mesesAteData = diffMeses(hoje, dataCritica);
+                    const aportePermitidoIsolado = gapFuturo / Math.pow(1 + taxaSimulacaoMensal, mesesAteData);
+                    
+                    if (aportePermitidoIsolado < tetoSegurancaAcumulado) tetoSegurancaAcumulado = aportePermitidoIsolado;
+                });
+            }
+        }
+
+        const potencialAporte = Math.max(0, tetoSegurancaAcumulado);
+        let corAporteText = potencialAporte > 0 ? 'var(--success)' : 'var(--danger)';
+        
+        let textoAporte = `Potencial de Aporte Hoje: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong>`;
+        if (anoAlvoStr !== "MAX") {
+            textoAporte = `Aporte p/ ${anoAlvoStr}: <strong style="color: ${corAporteText};">R$ ${potencialAporte.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong>`;
+        }
+
+        fgcHtml += `
+        <div style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">
+                <span>${banco}</span>
+                <span style="color: ${corBarra};">R$ ${totalAtual.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+            </div>
+            <div style="width: 100%; height: 6px; background-color: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: ${percentualUso}%; background-color: ${corBarra};"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+                <span>${percentualUso.toFixed(1)}% do teto</span>
+                <span>${textoAporte}</span>
+            </div>
+        </div>`;
+    });
+    
+    document.getElementById('containerFGC').innerHTML = fgcHtml || '<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum ativo listado com risco FGC mapeado.</p>';
+
+    // D2) Processamento de Juros
+    let totalJurosMensais = 0;
+    let jurosHtml = '';
+    dadosCat.assets.forEach(at => {
+        if(at.nome.toUpperCase().includes("CUPOM") || at.nome.toUpperCase().includes("MENSAL") || at.nome.toUpperCase().includes("JUROS")) {
+            const taxaAnual = estimarTaxaAnual(at.extras?.taxa, pCDI, pIPCA);
+            const rendaMensalBruta = (at.valor * taxaAnual) / 12;
+            const rendaMensalLiq = rendaMensalBruta * 0.85; 
+            totalJurosMensais += rendaMensalLiq;
+            jurosHtml += `
+            <div style="background: rgba(31, 41, 55, 0.3); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 65px;">
+                <div style="font-size: 0.8rem; font-weight: bold; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${at.nome}">${at.nome}</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px;">
+                    <span style="color: var(--success); font-size: 1.1rem; font-weight: bold;">R$ ${rendaMensalLiq.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-muted);">líq./mês</span>
+                </div>
+            </div>`;
+        }
+    });
+    
+    if(totalJurosMensais > 0) {
+        document.getElementById('totalJurosBadge').innerText = `Total: R$ ${totalJurosMensais.toLocaleString('pt-BR', {minimumFractionDigits:2})}/mês`;
+        document.getElementById('containerRendimentos').innerHTML = jurosHtml;
+    } else {
+        document.getElementById('totalJurosBadge').innerText = `Total: R$ 0,00/mês`;
+        document.getElementById('containerRendimentos').innerHTML = '<p style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted); margin: 5px 0;">Nenhum ativo com pagamento de cupons mensais detectado.</p>';
+    }
+
+    // E) Desenha as Tabelas Separadas
+    const gerarTabelaHTML = (listaAtivos) => {
+        if (listaAtivos.length === 0) return `<p style="padding: 15px; color: var(--text-muted); margin: 0;">Nenhum ativo listado nesta categoria.</p>`;
+        let rows = listaAtivos.sort((a,b) => b.valor - a.valor).map(a => {
+            const originalIndex = dadosCat.assets.indexOf(a); // Mantém o index original para edição/exclusão
+            const percCat = dadosCat.total > 0 ? ((a.valor / dadosCat.total) * 100).toFixed(1) : "0.0";
+            return `
+                <tr>
+                    <td><strong>${a.nome}</strong></td>
+                    <td style="color: var(--text-muted);">${a.extras?.emissor || '-'}</td>
+                    <td style="color: var(--text-muted);">${a.extras?.vencimento || '-'}</td>
+                    <td style="color: var(--text-muted);">${a.extras?.taxa || '-'}</td>
+                    <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
+                    <td style="text-align: right;">
+                        <button onclick="editarCampoRF('${cat}', ${originalIndex}, 'emissor')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;">🏦</button>
+                        <button onclick="editarCampoRF('${cat}', ${originalIndex}, 'vencimento')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;">📅</button>
+                        <button onclick="editarCampoRF('${cat}', ${originalIndex}, 'taxa')" style="background: transparent; border: none; cursor: pointer; padding: 0 4px;">📈</button>
+                        <button class="btn-delete" onclick="excluirAtivo('${cat}', ${originalIndex})">×</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        return `<table class="data-table" style="width: 100%; text-align: left; margin: 0; border: none;">
+                <thead><tr><th>Ativo</th><th>Emissor</th><th>Venc.</th><th>Taxa</th><th style="text-align: right;">Presente (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ações</th></tr></thead>
+                <tbody>${rows}</tbody></table>`;
+    };
+
+    if(document.getElementById('tabelaAtivosFGC')) document.getElementById('tabelaAtivosFGC').innerHTML = gerarTabelaHTML(listaFGC);
+    if(document.getElementById('tabelaAtivosCP')) document.getElementById('tabelaAtivosCP').innerHTML = gerarTabelaHTML(listaCP);
+    if(document.getElementById('tabelaAtivosFundos')) document.getElementById('tabelaAtivosFundos').innerHTML = gerarTabelaHTML(listaFundos);
+}
+
+// 4. MODAL DETALHADO DO FLUXO MENSAL
+function abrirFluxoMensal(cat) {
+    document.getElementById('modalFluxoMensal').style.display = 'flex';
+    
+    const dadosCat = globalDetalheMap[cat];
+    const pCDI = parseFloat(document.getElementById('projCDI')?.value) || 10.5;
+    const pIPCA = parseFloat(document.getElementById('projIPCA')?.value) || 4.5;
+    const pSelic = parseFloat(document.getElementById('projSelic')?.value) || 10.5;
+    const pIGPM = parseFloat(document.getElementById('projIGPM')?.value) || 5.0;
+
+    const dadosMapMensal = {};
+    let minDate = new Date(3000, 0, 1); 
+    let maxDate = new Date(2000, 0, 1);
+
+    dadosCat.assets.forEach(at => {
+        const dt = parseDataBR(at.extras?.vencimento);
+        if (dt) {
+            if (dt < minDate) minDate = dt; 
+            if (dt > maxDate) maxDate = dt; 
+            const mesAno = `${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()}`;
+            dadosMapMensal[mesAno] = (dadosMapMensal[mesAno] || 0) + calcularValorNoVencimento(at, pCDI, pIPCA, pSelic, pIGPM);
+        }
+    });
+
+    const labels = []; const data = []; 
+    if(minDate <= maxDate) {
+        let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1); 
+        while (curr <= maxDate) { 
+            const mesAno = `${(curr.getMonth()+1).toString().padStart(2,'0')}/${curr.getFullYear()}`;
+            labels.push(mesAno); 
+            data.push(dadosMapMensal[mesAno] || 0); 
+            curr.setMonth(curr.getMonth() + 1); 
+        }
+    }
+
+    const ctxMensal = document.getElementById('chartFluxoMensal');
+    if(refChartFluxoMensal) refChartFluxoMensal.destroy();
+    refChartFluxoMensal = new Chart(ctxMensal, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: 'Vencimento (R$)', data: data, backgroundColor: '#0ea5e9', borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+}
+
+// Função Auxiliar: Calcula o valor de um ativo em uma data futura específica
+function calcularValorProjetadoEmData(ativo, dataFutura, pCDI, pIPCA, pSelic, pIGPM) {
+    const hoje = new Date();
+    const vencimento = parseDataBR(ativo.extras?.vencimento);
+
+    if (!vencimento || vencimento < dataFutura) return 0; 
+    if (dataFutura <= hoje) return ativo.valor;
+    if (ativo.nome.toUpperCase().includes("CUPOM") || ativo.nome.toUpperCase().includes("MENSAL")) return ativo.valor;
+
+    const taxaAnual = estimarTaxaAnual(ativo.extras?.taxa, pCDI, pIPCA, pSelic, pIGPM);
+    const taxaMensal = Math.pow(1 + taxaAnual, 1/12) - 1;
+    const meses = diffMeses(hoje, dataFutura);
+
+    return ativo.valor * Math.pow(1 + taxaMensal, meses);
+}
+// 5. EDIÇÃO RÁPIDA NA TABELA
+// 5. EDIÇÃO RÁPIDA NA TABELA COM MODAL PREMIUM
+// EDIÇÃO RÁPIDA DE RF COM MODAL ELEGANTE
+function editarCampoRF(cat, index, campo) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const valorAtual = ativo.extras?.[campo] || '';
+    
+    // Títulos dinâmicos dependendo do botão
+    let titulo = ""; let dica = "";
+    if (campo === 'emissor') { titulo = 'Emissor do Ativo'; dica = 'ex: Banco Master, Tesouro'; }
+    else if (campo === 'vencimento') { titulo = 'Data de Vencimento'; dica = 'DD/MM/AAAA'; }
+    else { titulo = 'Taxa Contratada'; dica = 'ex: 110% CDI, IPCA + 6%'; }
+    
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `
+        <div class="modal-content">
+            <h3>Editar ${titulo}</h3>
+            <p style="color: var(--text-muted); margin-top: -10px;">Ativo: <strong>${ativo.nome}</strong></p>
+            <input type="text" id="tempEditRf" placeholder="${dica}" value="${valorAtual}" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 12px; border-radius: 4px; margin: 15px 0;">
+            <div class="modal-actions">
+                <button class="btn-upload" id="btnSalvarEditRf">Salvar</button>
+                <button class="btn-upload danger" id="btnCancelarEditRf">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    
+    // Foca automaticamente no campo
+    document.getElementById('tempEditRf').focus();
+
+    document.getElementById('btnSalvarEditRf').onclick = () => {
+        if (!ativo.extras) ativo.extras = {};
+        
+        // Se for a data, passa pelo corretor inteligente!
+        if (campo === 'vencimento') {
+            ativo.extras[campo] = formatarDataMascara(document.getElementById('tempEditRf').value.trim()) || "-";
+        } else {
+            ativo.extras[campo] = document.getElementById('tempEditRf').value.trim() || "-";
+        }
+        
+        document.body.removeChild(dialog);
+        recalcularTudoERenderizar();
+    };
+    
+    document.getElementById('btnCancelarEditRf').onclick = () => document.body.removeChild(dialog);
+}
+// --- NOVO MOTOR DE EXPORTAÇÃO PDF (TEMPLATE FANTASMA BLINDADO) ---
+// --- NOVO MOTOR DE EXPORTAÇÃO PDF (COM LOGO E GRÁFICOS REAIS) ---
+function gerarPDF() {
+    alert("Construindo o relatório gerencial. Isso pode levar alguns segundos...");
+
+    // 1. O TRUQUE MÁGICO: Forçamos todas as abas a aparecerem para os gráficos ganharem tamanho físico
+    const conteudosAbas = document.querySelectorAll('.tab-content');
+    conteudosAbas.forEach(aba => aba.style.display = 'block');
+
+    // 2. Forçamos o redimensionamento de todos os gráficos para eles não saírem espremidos
+    const todosOsGraficos = [chartEstrategia, chartGestorasFII, chartAcoesRV, chartFundosRV, chartSetorGlobalRV, chartSetorGlobalRF, refChartFluxoAnual];
+    todosOsGraficos.forEach(grafico => {
+        if (grafico) grafico.resize();
+    });
+
+    // 3. CSS Exclusivo do PDF (Fundo Branco, Texto Escuro)
+    const styleCSS = `
+        <style>
+            .pdf-container { font-family: 'Segoe UI', sans-serif; color: #1f2937; background: #ffffff; width: 100%; }
+            .pdf-page { padding: 40px; box-sizing: border-box; page-break-after: always; }
+            .pdf-cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 800px; }
+            .pdf-subtitle { font-size: 18pt; color: #6b7280; margin-bottom: 50px; text-transform: uppercase; letter-spacing: 2px; }
+            .pdf-value { font-size: 36pt; color: #c5a059; font-weight: bold; margin-top: 10px; }
+            .pdf-h2 { color: #0ea5e9; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; font-size: 18pt; margin-bottom: 20px; text-transform: uppercase; }
+            .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 10pt; }
+            .pdf-table th { background: #f8fafc; color: #374151; padding: 12px 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; }
+            .pdf-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937; }
+            .pdf-chart-box { text-align: center; margin: 25px 0; display: flex; justify-content: center; gap: 20px; align-items: center; height: 250px; }
+            .pdf-chart-box img { max-width: 100%; max-height: 250px; object-fit: contain; }
+            .text-right { text-align: right !important; }
+        </style>
+    `;
+
+    // 4. Extrator seguro das fotos dos gráficos
+    const getChartImg = (chartObj) => {
+        if (!chartObj) return '';
+        try {
+            return `<img src="${chartObj.toBase64Image()}">`;
+        } catch(e) {
+            console.warn("Aviso: Gráfico pulado na exportação.", e);
+            return '';
+        }
+    };
+
+    const clienteName = document.getElementById('clientName').innerText;
+    const totalFormatado = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+    let htmlContent = `<div class="pdf-container">${styleCSS}`;
+
+    // --- PÁGINA 1: CAPA COM LOGO AEV ---
+    htmlContent += `
+        <div class="pdf-page pdf-cover">
+            <!-- AQUI ENTRA A LOGO QUE ESTÁ NA SUA PASTA -->
+            <img src="AEV.png" alt="AEV Seguros" style="max-width: 280px; max-height: 120px; margin-bottom: 40px; object-fit: contain;">
+            
+            <div class="pdf-subtitle">Planejamento Estratégico de Alocação</div>
+            
+            <div style="font-size: 12pt; color: #9ca3af; margin-top: 60px; text-transform: uppercase;">Conta / Cliente</div>
+            <div style="font-size: 24pt; font-weight: bold; color: #111827; margin-top: 5px;">${clienteName}</div>
+            
+            <div style="font-size: 12pt; color: #9ca3af; margin-top: 40px; text-transform: uppercase;">Patrimônio Consolidado</div>
+            <div class="pdf-value">${totalFormatado}</div>
+            
+            <div style="margin-top: 100px; font-size: 10pt; color: #9ca3af;">Documento gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+        </div>
+    `;
+
+    // --- PÁGINA 2: RESUMO ESTRATÉGICO ---
+    let rebalanceRows = "";
+    const aporte = parseFloat(document.getElementById('valorAporte').value) || 0;
+    const totFuturo = totalPatrimonio + aporte;
+
+    Object.keys(currentPortfolio).forEach(cat => {
+        const targetInput = document.querySelector(`.target-input[data-cat="${cat}"]`);
+        if(!targetInput) return;
+        
+        const target = parseFloat(targetInput.value) || 0;
+        const atual = currentPortfolio[cat];
+        const percAtual = totalPatrimonio > 0 ? (atual / totalPatrimonio * 100) : 0;
+        const idealFuturo = (target / 100) * totFuturo;
+        const diff = idealFuturo - atual;
+        
+        let status = "✓ OK";
+        let color = "#374151";
+        if (diff > 0.01) { status = `Alocar R$ ${diff.toLocaleString('pt-BR', {maximumFractionDigits:0})}`; color = "#0ea5e9"; }
+        else if (diff < -0.01) { status = `Reduzir R$ ${Math.abs(diff).toLocaleString('pt-BR', {maximumFractionDigits:0})}`; color = "#ef4444"; }
+
+        rebalanceRows += `
+            <tr>
+                <td><strong>${cat}</strong></td>
+                <td>${percAtual.toFixed(1)}%</td>
+                <td>${target}%</td>
+                <td style="color: ${color}; font-weight: bold;">${status}</td>
+            </tr>`;
+    });
+
+    htmlContent += `
+        <div class="pdf-page">
+            <h2 class="pdf-h2">Resumo Estratégico</h2>
+            <div class="pdf-chart-box">
+                ${getChartImg(chartEstrategia)}
+            </div>
+            
+            <h3 style="color: #1f2937; margin-top: 30px; font-size: 14pt;">Plano de Execução (Rebalanceamento)</h3>
+            <p style="font-size: 9pt; color: #6b7280; margin-top: -10px;">Simulação com aporte de R$ ${aporte.toLocaleString('pt-BR')}</p>
+            <table class="pdf-table">
+                <thead><tr><th>Categoria</th><th>Atual %</th><th>Alvo %</th><th>Ação Sugerida</th></tr></thead>
+                <tbody>${rebalanceRows}</tbody>
+            </table>
+        </div>
+    `;
+
+    // --- PÁGINAS DINÂMICAS: GRÁFICOS + LISTAGEM DE CADA ABA ---
+    Object.keys(globalDetalheMap).forEach(cat => {
+        const dadosCat = globalDetalheMap[cat];
+        if (dadosCat.total <= 0.01) return;
+
+        // Distribui o gráfico correto para cada página
+        let graficosHTML = "";
+        if (cat === "Fundos Imobiliários") graficosHTML = getChartImg(chartGestorasFII);
+        else if (cat === "Renda Variavel Brasil") graficosHTML = `${getChartImg(chartAcoesRV)}${getChartImg(chartFundosRV)}`;
+        else if (cat === "Renda Variavel Global") graficosHTML = getChartImg(chartSetorGlobalRV);
+        else if (cat === "Renda Fixa Global") graficosHTML = getChartImg(chartSetorGlobalRF);
+        else if (cat === "Renda Fixa Brasil") graficosHTML = getChartImg(refChartFluxoAnual);
+
+        let rowsAtivos = dadosCat.assets.sort((a,b) => b.valor - a.valor).map(a => {
+            const perc = ((a.valor / dadosCat.total) * 100).toFixed(1);
+            return `
+                <tr>
+                    <td><strong>${a.nome}</strong></td>
+                    <td style="color: #6b7280;">${a.sub}</td>
+                    <td class="text-right">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    <td class="text-right">${perc}%</td>
+                </tr>`;
+        }).join('');
+
+        htmlContent += `
+            <div class="pdf-page">
+                <h2 class="pdf-h2">${cat}</h2>
+                <p style="font-size: 11pt; color: #4b5563;"><strong>Total Alocado:</strong> R$ ${dadosCat.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                
+                <div class="pdf-chart-box">
+                    ${graficosHTML}
+                </div>
+                
+                <table class="pdf-table">
+                    <thead><tr><th>Ativo</th><th>Detalhe/Subclasse</th><th class="text-right">Valor (R$)</th><th class="text-right">Peso</th></tr></thead>
+                    <tbody>${rowsAtivos}</tbody>
+                </table>
+            </div>
+        `;
+    });
+
+    htmlContent += `</div>`;
+
+    // 5. RESTAURA AS ABAS PARA O ESTADO ORIGINAL (Escondidas)
+    conteudosAbas.forEach(aba => aba.style.display = '');
+
+    // 6. GERAÇÃO DO PDF
+    const opt = {
+        margin:       10, 
+        filename:     `Relatorio_Alocacao_${clienteName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+    };
+
+    html2pdf().set(opt).from(htmlContent).save();
 }

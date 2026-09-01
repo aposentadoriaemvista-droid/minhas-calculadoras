@@ -38,8 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('resumo-mensal').innerHTML = `<div class="summary-highlight">Seu potencial de aporte mensal inicial é de: <strong>${formatCurrency(aporte)}</strong></div>`;
         return aporte;
     }
-
-    const addGoalBtn = document.getElementById('add-goal-btn');
+const addGoalBtn = document.getElementById('add-goal-btn');
     addGoalBtn.addEventListener('click', () => {
         const list = document.getElementById('goals-list');
         const newItem = document.createElement('div');
@@ -47,12 +46,35 @@ document.addEventListener('DOMContentLoaded', () => {
         newItem.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;"><h4>Novo Objetivo/Evento</h4><button class="remove-button" onclick="this.closest('.goal-item').remove()">×</button></div>
             <div class="goal-grid">
-                <div class="form-group"><label>Tipo</label><select class="goal-type"><option value="objetivo">Objetivo (Saída)</option><option value="evento">Evento (Entrada)</option></select></div>
-                <div class="form-group"><label>Descrição</label><input type="text" class="goal-description" placeholder="Ex: Comprar Carro"></div>
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select class="goal-type">
+                        <option value="objetivo">Objetivo (Saída Única)</option>
+                        <option value="evento">Evento (Entrada Única)</option>
+                        <option value="saida_mensal">Saída Recorrente (Mensal)</option>
+                        <option value="entrada_mensal">Entrada Recorrente (Mensal)</option>
+                        <option value="saida_anual">Saída Recorrente (Anual)</option>
+                        <option value="entrada_anual">Entrada Recorrente (Anual)</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Descrição</label><input type="text" class="goal-description" placeholder="Ex: Comprar Carro / Herança"></div>
                 <div class="form-group"><label>Valor (R$)</label><input type="text" class="formatted-number" id="goal-value" placeholder="80.000"></div>
-                <div class="form-group"><label>Com que idade?</label><input type="text" class="formatted-number" id="goal-age" placeholder="30"></div>
+                <div class="form-group"><label>Com que idade (Início)?</label><input type="text" class="formatted-number" id="goal-age" placeholder="30"></div>
+                <div class="form-group duration-group hidden"><label>Duração (Anos)</label><input type="text" class="formatted-number" id="goal-duration" placeholder="4"></div>
             </div>`;
         list.appendChild(newItem);
+        
+        // Mostrar/ocultar campo de duração dinamicamente
+        const typeSelect = newItem.querySelector('.goal-type');
+        const durationGroup = newItem.querySelector('.duration-group');
+        typeSelect.addEventListener('change', (e) => {
+            if (e.target.value.includes('mensal') || e.target.value.includes('anual')) {
+                durationGroup.classList.remove('hidden');
+            } else {
+                durationGroup.classList.add('hidden');
+            }
+        });
+        
         newItem.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
     });
 
@@ -105,6 +127,48 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('share-plan-btn').addEventListener('click', sharePlan);
     loadPlanFromURL();
+
+    // Cole isso em algum lugar na raiz do seu DOMContentLoaded
+    document.getElementById('add-sim-goal-btn').addEventListener('click', addSimulatedGoal);
+
+    function addSimulatedGoal() {
+        const list = document.getElementById('sim-goals-list');
+        const newItem = document.createElement('div');
+        newItem.classList.add('goal-item'); // Reaproveitando sua classe CSS de box
+        newItem.style.padding = '15px';
+        newItem.style.marginTop = '10px';
+        
+        newItem.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                <select class="sim-goal-type" style="width: auto; padding: 6px; border-radius: 4px; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                    <option value="objetivo">Gasto / Retirada</option>
+                    <option value="evento">Entrada / Ganho</option>
+                </select>
+                <button class="remove-button remove-sim-goal">×</button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" class="formatted-number sim-goal-value" placeholder="Valor (R$)" style="flex: 1; padding: 8px; border-radius: 4px; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                <input type="number" class="sim-goal-age" placeholder="Sua Idade" style="width: 100px; padding: 8px; border-radius: 4px; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+            </div>
+        `;
+        
+        list.appendChild(newItem);
+        
+        // Formatar valor dinamicamente e rodar simulação na mudança
+        const valueInput = newItem.querySelector('.sim-goal-value');
+        valueInput.addEventListener('input', formatNumberInput);
+        
+        // Disparar o runSimulation ao preencher
+        newItem.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('input', runSimulation);
+        });
+
+        // Remover da simulação e recalcular
+        newItem.querySelector('.remove-sim-goal').addEventListener('click', (e) => {
+            e.target.closest('.goal-item').remove();
+            runSimulation();
+        });
+    }
     
     function runFinancialPlan() {
     enviarDadosParaPlanilha();
@@ -121,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let userGoals = [];
         document.querySelectorAll('.goal-item').forEach(item => {
-            const goal = { type: item.querySelector('.goal-type').value, description: item.querySelector('.goal-description').value, value: unformatNumber(item.querySelector('[id="goal-value"]')?.value), age: unformatNumber(item.querySelector('[id="goal-age"]')?.value) };
+            const goal = { type: item.querySelector('.goal-type').value, description: item.querySelector('.goal-description').value, value: unformatNumber(item.querySelector('[id="goal-value"]')?.value), age: unformatNumber(item.querySelector('[id="goal-age"]')?.value), duration: unformatNumber(item.querySelector('[id="goal-duration"]')?.value) || 1 };
             if (goal.type === 'aposentadoria') {
                 goal.lifeExpectancy = unformatNumber(item.querySelector('[id="goal-life-expectancy"]')?.value) || 100;
                 goal.postRetirementIncome = unformatNumber(item.querySelector('[id="goal-post-retirement-income"]')?.value) || 0;
@@ -135,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10, 12: 0.12 } };
         const taxaJurosAtual = premissas.taxasJurosReais[inputs.perfilRisco];
         const anosParaAposentar = retirementGoal.age - inputs.idadeAtual;
         const anosDeAposentadoria = retirementGoal.lifeExpectancy - retirementGoal.age;
@@ -404,8 +468,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const idadeValue = document.getElementById('sim-idade-reforma-value');
         const perfilSelect = document.getElementById('sim-perfil-risco');
         const resetButton = document.getElementById('reset-scenario-btn');
+        // NOVO: Pegando elementos da Renda Simulada
+        const rendaSlider = document.getElementById('sim-renda');
+        const rendaValue = document.getElementById('sim-renda-value');
 
-        aporteSlider.min = 0;
+       aporteSlider.min = 0;
         aporteSlider.max = Math.max(inputs.aporteMensal * 3, 5000, unformatNumber(document.getElementById('salario').value)); 
         aporteSlider.step = 100;
         aporteSlider.value = inputs.aporteMensal;
@@ -417,10 +484,20 @@ document.addEventListener('DOMContentLoaded', () => {
         idadeSlider.value = retirementGoal.age;
         idadeValue.textContent = `${retirementGoal.age} anos`;
 
+        // NOVO: Configurando slider da Renda Simulada
+        rendaSlider.min = 0;
+        rendaSlider.max = Math.max(retirementGoal.value * 3, 20000); // Teto de 3x a renda ou 20k
+        rendaSlider.step = 500;
+        rendaSlider.value = retirementGoal.value;
+        rendaValue.textContent = formatCurrency(retirementGoal.value);
+
         perfilSelect.innerHTML = document.getElementById('risk-profile').innerHTML;
         perfilSelect.value = inputs.perfilRisco;
         
-        [aporteSlider, idadeSlider, perfilSelect].forEach(el => {
+        // NOVO: Limpar lista de objetivos manuais da simulação ao (re)iniciar e reatribuir listeners
+        document.getElementById('sim-goals-list').innerHTML = '';
+        
+        [aporteSlider, idadeSlider, perfilSelect, rendaSlider].forEach(el => {
             el.addEventListener('input', runSimulation);
         });
         
@@ -434,16 +511,53 @@ document.addEventListener('DOMContentLoaded', () => {
         const simAporte = parseFloat(document.getElementById('sim-aporte').value);
         const simIdade = parseInt(document.getElementById('sim-idade-reforma').value);
         const simPerfil = document.getElementById('sim-perfil-risco').value;
-
+const simRenda = parseFloat(document.getElementById('sim-renda').value);
         document.getElementById('sim-aporte-value').textContent = formatCurrency(simAporte);
         document.getElementById('sim-idade-reforma-value').textContent = `${simIdade} anos`;
+        document.getElementById('sim-renda-value').textContent = formatCurrency(simRenda);
 
+
+        
         let simulatedInputs = { ...originalResults.inputs, aporteMensal: simAporte, perfilRisco: simPerfil };
         let simulatedGoals = JSON.parse(JSON.stringify(originalResults.userGoals));
+
+
+       // NOVO: Loop para varrer e adicionar os objetivos manuais criados na simulação
+        document.querySelectorAll('#sim-goals-list .goal-item').forEach(item => {
+            const type = item.querySelector('.sim-goal-type').value;
+            const valueStr = item.querySelector('.sim-goal-value').value;
+            const ageStr = item.querySelector('.sim-goal-age').value;
+            
+            // FALTAVA ISSO AQUI: Capturar o valor do input de duração
+            const durationStr = item.querySelector('.sim-goal-duration')?.value;
+            
+            const value = unformatNumber(valueStr);
+            const age = parseInt(ageStr);
+            
+            // FALTAVA ISSO AQUI: Transformar em número (ou 1 se estiver vazio)
+            const duration = parseInt(durationStr) || 1;
+
+            if (value > 0 && age > simulatedInputs.idadeAtual) {
+                simulatedGoals.push({
+                    type: type,
+                    description: 'Simulação Dinâmica',
+                    value: value,
+                    age: age,
+                    duration: duration // Adicionando a duração no objetivo simulado!
+                });
+            }
+        });
+
         let simulatedRetirementGoal = simulatedGoals.find(g => g.type === 'aposentadoria');
         simulatedRetirementGoal.age = simIdade;
+        // NOVO: Substituir a meta de renda do objetivo de aposentadoria clonado
+        simulatedRetirementGoal.value = simRenda;
         
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+        // Substitua esta linha:
+        // const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
+        
+        // Por esta:
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10, 12: 0.12 } };
         const taxaJurosSimulada = premissas.taxasJurosReais[simPerfil];
 
         const anosParaAposentar = simulatedRetirementGoal.age - simulatedInputs.idadeAtual;
@@ -500,8 +614,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function calculateOptimalRiskProfile(inputs, userGoals, metaMinima) {
-        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, arrojado: 0.08, muitoArrojado: 0.10 } };
-        const profiles = ['conservador', 'moderado', 'arrojado', 'muitoArrojado'];
+        const premissas = { taxasJurosReais: { muitoConservador: 0.02, conservador: 0.04, moderado: 0.06, moderadoArrojado: 0.07, arrojado: 0.08, muitoArrojado: 0.10, 12: 0.12 } };
+        const profiles = ['conservador', 'moderado', 'moderadoArrojado', 'arrojado','muitoArrojado', '12'];
         const currentProfileIndex = profiles.indexOf(inputs.perfilRisco);
         for (let i = currentProfileIndex + 1; i < profiles.length; i++) {
             const newProfile = profiles[i];
@@ -622,88 +736,326 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatNumberInput(e) { let value = e.target.value.replace(/\D/g, ''); if (value) { e.target.value = new Intl.NumberFormat('pt-BR').format(value); } else { e.target.value = ''; } }
     function unformatNumber(value) { return parseFloat(String(value).replace(/\./g, '').replace(',', '.')) || 0; }
     document.querySelectorAll('.formatted-number').forEach(el => el.addEventListener('input', formatNumberInput));
-    function generateFullProjection(inputs, goals, taxaAnual) { const retirementGoal = goals.find(g => g.type === 'aposentadoria'); if (!retirementGoal) return { accumulation: [], decumulation: [] }; const anosParaAposentar = retirementGoal.age - inputs.idadeAtual; const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age; let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }]; let saldo = inputs.patrimonioInicial; let pmtAnual = inputs.aporteMensal * 12; let totalAportado = inputs.patrimonioInicial; for (let ano = 1; ano <= anosParaAposentar; ano++) { const jurosDoAno = saldo * taxaAnual; let resgatesDoAno = 0; const currentAge = inputs.idadeAtual + ano; goals.forEach(goal => { if (goal.age === currentAge && goal.type !== 'aposentadoria') { resgatesDoAno += (goal.type === 'evento' ? goal.value : -goal.value); } }); saldo += jurosDoAno + pmtAnual + resgatesDoAno; totalAportado += pmtAnual; saldo = saldo < 0 ? 0 : saldo; accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno, jurosAcumulados: (accumulation[ano-1].jurosAcumulados || 0) + jurosDoAno }); pmtAnual *= (1 + (inputs.aporteGrowth || 0)); } let decumulation = []; const rendaComplementarNecessaria = Math.max(0, (retirementGoal.value || 0) - (retirementGoal.postRetirementIncome || 0)); const saqueAnual = rendaComplementarNecessaria * 12; for (let ano = 1; ano <= anosDeAposentadoria; ano++) { const juros = saldo * taxaAnual; saldo += juros - saqueAnual; if (saldo < 0) saldo = 0; decumulation.push({ ano, idade: retirementGoal.age + ano, saldoFinal: saldo }); } return { accumulation, decumulation }; }
+
+function generateFullProjection(inputs, goals, taxaAnual) { 
+        const retirementGoal = goals.find(g => g.type === 'aposentadoria'); 
+        if (!retirementGoal) return { accumulation: [], decumulation: [] }; 
+        
+        const anosParaAposentar = retirementGoal.age - inputs.idadeAtual; 
+        const anosDeAposentadoria = (retirementGoal.lifeExpectancy || 100) - retirementGoal.age; 
+        
+        let accumulation = [{ ano: 0, idade: inputs.idadeAtual, saldoFinal: inputs.patrimonioInicial, totalAportado: inputs.patrimonioInicial, jurosGanhos: 0 }]; 
+        let saldo = inputs.patrimonioInicial; 
+        let pmtAnual = inputs.aporteMensal * 12; 
+        let totalAportado = inputs.patrimonioInicial; 
+        
+        // Fase de Acúmulo (Antes da Aposentadoria)
+        for (let ano = 1; ano <= anosParaAposentar; ano++) { 
+            const jurosDoAno = saldo * taxaAnual; 
+            let resgatesDoAno = 0; 
+            const currentAge = inputs.idadeAtual + ano; 
+            
+           goals.forEach(goal => { 
+                if (goal.type !== 'aposentadoria') { 
+                    const idadeFim = goal.age + (goal.duration || 1) - 1; // Calcula a última idade do evento
+                    
+                    if (currentAge >= goal.age && currentAge <= idadeFim) {
+                        let valorAnual = goal.value;
+                        // Se for recorrente mensal, multiplica por 12 (ex: 11 mil por mês = 132k no ano)
+                        if (goal.type.includes('mensal')) {
+                            valorAnual *= 12;
+                        }
+                        
+                        if (goal.type.includes('saida') || goal.type === 'objetivo') {
+                            resgatesDoAno -= valorAnual;
+                        } else if (goal.type.includes('entrada') || goal.type === 'evento') {
+                            resgatesDoAno += valorAnual;
+                        }
+                    }
+                } 
+            });
+            
+            saldo += jurosDoAno + pmtAnual + resgatesDoAno; 
+            totalAportado += pmtAnual; 
+            saldo = saldo < 0 ? 0 : saldo; 
+            accumulation.push({ ano, idade: currentAge, saldoFinal: saldo, totalAportado, jurosGanhos: jurosDoAno, jurosAcumulados: (accumulation[ano-1].jurosAcumulados || 0) + jurosDoAno }); 
+            pmtAnual *= (1 + (inputs.aporteGrowth || 0)); 
+        } 
+        
+        let decumulation = []; 
+        const rendaComplementarNecessaria = Math.max(0, (retirementGoal.value || 0) - (retirementGoal.postRetirementIncome || 0)); 
+        const saqueAnual = rendaComplementarNecessaria * 12; 
+        
+        // Fase de Desacumulação (Pós Aposentadoria)
+        for (let ano = 1; ano <= anosDeAposentadoria; ano++) { 
+            const currentAge = retirementGoal.age + ano;
+            const juros = saldo * taxaAnual; 
+            let resgatesDoAno = 0;
+            
+            // NOVO: Verificação de eventos na fase de aposentadoria
+           goals.forEach(goal => { 
+                if (goal.type !== 'aposentadoria') { 
+                    const idadeFim = goal.age + (goal.duration || 1) - 1; // Calcula a última idade do evento
+                    
+                    if (currentAge >= goal.age && currentAge <= idadeFim) {
+                        let valorAnual = goal.value;
+                        // Se for recorrente mensal, multiplica por 12 (ex: 11 mil por mês = 132k no ano)
+                        if (goal.type.includes('mensal')) {
+                            valorAnual *= 12;
+                        }
+                        
+                        if (goal.type.includes('saida') || goal.type === 'objetivo') {
+                            resgatesDoAno -= valorAnual;
+                        } else if (goal.type.includes('entrada') || goal.type === 'evento') {
+                            resgatesDoAno += valorAnual;
+                        }
+                    }
+                } 
+            });
+            
+            saldo += juros - saqueAnual + resgatesDoAno; 
+            if (saldo < 0) saldo = 0; 
+            decumulation.push({ ano, idade: currentAge, saldoFinal: saldo }); 
+        } 
+        
+        return { accumulation, decumulation }; 
+    }
+
+
+
+    
     function calculateImpactAnalysis(fullProjection, analysisInputs) { const { idadeAtual, userGoals, retirementGoal, taxaJurosAtual, metaIdeal, metaMinima, aporteGrowth } = analysisInputs; const analysis = []; const intermediateEvents = userGoals.filter(g => g.type !== 'aposentadoria' && g.age < retirementGoal.age).sort((a,b) => a.age - b.age); intermediateEvents.forEach(goal => { const anoDoObjetivo = goal.age - idadeAtual; const projectionPoint = fullProjection.accumulation[anoDoObjetivo]; if (!projectionPoint) return; const patrimonioNoFinalDoAno = projectionPoint.saldoFinal; const patrimonioNoInicioDoAno = fullProjection.accumulation[anoDoObjetivo - 1]?.saldoFinal || analysisInputs.patrimonioInicial; const anosRestantesParaAposentar = retirementGoal.age - goal.age; const novoAporteIdeal = calculateRequiredPMT(patrimonioNoFinalDoAno, metaIdeal, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth); const novoAporteMinimo = calculateRequiredPMT(patrimonioNoFinalDoAno, metaMinima, taxaJurosAtual, anosRestantesParaAposentar, aporteGrowth); analysis.push({ type: goal.type, description: goal.description, age: goal.age, patrimonioAntes: patrimonioNoInicioDoAno, value: goal.value, patrimonioDepois: patrimonioNoFinalDoAno, novoAporteIdeal, novoAporteMinimo }); }); return analysis; }
     function calculatePresentValue(pmtAnual, i, n) { if (n <= 0) return 0; if (i === 0) return pmtAnual * n; return pmtAnual * ((1 - Math.pow(1 + i, -n)) / i); }
     function calculateRequiredPMT(vp, vf, i, n, pmtGrowth) { if (n <= 0) return vf > vp ? Infinity : 0; let pmtAnual = 0; if (Math.abs(i - (pmtGrowth||0)) > 1e-9) { const term1 = vf - vp * Math.pow(1 + i, n); const term2 = (Math.pow(1 + i, n) - Math.pow(1 + (pmtGrowth||0), n)) / (i - (pmtGrowth||0)); if (term2 === 0) return Infinity; pmtAnual = term1 / term2; } else { if (n === 0) return Infinity; pmtAnual = (vf - vp * Math.pow(1 + i, n)) / (n * Math.pow(1 + i, n - 1)); } return pmtAnual > 0 ? pmtAnual / 12 : 0; }
+    
     document.getElementById('generate-report-btn').addEventListener('click', () => {
-    const reportContainer = document.getElementById('report-page');
-    if (!reportContainer) return;
+        if (!lastResults || !lastResults.inputs) {
+            alert('Por favor, gere o planejamento primeiro antes de emitir o relatório.');
+            return;
+        }
 
-    const reportButton = document.getElementById('generate-report-btn');
-    const originalButtonText = reportButton.textContent;
-    reportButton.textContent = 'Gerando...';
-    reportButton.disabled = true;
+        const reportContainer = document.getElementById('report-page');
+        if (!reportContainer) return;
 
-    const userName = document.getElementById('user-name').value || "Cliente";
-    const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const reportButton = document.getElementById('generate-report-btn');
+        const originalButtonText = reportButton.textContent;
+        reportButton.textContent = 'Processando Gráficos em Alta Resolução...';
+        reportButton.disabled = true;
 
-    html2canvas(document.getElementById('projectionChart')).then(canvas => {
-        const chartImage = canvas.toDataURL('image/png');
-        const metricsHTML = document.getElementById('metrics-container').innerHTML;
-        const impactHTML = document.getElementById('impact-analysis-container')?.innerHTML || '';
-        const tableHTML = document.querySelector('.projection-table').outerHTML;
+        const res = lastResults;
+        const userName = res.inputs.userName || document.getElementById('user-name').value || "Cliente";
+        const userEmail = document.getElementById('user-email').value || "Não informado";
+        const today = new Date().toLocaleDateString('pt-BR');
+        
+        const rendaComplementar = Math.max(0, res.retirementGoal.value - res.retirementGoal.postRetirementIncome);
 
-        reportContainer.innerHTML = `
-            <style>
-                @media print {
-                    @page { size: A4; margin: 20mm; }
-                    body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                }
-                body { background: white; color: #333; font-family: 'Poppins', sans-serif; font-size: 12px; line-height: 1.6; }
-                .report-header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 30px; }
-                .report-header h1 { font-size: 28px; color: #1B4043; margin: 0; }
-                .report-header p { font-size: 14px; color: #555; margin: 5px 0 0; }
-                .report-section { margin-bottom: 30px; page-break-inside: avoid; }
-                .report-section h2 { font-size: 20px; color: #1B4043; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 15px; }
-                img.chart-image { max-width: 100%; border: 1px solid #eee; border-radius: 8px; margin-top: 10px; }
-                .metrics-panel, .impact-analysis { background-color: #f8f9fa; padding: 20px; border-radius: 8px; }
-                .metric-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e0e0e0; }
-                .metric-item:last-child { border-bottom: none; }
-                .metric-item .label { font-weight: 600; }
-                .metric-item .value { font-weight: bold; }
-                .impact-item { border-left: 4px solid #66F6F1; margin-bottom: 15px; }
-                .projection-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-                .projection-table th, .projection-table td { padding: 10px; border: 1px solid #ddd; text-align: right; }
-                .projection-table th { background-color: #1B4043; color: white; text-align: center; }
-                .projection-table tbody tr:nth-child(even) { background-color: #f8f9fa; }
-                .info-icon, .color-dot, .scenario-card h4, .addon-card h3 { display: none; }
-            </style>
-            <div class="report-header">
-                <h1>Relatório de Planejamento Financeiro</h1>
-                <p><strong>Cliente:</strong> ${userName} | <strong>Data:</strong> ${today}</p>
-            </div>
-            <div class="report-section">
-                <h2>Resumo e Diagnóstico</h2>
-                <div class="metrics-panel">${metricsHTML}</div>
-            </div>
-            <div class="report-section">
-                <h2>Projeção de Patrimônio</h2>
-                <img src="${chartImage}" class="chart-image" alt="Gráfico de Projeção">
-            </div>
-            ${impactHTML ? `<div class="report-section"><h2>Análise de Impacto dos Objetivos</h2>${impactHTML}</div>` : ''}
-            <div class="report-section">
-                <h2>Evolução Detalhada Ano a Ano</h2>
-                ${tableHTML}
-            </div>
-        `;
+        // --- TRUQUE DE MESTRE: AUMENTAR O GRÁFICO TEMPORARIAMENTE ---
+        const chartContainer = document.getElementById('chart-container');
+        const originalWidth = chartContainer.style.width;
+        const originalHeight = chartContainer.style.height;
+        
+        // Forçamos proporções ideais para impressão A4 deitado (Widescreen)
+        chartContainer.style.width = '1400px';
+        chartContainer.style.height = '700px';
+        
+        // Mandamos o Chart.js se redesenhar no novo espaço
+        if (projectionChartInstance) projectionChartInstance.resize();
 
-        reportContainer.classList.add('report-ready-for-print');
+        // Aguardamos 800ms para dar tempo da animação do gráfico terminar de desenhar
         setTimeout(() => {
-            window.print(); 
-            reportContainer.classList.remove('report-ready-for-print');
-            reportContainer.innerHTML = '';
-            reportButton.textContent = originalButtonText;
-            reportButton.disabled = false;
-        }, 250);
+            html2canvas(chartContainer, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+                
+                // --- DEVOLVEMOS O GRÁFICO AO TAMANHO ORIGINAL DA TELA ---
+                chartContainer.style.width = originalWidth;
+                chartContainer.style.height = originalHeight;
+                if (projectionChartInstance) projectionChartInstance.resize();
 
-    }).catch(error => {
-        console.error('Erro ao gerar relatório:', error);
-        alert('Ocorreu um erro ao gerar o relatório.');
-        reportButton.textContent = originalButtonText;
-        reportButton.disabled = false;
+                const chartImage = canvas.toDataURL('image/png');
+                const impactHTML = document.getElementById('impact-analysis-container')?.innerHTML || '';
+                const tableHTML = document.querySelector('.projection-table').outerHTML;
+
+                // Injetando CSS focado em impressão e a nova estrutura de páginas
+                reportContainer.innerHTML = `
+                    <style>
+                        @media print {
+                            @page { size: A4; margin: 0; }
+                            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-family: 'Poppins', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; }
+                            
+                            /* Esconde o sistema e mostra apenas o PDF */
+                            #app-container { display: none !important; }
+                            #report-page { display: block !important; position: relative; }
+                            
+                            /* Configuração Padrão da Página A4 */
+                            .page { width: 210mm; height: 296mm; padding: 20mm; box-sizing: border-box; page-break-after: always; position: relative; background: #fff; }
+                            .page-auto { width: 210mm; padding: 20mm; box-sizing: border-box; background: #fff; page-break-inside: auto; }
+                            
+                            /* PAGINA 1: Capa (Cores da Identidade) */
+                            .cover { background-color: #1B4043; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+                            .cover-logo { width: 140px; height: 140px; background-color: #f8f9f3; border: 4px solid #d4af37; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-bottom: 40px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+                            .cover h1 { color: #f6e27f; font-size: 42px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 15px; }
+                            .cover h2 { font-size: 22px; font-weight: 400; color: #f8f9f3; margin-bottom: 80px; letter-spacing: 1px; }
+                            .cover .client-details { border-top: 1px solid #2e8b57; padding-top: 40px; width: 70%; font-size: 16px; color: #f8f9f3; }
+                            .cover .client-details strong { color: #d4af37; display: block; margin-bottom: 5px; font-size: 24px; }
+                            
+                            /* Componentes de Texto e Dados */
+                            h3.section-title { color: #1B4043; font-size: 24px; border-bottom: 2px solid #d4af37; padding-bottom: 8px; margin-top: 0; margin-bottom: 25px; text-transform: uppercase; }
+                            
+                            .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                            .info-box { background-color: #f8f9f3; border-left: 5px solid #2e8b57; padding: 20px; border-radius: 0 8px 8px 0; }
+                            .info-box .label { font-size: 13px; color: #666; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; display: block; }
+                            .info-box .value { font-size: 22px; color: #1B4043; font-weight: 700; }
+                            
+                            /* Cenários */
+                            .scenario-box { padding: 25px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px; page-break-inside: avoid; }
+                            .scenario-box.ideal { background-color: rgba(46, 139, 87, 0.05); border-color: #2e8b57; border-left: 8px solid #2e8b57; }
+                            .scenario-box.ideal h4 { color: #2e8b57; }
+                            .scenario-box.minimo { background-color: rgba(212, 175, 55, 0.05); border-color: #d4af37; border-left: 8px solid #d4af37; }
+                            .scenario-box.minimo h4 { color: #d4af37; }
+                            .scenario-box h4 { margin: 0 0 20px 0; font-size: 18px; text-transform: uppercase; }
+                            
+                            .metric-row { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.05); padding: 10px 0; }
+                            .metric-row:last-child { border: none; padding-bottom: 0; }
+                            
+                            /* Gráfico de Alta Resolução */
+                            .chart-container-print { text-align: center; margin: 10px 0 20px 0; background: #fff; padding: 10px; border-radius: 12px; }
+                            .chart-container-print img { max-width: 100%; height: auto; border-radius: 8px; }
+                            
+                            /* Legenda Manual Nitida */
+                            .pdf-legend { display: flex; justify-content: center; gap: 25px; font-size: 14px; margin-bottom: 30px; }
+                            .pdf-legend span { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #333; }
+                            .pdf-legend .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+                            
+                            /* Tabela Detalhada */
+                            .projection-table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
+                            .projection-table tr { page-break-inside: avoid; page-break-after: auto; }
+                            .projection-table th { background-color: #1B4043; color: white; padding: 10px; text-align: right; }
+                            .projection-table th:first-child { text-align: center; }
+                            .projection-table td { padding: 10px; border-bottom: 1px solid #ddd; text-align: right; }
+                            .projection-table td:first-child { text-align: center; }
+                            .projection-table tr:nth-child(even) td { background-color: #f8f9f3; }
+                            
+                            .footer { position: absolute; bottom: 15mm; left: 20mm; right: 20mm; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 10px; }
+                        }
+                    </style>
+                    
+                    <!-- PÁGINA 1: A Capa -->
+                    <div class="page cover">
+                        <div class="cover-logo">
+                            <img src="AEV.png.png" alt="Logo Aposentadoria em Vista" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
+                        </div>
+                        <h1>Aposentadoria em Vista</h1>
+                        <h2>Plano Financeiro Estratégico</h2>
+                        
+                        <div class="client-details">
+                            Preparado exclusivamente para:<br>
+                            <strong>${userName}</strong>
+                            ${userEmail}<br><br>
+                            Data de emissão: ${today}
+                        </div>
+                    </div>
+
+                    <!-- PÁGINA 2: Diagnóstico e Metas -->
+                    <div class="page">
+                        <h3 class="section-title">1. Seu Ponto de Partida</h3>
+                        <div class="grid-2">
+                            <div class="info-box">
+                                <span class="label">Idade Atual</span>
+                                <span class="value">${res.inputs.idadeAtual} anos</span>
+                            </div>
+                            <div class="info-box">
+                                <span class="label">Patrimônio Investido</span>
+                                <span class="value">${formatCurrency(res.inputs.patrimonioInicial)}</span>
+                            </div>
+                            <div class="info-box">
+                                <span class="label">Aporte Mensal Atual</span>
+                                <span class="value">${formatCurrency(res.inputs.aporteMensal)}</span>
+                            </div>
+                            <div class="info-box" style="border-left-color: #d4af37;">
+                                <span class="label">Perfil de Risco</span>
+                                <span class="value">${res.inputs.perfilRisco} (${(res.taxaJurosAtual*100).toFixed(0)}% a.a.)</span>
+                            </div>
+                        </div>
+
+                        <h3 class="section-title" style="margin-top: 40px;">2. O Destino (Sua Aposentadoria)</h3>
+                        <div class="grid-2">
+                            <div class="info-box">
+                                <span class="label">Idade Alvo</span>
+                                <span class="value">${res.retirementGoal.age} anos</span>
+                            </div>
+                            <div class="info-box">
+                                <span class="label">Renda Total Desejada</span>
+                                <span class="value">${formatCurrency(res.retirementGoal.value)}</span>
+                            </div>
+                        </div>
+                        <div class="info-box" style="background-color: #1B4043; border-left: 5px solid #d4af37;">
+                            <span class="label" style="color: #f8f9f3;">Renda Mensal Necessária dos Investimentos</span>
+                            <span class="value" style="color: #f6e27f; font-size: 28px;">${formatCurrency(rendaComplementar)}</span>
+                        </div>
+                        <div class="footer">Documento Confidencial - Aposentadoria em Vista | Página 2</div>
+                    </div>
+
+                    <!-- PÁGINA 3: Projeção e Caminho -->
+                    <div class="page">
+                        <h3 class="section-title">3. O Caminho para a Conquista</h3>
+                        
+                        <div class="chart-container-print">
+                            <img src="${chartImage}" alt="Gráfico de Projeção em Alta Resolução">
+                        </div>
+                        
+                        <!-- Legenda Vetorial injetada via HTML -->
+                        <div class="pdf-legend">
+                            <span><div class="dot" style="background-color: #66F6F1;"></div> Seus Investimentos</span>
+                            <span><div class="dot" style="background-color: #FFC300;"></div> Cenário Mínimo</span>
+                            <span><div class="dot" style="background-color: #00C49F;"></div> Cenário Ideal</span>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="scenario-box minimo">
+                                <h4>Cenário Mínimo</h4>
+                                <div class="metric-row"><span>Meta de Patrimônio:</span> <strong>${formatCurrency(res.metaMinima)}</strong></div>
+                                <div class="metric-row"><span>Aporte Mensal Necessário:</span> <strong>${isFinite(res.aporteMinimo) ? formatCurrency(res.aporteMinimo) : 'Inatingível'}</strong></div>
+                            </div>
+                            <div class="scenario-box ideal">
+                                <h4>Cenário Ideal</h4>
+                                <div class="metric-row"><span>Meta de Patrimônio:</span> <strong>${formatCurrency(res.metaIdeal)}</strong></div>
+                                <div class="metric-row"><span>Aporte Mensal Necessário:</span> <strong>${isFinite(res.aporteIdeal) ? formatCurrency(res.aporteIdeal) : 'Inatingível'}</strong></div>
+                            </div>
+                        </div>
+                        <div class="footer">Documento Confidencial - Aposentadoria em Vista | Página 3</div>
+                    </div>
+
+                    <!-- PÁGINA 4: Tabelas Dinâmicas -->
+                    <div class="page-auto">
+                        ${impactHTML ? `
+                            <h3 class="section-title">Análise de Impacto de Eventos</h3>
+                            ${impactHTML}
+                            <br><br>
+                        ` : ''}
+                        <h3 class="section-title">Evolução Detalhada Ano a Ano</h3>
+                        ${tableHTML}
+                    </div>
+                `;
+
+                // Aplica a impressão
+                setTimeout(() => {
+                    window.print(); 
+                    reportContainer.innerHTML = ''; // Limpa após a impressão
+                    reportButton.textContent = originalButtonText;
+                    reportButton.disabled = false;
+                }, 500); 
+
+            }).catch(error => {
+                console.error('Erro ao gerar relatório:', error);
+                alert('Ocorreu um erro ao gerar o relatório. Tente novamente.');
+                reportButton.textContent = originalButtonText;
+                reportButton.disabled = false;
+                // Em caso de erro, devolve o gráfico ao tamanho original pra não quebrar a tela
+                chartContainer.style.width = originalWidth;
+                chartContainer.style.height = originalHeight;
+                if (projectionChartInstance) projectionChartInstance.resize();
+            });
+        }, 800); // 800ms de espera para garantir que o gráfico expandiu perfeitamente antes da foto
     });
-});
 
     updateAporte();
     
