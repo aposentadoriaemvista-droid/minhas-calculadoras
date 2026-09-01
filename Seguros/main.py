@@ -66,27 +66,27 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
     elif "tokio marine" in texto_lower: dados["seguradora"] = "Tokio Marine"
     elif "allianz" in texto_lower: dados["seguradora"] = "Allianz"
 
-      # Ajuste da comissão no nome do arquivo
-        m_comissao = re.search(r"(\d+(?:,\d+)?)\s*%", nome_arquivo)
-        if m_comissao: dados["comissao_pct"] = m_comissao.group(1) + "%"
+    # 2. EXTRAÇÃO DA COMISSÃO (%) PELO NOME DO ARQUIVO
+    m_comissao = re.search(r"(\d+(?:,\d+)?)\s*%", nome_arquivo)
+    if m_comissao: dados["comissao_pct"] = m_comissao.group(1) + "%"
 
-        # 3. PLACA E CONTATOS (Universal)
-        m_placa = re.search(r"\b([A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}-?\d{4})\b", texto_completo)
-        if m_placa: dados["placa"] = m_placa.group(1).replace("-", "").upper()
+    # 3. PLACA E CONTATOS (Universal)
+    m_placa = re.search(r"\b([A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}-?\d{4})\b", texto_completo)
+    if m_placa: dados["placa"] = m_placa.group(1).replace("-", "").upper()
 
-        m_tel = re.search(r"\b\(?\d{2}\)?\s*(?:9\d{4}|\d{4})-?\d{4}\b", texto_completo)
-        if m_tel: dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
-        
-        emails = re.findall(r"[\w\.-]+@[\w\.-]+\.\w+", texto_completo)
-        for e in emails:
-            if "capse" not in e.lower():
-                dados["email"] = e.lower()
-                break
+    m_tel = re.search(r"\b\(?\d{2}\)?\s*(?:9\d{4}|\d{4})-?\d{4}\b", texto_completo)
+    if m_tel: dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
+    
+    emails = re.findall(r"[\w\.-]+@[\w\.-]+\.\w+", texto_completo)
+    for e in emails:
+        if "capse" not in e.lower():
+            dados["email"] = e.lower()
+            break
 
-        # =======================================================
-        # EXTRATOR CIRÚRGICO: BRADESCO
-        # =======================================================
-        if dados["seguradora"] == "Bradesco":
+    # =======================================================
+    # EXTRATOR CIRÚRGICO: BRADESCO
+    # =======================================================
+     if dados["seguradora"] == "Bradesco":
             m_apolice = re.search(r"Proposta:\s*(\d+)", texto_completo, re.IGNORECASE)
             if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
 
