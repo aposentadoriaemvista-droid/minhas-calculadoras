@@ -1,0 +1,4 @@
+pdfplumber
+gspread
+google-api-python-client
+google-auth
