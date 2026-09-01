@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Baixar Código do Repositório
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configurar Ambiente Python
         uses: actions/setup-python@v5
