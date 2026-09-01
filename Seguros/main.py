@@ -11,7 +11,6 @@ from googleapiclient.http import MediaIoBaseDownload
 # =======================================================
 # CONFIGURAÇÕES E CREDENCIAIS
 # =======================================================
-# Lógica para ler credenciais (Suporta arquivo local ou ambiente do GitHub Actions)
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
 if GOOGLE_CREDENTIALS_JSON:
@@ -24,7 +23,6 @@ if GOOGLE_CREDENTIALS_JSON:
         ]
     )
 else:
-    # Fallback para desenvolvimento local
     creds = service_account.Credentials.from_service_account_file(
         "credentials.json",
         scopes=[
@@ -36,7 +34,6 @@ else:
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
 
-# IDs configurados no Passo 2
 FOLDER_ENTRADA_ID = os.environ.get("FOLDER_ENTRADA_ID", "13dEtD5RTWQiyt1INASVqPgaIt9RKudFO")
 FOLDER_PROCESSADOS_ID = os.environ.get("FOLDER_PROCESSADOS_ID", "1E1guR7b5jJzfiO3fnbZzoLnnaTBnjGYd")
 SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "14wh7QYAW-m60TxkWugF0Hasd3y6MptyjXE1U7rPSL4E")
@@ -49,7 +46,8 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         "vencimento": "", "numero_apolice": "", "segurado": "",
         "observacoes": "", "seguradora": "", "premio_total": "",
         "premio_liquido": "", "comissao": "", "comissao_pct": "",
-        "placa": "", "email": "", "telefone": "", "pagamento": ""
+        "placa": "", "email": "", "telefone": "", "pagamento": "",
+        "modelo_carro": "", "parcelas": "", "forma_pagamento": ""
     }
 
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -83,10 +81,11 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             dados["email"] = e.lower()
             break
 
-    # =======================================================
-    # EXTRATOR CIRÚRGICO: BRADESCO
-    # =======================================================
-     if dados["seguradora"] == "Bradesco":
+    try:
+        # =======================================================
+        # EXTRATOR CIRÚRGICO: BRADESCO
+        # =======================================================
+        if dados["seguradora"] == "Bradesco":
             m_apolice = re.search(r"Proposta:\s*(\d+)", texto_completo, re.IGNORECASE)
             if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
 
@@ -99,17 +98,14 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                 nome_bruto = m_seg.group(1).strip()
                 dados["segurado"] = re.sub(r"\s+(?:Vigência|CPF|Tipo).*$", "", nome_bruto, flags=re.IGNORECASE).strip()
 
-            # CORREÇÃO DO MODELO: Pega limpo o Tipo do Veículo (ex: Dolphin Ev (Eletrico))
             m_tipo_veiculo = re.search(r"Tipo do Veículo:\s*([^\r\n]+)", texto_completo, re.IGNORECASE)
             if m_tipo_veiculo:
                 modelo_bruto = m_tipo_veiculo.group(1).strip()
-                # Remove sujeiras extras caso venham coladas na linha
                 dados["modelo_carro"] = re.sub(r"\s+Placa:.*$", "", modelo_bruto, flags=re.IGNORECASE).strip()
 
-            # CORREÇÃO DO CELULAR: Pega cirurgicamente pelo rótulo da Bradesco
-            m_tel = re.search(r"Tel\.\s*Celular:\s*([\d\s\(\)\-]+)", texto_completo, re.IGNORECASE)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(1))
+            m_tel_bradesco = re.search(r"Tel\.\s*Celular:\s*([\d\s\(\)\-]+)", texto_completo, re.IGNORECASE)
+            if m_tel_bradesco:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_bradesco.group(1))
 
             m_liq = re.search(r"LÍQUIDO\s*\(Auto\+RCF\+APP\)\s*:\s*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if m_liq: dados["premio_liquido"] = m_liq.group(1)
@@ -133,18 +129,16 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             m_venc = re.search(r"Das\s*24\s*h\s*do\s*dia\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
             if m_venc: dados["vencimento"] = m_venc.group(1)
 
-            # Segurado: Captura e converte obrigatoriamente para MAIÚSCULO (.upper())[cite: 18]
             m_seg = re.search(r"Nome de Registro Segurado\s*:\s*([A-ZÀ-ÿ\s]+?)(?=\s+CPF|\r|\n)", texto_completo, re.IGNORECASE)
             if not m_seg: m_seg = re.search(r"Nome de Registro Segurado\s*:\s*([^\r\n]+)", texto_completo, re.IGNORECASE)
             if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
 
-            # Celular: Busca estritamente pelo rótulo da HDI para não pegar o número da proposta[cite: 18]
-            m_tel = re.search(r"Celular\s*:\s*([\d\(\)\-]+)", texto_completo, re.IGNORECASE)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(1))
+            m_tel_hdi = re.search(r"Celular\s*:\s*([\d\(\)\-]+)", texto_completo, re.IGNORECASE)
+            if m_tel_hdi:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_hdi.group(1))
 
-            m_placa = re.search(r"Placa/UF\s*:\s*([A-Z0-9\-]+)", texto_completo, re.IGNORECASE)
-            if m_placa: dados["placa"] = m_placa.group(1).split("-")[0].strip().upper()
+            m_placa_hdi = re.search(r"Placa/UF\s*:\s*([A-Z0-9\-]+)", texto_completo, re.IGNORECASE)
+            if m_placa_hdi: dados["placa"] = m_placa_hdi.group(1).split("-")[0].strip().upper()
 
             m_mod = re.search(r"Modelo\s*:\s*[^\-\s]+\s*-\s*([^\r\n]+)", texto_completo, re.IGNORECASE)
             if not m_mod: m_mod = re.search(r"Modelo\s*:\s*([^\r\n]+)", texto_completo, re.IGNORECASE)
@@ -175,18 +169,16 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             m_seg = re.search(r"Nome completo:\s*([^\n]+)", texto_completo, re.IGNORECASE)
             if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
 
-            m_tel = re.search(r"Celular:\s*([\d\s\(\)\-]+)", texto_completo, re.IGNORECASE)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(1))
+            m_tel_zurich = re.search(r"Celular:\s*([\d\s\(\)\-]+)", texto_completo, re.IGNORECASE)
+            if m_tel_zurich:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_zurich.group(1))
 
             m_mod = re.search(r"Veículo:\s*([^\n]+?)\s+Ano/Modelo:", texto_completo, re.IGNORECASE)
             if m_mod: dados["modelo_carro"] = m_mod.group(1).strip()
 
-            # Prêmio Líquido (Flexível para acentos)
             m_liq = re.search(r"Pr[êe]mio\s+L[íi]quido[:\s]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if m_liq: dados["premio_liquido"] = m_liq.group(1)
 
-            # Prêmio Total (Flexível para acentos)
             m_tot = re.search(r"Pr[êe]mio\s+Total[:\s]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if m_tot: dados["premio_total"] = m_tot.group(1)
 
@@ -203,17 +195,15 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             m_apolice = re.search(r"Nº da Proposta:\s*([A-Z0-9\-]+)", texto_completo, re.IGNORECASE)
             if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
 
-            # Vencimento Porto Seguro (Lê o padrão "DAS 24 HORAS DO DIA DD/MM/AAAA")[cite: 14]
             m_venc = re.search(r"DAS\s*24\s*HORAS\s*DO\s*DIA\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
             if m_venc: dados["vencimento"] = m_venc.group(1)
 
             m_nome_arq = re.search(r"Proposta\s+([A-ZÀ-ÿ\s]+?)(?=\s+\d+(?:,\d+)?\s*%|\.pdf)", nome_arquivo, re.IGNORECASE)
             if m_nome_arq: dados["segurado"] = m_nome_arq.group(1).strip().upper()
 
-            # Celular Porto Seguro: Pega cirurgicamente pelo rótulo CELULAR:
-            m_tel = re.search(r"CELULAR:\s*\(?(\d{2})\)?\s*([\d\-]+)", texto_completo, re.IGNORECASE)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
+            m_tel_porto = re.search(r"CELULAR:\s*\(?(\d{2})\)?\s*([\d\-]+)", texto_completo, re.IGNORECASE)
+            if m_tel_porto:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_porto.group(0))
 
             m_mod = re.search(r"Veículo Ano Fabricação[^\n]*\n(.*?\d{4}\s*/\s*\d{4})", texto_completo, re.IGNORECASE)
             if m_mod:
@@ -230,34 +220,31 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             if m_parc: 
                 dados["parcelas"] = m_parc.group(1)
                 dados["forma_pagamento"] = m_parc.group(2).strip()
-       # =======================================================
+
+        # =======================================================
         # EXTRATOR CIRÚRGICO: YELUM
         # =======================================================
         elif dados["seguradora"] == "Yelum":
-            # Número da Proposta: Captura o número logo abaixo de "Proposta N°"
             m_apolice = re.search(r"Proposta\s*N[°º]?\s*[\r\n]+\s*(\d{8,12})", texto_completo, re.IGNORECASE)
             if not m_apolice: 
                 m_apolice = re.search(r"Proposta\s*N[°º]?\s*[:\s]*(\d{8,12})", texto_completo, re.IGNORECASE)
             if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
 
-            # Vencimento Yelum: Pega especificamente a primeira data do formato de vigência
             m_venc = re.search(r"Vigência\s*[:\s]*(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
             if not m_venc:
                 m_venc = re.search(r"(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
             if m_venc: 
                 dados["vencimento"] = m_venc.group(1)
 
-            # Segurado
             m_seg = re.search(r"Nome do\(a\) Proponente/Segurado\(a\)\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
             if not m_seg: m_seg = re.search(r"(?:CNPJ|CPF)[^\n]*\n([A-Za-zÀ-ÿ\s]{3,50})", texto_completo)
             if m_seg:
                 nome_bruto = m_seg.group(1).strip()
                 dados["segurado"] = re.sub(r"^(?:CNPJ|CPF|[\d\.\-\/])+\s*", "", nome_bruto, flags=re.IGNORECASE).strip().upper()
 
-            # Celular Yelum: Busca estritamente por um número de celular válido que comece com 9 após o DDD
-            m_tel = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
+            m_tel_yelum = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
+            if m_tel_yelum:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_yelum.group(0))
 
             m_mod = re.search(r"\d{6}-\d\s+([A-Za-zÀ-ÿ0-9\s\.\-\(\)]+?)(?=\s+\d{4}/\d{4})", texto_completo)
             if not m_mod: m_mod = re.search(r"Marca/Tipo do Veículo[^\n]*\n\s*\d{6}-\d\s+([^\n]+)", texto_completo, re.IGNORECASE)
@@ -289,16 +276,14 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                     dados["parcelas"] = m_parc.group(1)
                     dados["forma_pagamento"] = m_parc.group(2).strip()
 
-      # =======================================================
+        # =======================================================
         # EXTRATOR CIRÚRGICO: ALIRO
         # =======================================================
         elif dados["seguradora"] == "Aliro":
-           # Vencimento Aliro: Busca a PRIMEIRA data que aparece logo abaixo da palavra "Vigência" (Ignora o rodapé)
             m_venc = re.search(r"Vigência[\s\S]{1,80}?(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
             if m_venc: 
                 dados["vencimento"] = m_venc.group(1)
             
-            # Segurado: Pega direto do nome do arquivo (Estratégia infalível com suporte a hífen)
             m_nome_arq = re.search(r"Proposta\s*[-–]?\s*([A-ZÀ-ÿ\s]+?)(?=\s+\d+(?:,\d+)?\s*%|\.pdf)", nome_arquivo, re.IGNORECASE)
             if m_nome_arq:
                 dados["segurado"] = m_nome_arq.group(1).strip().upper()
@@ -306,12 +291,10 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                 m_seg = re.search(r"Nome do\(a\) Proponente/Segurado\(a\)\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
                 if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
 
-            # Celular Aliro: Isolado estritamente para capturar números iniciando com 9
-            m_tel = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
+            m_tel_aliro = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
+            if m_tel_aliro:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_aliro.group(0))
 
-            # Modelo do Carro: Captura o texto exato entre o Código FIPE e o Ano (ex: 003478-9 CARRO 2021/2022)[cite: 17]
             m_mod = re.search(r"\d{6}-\d\s+([A-Za-zÀ-ÿ0-9\s\.\-\(\)]+?)\s+\d{4}/\d{4}", texto_completo)
             if m_mod:
                 dados["modelo_carro"] = m_mod.group(1).strip()
@@ -320,7 +303,6 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                 if m_mod_fallback:
                     dados["modelo_carro"] = m_mod_fallback.group(0).strip()
 
-            # Prêmios Líquido e Total
             m_demo = re.search(r"Juros\(%\)([\s\S]*?)(?=FORMA DE PAGAMENTO)", texto_completo, re.IGNORECASE)
             if m_demo:
                 valores_linha = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})", m_demo.group(1))
@@ -334,7 +316,6 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                     dados["premio_liquido"] = valores[0]
                     dados["premio_total"] = valores[3] 
 
-            # Parcelas e Forma de Pagamento[cite: 17]
             m_parc_soma = re.search(r"(\d{1,2})\+(\d{1,2})\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
             if m_parc_soma:
                 dados["parcelas"] = str(int(m_parc_soma.group(1)) + int(m_parc_soma.group(2)))
@@ -344,6 +325,7 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                 if m_parc: 
                     dados["parcelas"] = m_parc.group(1)
                     dados["forma_pagamento"] = m_parc.group(2).strip()
+
         # =======================================================
         # EXTRATOR CIRÚRGICO: TOKIO MARINE
         # =======================================================
@@ -357,10 +339,9 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             m_seg = re.search(r"([A-Za-zÀ-ÿ\s]{3,50})\s+\d{3}\.\d{3}\.\d{3}-\d{2}", texto_completo)
             if m_seg: dados["segurado"] = re.sub(r"^(?:CNPJ|CPF)[\s\:\-\.]*", "", m_seg.group(1).strip(), flags=re.IGNORECASE).strip()
 
-            # Celular Tokio Marine: Busca estritamente por um número de celular válido iniciando com 9
-            m_tel = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
-            if m_tel:
-                dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
+            m_tel_tokio = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
+            if m_tel_tokio:
+                dados["telefone"] = re.sub(r"[^\d]", "", m_tel_tokio.group(0))
 
             m_mod = re.search(r"(?:FORD|CHEVROLET|FIAT|VOLKSWAGEN|HYUNDAI|TOYOTA|HONDA|RENAULT|NISSAN|PEUGEOT|CITROEN|JEEP|MITSUBISHI)\s+[A-Za-zÀ-ÿ0-9\s\.\-]+?(?=\n\s*(?:Gasolina|Flex|Diesel|Alcool))", texto_completo, re.IGNORECASE)
             if m_mod: dados["modelo_carro"] = m_mod.group(0).strip()
@@ -388,26 +369,22 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             m_mod = re.search(r"Veículo:\s*([^\n]+)", texto_completo)
             if m_mod: dados["modelo_carro"] = m_mod.group(1).strip()
 
-          # Prêmio Líquido (Busca por Preço Líquido:)
             m_liq = re.search(r"Preço\s*Líquido:\s*R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if not m_liq: m_liq = re.search(r"Prêmio\s*Líquido:\s*R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if m_liq: dados["premio_liquido"] = m_liq.group(1)
 
-            # Prêmio Total (Busca por Preço Total...)
             m_tot = re.search(r"Preço\s*Total[^\n]*R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if not m_tot: m_tot = re.search(r"Prêmio\s*Total[^\n]*R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
             if m_tot: dados["premio_total"] = m_tot.group(1)
 
-            # Parcelas (Busca o padrão "em X parcelas")
             m_parc = re.search(r"em\s*(\d{1,2})\s*parcelas", texto_completo, re.IGNORECASE)
             if not m_parc: m_parc = re.search(r"Nº\s*de\s*Parcelas:\s*(\d{1,2})", texto_completo, re.IGNORECASE)
             if m_parc: dados["parcelas"] = m_parc.group(1)
 
-            # Forma de Pagamento
             m_fp = re.search(r"(Cartão\s*de\s*Crédito[^\n]*)", texto_completo, re.IGNORECASE)
             if m_fp: dados["forma_pagamento"] = m_fp.group(1).strip()
 
-   except Exception as e:
+    except Exception as e:
         print(f"Erro ao aplicar Regex no arquivo {nome_arquivo}: {e}")
 
     # Fallback universal para vencimento caso necessário
@@ -461,7 +438,7 @@ def processar_fluxo():
         pdf_bytes = fh.getvalue()
         dados = extrair_dados_pdf(pdf_bytes, file_name)
 
-        # Mapeamento exato da sua Aba 1
+        # Mapeamento exato das colunas da planilha
         linha = [
             dados["vencimento"],
             dados["numero_apolice"],
