@@ -16,6 +16,7 @@ let chartSetorGlobalRV = null;
 let chartSetorGlobalRF = null;
 let chartAcoesRV = null;
 let chartFundosRV = null;
+let chartExposicaoFII = null;
 
 // Carrega o pacote de Mapas do Google
 google.charts.load('current', {
@@ -290,10 +291,16 @@ const urlExterior = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQwj0rEui2p
                     if (!dict[ativo]) {
                         dict[ativo] = { cat: "Fundos Imobiliários", subclasse: "Fundo Imobiliário", extras: {} };
                     }
-                    dict[ativo].extras = {
+                  dict[ativo].extras = {
                         classeFii: row[3] || "-", 
                         gestora: row[4] || "-",   
-                        indexador: row[5] || "-"  
+                        // Lê as colunas G, H, I e J convertendo para número com segurança
+                        comp: {
+                            ipca: lerPercentual(row[6]) || 0,
+                            cdi: lerPercentual(row[7]) || 0,
+                            fof: lerPercentual(row[8]) || 0,
+                            equity: lerPercentual(row[9]) || 0
+                        }
                     };
                 }
             }
@@ -689,8 +696,22 @@ function adicionarAtivoManual() {
     if (classe === "Renda Variavel Global" || classe === "Renda Fixa Global") {
         valorFinalReais = valorInput * cotacaoDolarGlobal;
         extrasAtivo = { setor: document.getElementById('manGlobalSetor').value || "Não Classificado", localizacao: document.getElementById('manGlobalLocal').value || "Não Classificado" };
-    } else if (classe === "Fundos Imobiliários") {
-        extrasAtivo = { classeFii: document.getElementById('manFiiClasse').value || "-", gestora: document.getElementById('manFiiGestora').value || "-", indexador: document.getElementById('manFiiIndexador').value || "-" };
+    }  else if (classe === "Fundos Imobiliários") {
+        const valIpca = parseFloat(document.getElementById('manFiiIpca').value) || 0;
+        const valCdi = parseFloat(document.getElementById('manFiiCdi').value) || 0;
+        const valFof = parseFloat(document.getElementById('manFiiFof').value) || 0;
+        const valEquity = parseFloat(document.getElementById('manFiiEquity').value) || 0;
+
+        // Trava de segurança Matemática
+        if ((valIpca + valCdi + valFof + valEquity) > 100) {
+            return alert("Erro: A soma da composição do FII (IPCA + CDI + FOF + EQUITY) não pode ultrapassar 100%.");
+        }
+
+        extrasAtivo = { 
+            classeFii: document.getElementById('manFiiClasse').value || "-", 
+            gestora: document.getElementById('manFiiGestora').value || "-", 
+            comp: { ipca: valIpca, cdi: valCdi, fof: valFof, equity: valEquity }
+        };
     } else if (classe === "Renda Variavel Brasil") {
         extrasAtivo = { 
             classeRV: document.getElementById('manRvClasse').value || "Não Classificado",
@@ -898,12 +919,25 @@ function recalcularTudoERenderizar() {
         novoTotal += globalDetalheMap[cat].total;
         
         globalDetalheMap[cat].assets.forEach(a => {
-    let finalSub = padronizarSubclasse(a.sub, cat);
-    novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor;
-});
+            // MÁGICA: Distribuição fracionada para FIIs
+            if (cat === "Fundos Imobiliários" && a.extras && a.extras.comp) {
+                const valIpca = a.valor * (a.extras.comp.ipca / 100);
+                const valCdi = a.valor * (a.extras.comp.cdi / 100);
+                
+                // Soma FOF + EQUITY + a sobra que não somou 100% no risco FII puro
+                const sumAlloc = (a.extras.comp.ipca + a.extras.comp.cdi + a.extras.comp.fof + a.extras.comp.equity) / 100;
+                const valFiiPuro = a.valor * Math.max(0, 1 - sumAlloc) + (a.valor * (a.extras.comp.fof / 100)) + (a.valor * (a.extras.comp.equity / 100));
+
+                if (valIpca > 0) novoSub["Inflação"] = (novoSub["Inflação"] || 0) + valIpca;
+                if (valCdi > 0) novoSub["Pós-fixada"] = (novoSub["Pós-fixada"] || 0) + valCdi;
+                if (valFiiPuro > 0) novoSub["Fundo Imobiliário"] = (novoSub["Fundo Imobiliário"] || 0) + valFiiPuro;
+            } else {
+                let finalSub = padronizarSubclasse(a.sub, cat);
+                novoSub[finalSub] = (novoSub[finalSub] || 0) + a.valor;
+            }
+        });
     });
 
-    // Atualiza as referências globais antes de desenhar
     totalPatrimonio = Number(novoTotal.toFixed(2));
     currentPortfolio = { ...novaEst };
     globalSubclassesMap = novoSub;
@@ -1115,83 +1149,85 @@ function renderizarAbaPadrao(cat, dadosCat, tabEl) {
     tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, `<th>Ativo</th><th>Subclasse</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso na Classe</th><th style="text-align: right;">Ação</th>`, rowsHtml);
 }
 
-// --- CONSTRUTOR ESPECÍFICO DE FIIs (Com Mini-Dashboard Duplo) ---
 function renderizarAbaFII(cat, dadosCat, tabEl) {
     const assets = dadosCat.assets.sort((a, b) => b.valor - a.valor);
-    
-    // 1. Lógica do Mini-Dashboard: Somar valores por "Classe" e por "Gestora"
-    const resumoClasses = {};
-    const resumoGestoras = {};
+    const resumoClasses = {}; const resumoGestoras = {}; const resumoComposicao = { "IPCA": 0, "CDI": 0, "FOF": 0, "EQUITY": 0, "Outros": 0 };
 
     assets.forEach(a => {
-        const classeFii = (a.extras && a.extras.classeFii && a.extras.classeFii !== "-") ? a.extras.classeFii : "Não Classificado";
+        const classeFii = a.extras?.classeFii || "Não Classificado";
+        const gestora = a.extras?.gestora || "Outras";
         resumoClasses[classeFii] = (resumoClasses[classeFii] || 0) + a.valor;
-
-        const gestora = (a.extras && a.extras.gestora && a.extras.gestora !== "-") ? a.extras.gestora : "Outras";
         resumoGestoras[gestora] = (resumoGestoras[gestora] || 0) + a.valor;
+
+        if (a.extras && a.extras.comp) {
+            resumoComposicao["IPCA"] += a.valor * (a.extras.comp.ipca / 100);
+            resumoComposicao["CDI"] += a.valor * (a.extras.comp.cdi / 100);
+            resumoComposicao["FOF"] += a.valor * (a.extras.comp.fof / 100);
+            resumoComposicao["EQUITY"] += a.valor * (a.extras.comp.equity / 100);
+            
+            const alloc = (a.extras.comp.ipca + a.extras.comp.cdi + a.extras.comp.fof + a.extras.comp.equity) / 100;
+            resumoComposicao["Outros"] += a.valor * Math.max(0, 1 - alloc);
+        } else {
+            resumoComposicao["Outros"] += a.valor;
+        }
     });
 
-    // 2. Montar o HTML dos Cartões de Resumo (Lado Esquerdo)
-    let cardsClassesHtml = `<div class="fii-summary-grid">`;
-    Object.keys(resumoClasses).sort((a,b) => resumoClasses[b] - resumoClasses[a]).forEach(c => {
-        const val = resumoClasses[c];
-        const perc = ((val / dadosCat.total) * 100).toFixed(1);
-        cardsClassesHtml += `
-            <div class="fii-summary-card">
-                <span class="fii-class-label">${c}</span>
-                <span class="fii-class-value">R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                <span class="fii-class-perc">${perc}% da classe</span>
-            </div>
-        `;
-    });
-    cardsClassesHtml += `</div>`;
+    // Filtra zeros da composição
+    Object.keys(resumoComposicao).forEach(k => { if(resumoComposicao[k] <= 0) delete resumoComposicao[k]; });
 
-    // 3. Montar o Container do Gráfico de Gestoras (Lado Direito)
-    const graficoGestoraHtml = `
-        <div class="fii-gestora-chart-container card">
-            <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Gestora</h4>
-            <div style="position: relative; height: 160px; width: 100%;">
-                <canvas id="chartGestoras"></canvas>
-            </div>
-        </div>
-    `;
-
-    // Junta os dois num Painel Flexível
     const topoHtml = `
-        <div class="fii-top-panels">
-            ${cardsClassesHtml}
-            ${graficoGestoraHtml}
+        <div class="fii-top-panels" style="display: flex; gap: 20px; align-items: stretch;">
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #10b981;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Exposição por Gestora</h4>
+                <div style="position: relative; height: 160px; width: 100%;"><canvas id="chartGestoras"></canvas></div>
+            </div>
+            <div class="fii-gestora-chart-container card" style="flex: 1; border-top: 3px solid #f59e0b;">
+                <h4 style="margin: 0 0 10px 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Composição Estratégica</h4>
+                <div style="position: relative; height: 160px; width: 100%;"><canvas id="chartExposicaoFII"></canvas></div>
+            </div>
         </div>
     `;
 
-    // 4. Montar as Linhas da Tabela
     let rowsHtml = assets.map((a, index) => {
         const percCat = ((a.valor / dadosCat.total) * 100).toFixed(1);
-        const classe = a.extras?.classeFii || '-';
-        const gestora = a.extras?.gestora || '-';
-        const indexador = a.extras?.indexador || '-';
+        let tagsComp = "";
+        
+        if (a.extras?.comp) {
+            const c = a.extras.comp;
+            if (c.ipca > 0) tagsComp += `<span style="font-size: 0.7rem; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 2px 6px; border-radius: 4px; margin-right: 4px;">${c.ipca}% IPCA</span>`;
+            if (c.cdi > 0) tagsComp += `<span style="font-size: 0.7rem; background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 6px; border-radius: 4px; margin-right: 4px;">${c.cdi}% CDI</span>`;
+            if (c.fof > 0) tagsComp += `<span style="font-size: 0.7rem; background: rgba(139, 92, 246, 0.2); color: #8b5cf6; padding: 2px 6px; border-radius: 4px; margin-right: 4px;">${c.fof}% FOF</span>`;
+            if (c.equity > 0) tagsComp += `<span style="font-size: 0.7rem; background: rgba(14, 165, 233, 0.2); color: #0ea5e9; padding: 2px 6px; border-radius: 4px;">${c.equity}% EQTY</span>`;
+        }
+        if (!tagsComp) tagsComp = `<span style="color: var(--text-muted);">-</span>`;
 
+       // Substitua apenas a tag <td> da composição por esta:
         return `
             <tr>
                 <td><strong>${a.nome}</strong></td>
                 <td><span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid rgba(14, 165, 233, 0.3);">${a.sub}</span></td>
-                <td style="color: var(--text-muted); font-size: 0.9rem;">${classe}</td>
-                <td style="color: var(--text-muted); font-size: 0.9rem;">${gestora}</td>
-                <td style="color: var(--text-muted); font-size: 0.9rem;">${indexador}</td>
-                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="color: var(--text-muted); font-size: 0.9rem;">${a.extras?.classeFii || '-'}</td>
+                <td style="color: var(--text-muted); font-size: 0.9rem;">${a.extras?.gestora || '-'}</td>
+                
+                <td>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">${tagsComp}</div>
+                        <button onclick="editarComposicaoFII('${cat}', ${index})" style="background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 0;" title="Editar Composição">✏️</button>
+                    </div>
+                </td>
+                
+                <td style="text-align: right; color: var(--success); font-weight: bold;">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                 <td style="text-align: right; color: var(--text-muted);">${percCat}%</td>
-                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})" title="Remover Ativo">×</button></td>
+                <td style="text-align: right;"><button class="btn-delete" onclick="excluirAtivo('${cat}', ${index})">×</button></td>
             </tr>
+        
         `;
     }).join('');
 
-    const cabecalhoEspecial = `<th>Ativo</th><th>Subclasse</th><th>Classe</th><th>Gestora</th><th>Indexador</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`;
-    
-    // Injeta o HTML na aba
-    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, cabecalhoEspecial, rowsHtml, topoHtml);
+    tabEl.innerHTML = htmlTabelaBase(cat, dadosCat.total, `<th>Ativo</th><th>Subclasse</th><th>Classe</th><th>Gestora</th><th>Composição</th><th style="text-align: right;">Valor (R$)</th><th style="text-align: right;">Peso</th><th style="text-align: right;">Ação</th>`, rowsHtml, topoHtml);
 
-    // 5. IMPORTANTE: Desenha o gráfico *depois* que o HTML já está na tela
     renderChartGestoras(resumoGestoras);
+    renderChartDuploRV('chartExposicaoFII', resumoComposicao, 'exposicaoFII'); // Reaproveitamos o motor de doughnut!
 }
 
 // Função Auxiliar Modificada (Agora suporta mudança para US$)
@@ -1435,7 +1471,8 @@ function editarCampoRV(cat, index, campo) {
     const ativo = globalDetalheMap[cat].assets[index];
     const valorAtual = ativo.extras?.[campo] || 'Não Classificado';
     
-    const titulo = campo === 'caps' ? `Defina a Capitalização (Small, Large, Híbrido) para o fundo:` : `Defina o Setor para a ação:`;
+   // Texto atualizado com o "Middle"
+    const titulo = campo === 'caps' ? `Defina a Capitalização (Small, Middle, Large, Híbrido):` : `Defina o Setor para a ação:`;
     const novoValor = prompt(`${titulo}\nAtivo: ${ativo.nome}`, valorAtual);
     
     if (novoValor !== null && novoValor.trim() !== "") {
@@ -2410,7 +2447,7 @@ function gerarPDF() {
     conteudosAbas.forEach(aba => aba.style.display = 'block');
 
     // 2. Forçamos o redimensionamento de todos os gráficos para eles não saírem espremidos
-    const todosOsGraficos = [chartEstrategia, chartGestorasFII, chartAcoesRV, chartFundosRV, chartSetorGlobalRV, chartSetorGlobalRF, refChartFluxoAnual];
+    const todosOsGraficos = [chartEstrategia, chartGestorasFII, chartExposicaoFII, chartAcoesRV, chartFundosRV, chartSetorGlobalRV, chartSetorGlobalRF, refChartFluxoAnual];
     todosOsGraficos.forEach(grafico => {
         if (grafico) grafico.resize();
     });
@@ -2569,4 +2606,64 @@ function gerarPDF() {
     };
 
     html2pdf().set(opt).from(htmlContent).save();
+}
+
+// EDIÇÃO RÁPIDA DA COMPOSIÇÃO DE FIIS COM TRAVA DE 100%
+function editarComposicaoFII(cat, index) {
+    const ativo = globalDetalheMap[cat].assets[index];
+    const c = ativo.extras?.comp || { ipca: 0, cdi: 0, fof: 0, equity: 0 };
+    
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `
+        <div class="modal-content">
+            <h3>Editar Composição (%)</h3>
+            <p style="color: var(--text-muted); margin-top: -10px;">Fundo: <strong>${ativo.nome}</strong></p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0;">
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--text-muted);">% IPCA</label>
+                    <input type="number" id="editFiiIpca" value="${c.ipca}" style="width: 100%; box-sizing: border-box; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--text-muted);">% CDI</label>
+                    <input type="number" id="editFiiCdi" value="${c.cdi}" style="width: 100%; box-sizing: border-box; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--text-muted);">% FOF</label>
+                    <input type="number" id="editFiiFof" value="${c.fof}" style="width: 100%; box-sizing: border-box; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--text-muted);">% EQUITY</label>
+                    <input type="number" id="editFiiEquity" value="${c.equity}" style="width: 100%; box-sizing: border-box; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-upload" id="btnSalvarEditComp">Salvar</button>
+                <button class="btn-upload danger" id="btnCancelarEditComp">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    
+    document.getElementById('btnSalvarEditComp').onclick = () => {
+        const ipca = parseFloat(document.getElementById('editFiiIpca').value) || 0;
+        const cdi = parseFloat(document.getElementById('editFiiCdi').value) || 0;
+        const fof = parseFloat(document.getElementById('editFiiFof').value) || 0;
+        const equity = parseFloat(document.getElementById('editFiiEquity').value) || 0;
+        
+        if ((ipca + cdi + fof + equity) > 100) {
+            alert("Erro: A soma das porcentagens não pode ultrapassar 100%!");
+            return; // Impede que o modal feche se estiver errado
+        }
+        
+        if (!ativo.extras) ativo.extras = {};
+        ativo.extras.comp = { ipca, cdi, fof, equity };
+        
+        document.body.removeChild(dialog);
+        recalcularTudoERenderizar(); // Recalcula os gráficos automaticamente
+    };
+    
+    document.getElementById('btnCancelarEditComp').onclick = () => document.body.removeChild(dialog);
 }
