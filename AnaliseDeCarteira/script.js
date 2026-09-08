@@ -2439,7 +2439,7 @@ function editarCampoRF(cat, index, campo) {
 }
 // --- NOVO MOTOR DE EXPORTAÇÃO PDF (TEMPLATE FANTASMA BLINDADO) ---
 // --- NOVO MOTOR DE EXPORTAÇÃO PDF (COM LOGO E GRÁFICOS REAIS) ---
-function gerarPDF() {
+async function gerarPDF() {
     alert("Construindo o relatório gerencial. Isso pode levar alguns segundos...");
 
     // 1. O TRUQUE MÁGICO: Forçamos todas as abas a aparecerem para os gráficos ganharem tamanho físico
@@ -2452,6 +2452,7 @@ function gerarPDF() {
         if (grafico) grafico.resize();
     });
 
+await new Promise(resolve => setTimeout(resolve, 500));
     // 3. CSS Exclusivo do PDF (Fundo Branco, Texto Escuro)
     const styleCSS = `
         <style>
@@ -2605,7 +2606,11 @@ function gerarPDF() {
         pagebreak:    { mode: ['css', 'legacy'] }
     };
 
-    html2pdf().set(opt).from(htmlContent).save();
+    // Usamos o .then() para esperar o PDF ser salvo ANTES de esconder as abas novamente
+    html2pdf().set(opt).from(htmlContent).save().then(() => {
+        // RESTAURA AS ABAS PARA O ESTADO ORIGINAL APÓS GERAR O ARQUIVO
+        conteudosAbas.forEach(aba => aba.style.display = '');
+});
 }
 
 // EDIÇÃO RÁPIDA DA COMPOSIÇÃO DE FIIS COM TRAVA DE 100%
