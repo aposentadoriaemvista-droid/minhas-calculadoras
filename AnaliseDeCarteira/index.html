@@ -143,16 +143,40 @@
     </nav>
 
     <div id="aba-geral" class="tab-content active">
-        <div class="top-stats">
-            <div class="stat-card">
-                <label>Patrimônio Total</label>
-                <h2 id="txtTotal">R$ 0,00</h2>
-            </div>
-            <div class="stat-card">
-                <label>Conta / Cliente</label>
-                <h2 id="clientName">---</h2>
-            </div>
+    
+<div class="top-stats">
+
+    <!-- PATRIMÔNIO TOTAL -->
+    <div class="stat-card security-stat-card">
+        <div class="stat-header">
+            <label>Patrimônio Total</label>
+
+            <button
+                type="button"
+                class="security-eye-btn"
+                onclick="toggleVisibilidadeValores()"
+                title="Ocultar/Exibir informações"
+                aria-label="Ocultar ou exibir patrimônio e conta"
+            >
+                <span id="icon-eye-open">👁️</span>
+                <span id="icon-eye-closed" style="display: none;">🙈</span>
+            </button>
         </div>
+
+        <h2 id="txtTotal">R$ 0,00</h2>
+    </div>
+
+
+    <!-- CONTA / CLIENTE -->
+    <div class="stat-card security-stat-card">
+        <div class="stat-header">
+            <label>Conta / Cliente</label>
+        </div>
+
+        <h2 id="clientName">---</h2>
+    </div>
+
+</div>
 
         <div class="visual-row">
             <div class="card chart-card">

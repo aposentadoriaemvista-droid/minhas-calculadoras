@@ -237,12 +237,13 @@ function buscarContaEPreencherAlvos(contaExtraida) {
         document.querySelector('.target-input[data-cat="Fundos Imobiliários"]').value = alvo["Fundos Imobiliários"] || 0;
         document.querySelector('.target-input[data-cat="Caixa"]').value = alvo["Caixa"] || 0;
         
-        if (clientNameEl) clientNameEl.innerText = "Conta: " + contaExtraida;
+       realClientName = "Conta: " + contaExtraida;
+        if (clientNameEl) clientNameEl.innerText = valoresOcultos ? "••••••••" : realClientName;
         return true;
     } else {
-        // Se a conta não existir no Glossário, zera os inputs de segurança
         document.querySelectorAll('.target-input').forEach(input => input.value = 0);
-        if (clientNameEl) clientNameEl.innerText = contaExtraida ? "Conta: " + contaExtraida + " (S/ Alvo)" : "Conta Não Identificada";
+        realClientName = contaExtraida ? "Conta: " + contaExtraida + " (S/ Alvo)" : "Conta Não Identificada";
+        if (clientNameEl) clientNameEl.innerText = valoresOcultos ? "••••••••" : realClientName;
         return false;
     }
 }
@@ -474,7 +475,10 @@ function analisarCarteira(matrix, glossary) {
 function renderDashboard(estrategia, subclasses, detalhe) {
     const valorAporte = parseFloat(document.getElementById('valorAporte').value) || 0;
     const totalFuturo = totalPatrimonio + valorAporte;
-    document.getElementById('txtTotal').innerText = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    realTxtTotal = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+if (document.getElementById('txtTotal')) {
+    document.getElementById('txtTotal').innerText = valoresOcultos ? "••••••••" : realTxtTotal;
+}
 
     const labels1 = Object.keys(estrategia).filter(k => estrategia[k] > 0);
     const data1 = labels1.map(k => ((estrategia[k] / (totalPatrimonio || 1)) * 100).toFixed(1));
@@ -2671,4 +2675,40 @@ function editarComposicaoFII(cat, index) {
     };
     
     document.getElementById('btnCancelarEditComp').onclick = () => document.body.removeChild(dialog);
+}
+// ==========================================
+// MÓDULO: CONTROLE DE VISIBILIDADE ("OLHINHO")
+// ==========================================
+let valoresOcultos = false;
+let realTxtTotal = "R$ 0,00";
+let realClientName = "---";
+
+function toggleVisibilidadeValores() {
+    valoresOcultos = !valoresOcultos;
+    
+    const iconOpen = document.getElementById('icon-eye-open');
+    const iconClosed = document.getElementById('icon-eye-closed');
+    
+    if (valoresOcultos) {
+        if (iconOpen) iconOpen.style.display = 'none';
+        if (iconClosed) iconClosed.style.display = 'inline';
+    } else {
+        if (iconOpen) iconOpen.style.display = 'inline';
+        if (iconClosed) iconClosed.style.display = 'none';
+    }
+    
+    aplicarMascaraVisibilidade();
+}
+
+function aplicarMascaraVisibilidade() {
+    const txtTotalEl = document.getElementById('txtTotal');
+    const clientNameEl = document.getElementById('clientName');
+
+    if (valoresOcultos) {
+        if (txtTotalEl) txtTotalEl.innerText = "••••••••";
+        if (clientNameEl) clientNameEl.innerText = "••••••••";
+    } else {
+        if (txtTotalEl) txtTotalEl.innerText = realTxtTotal;
+        if (clientNameEl) clientNameEl.innerText = realClientName;
+    }
 }
