@@ -144,6 +144,7 @@
 
     <div id="aba-geral" class="tab-content active">
     
+
 <div class="top-stats">
 
     <!-- PATRIMÔNIO TOTAL -->
@@ -154,12 +155,12 @@
             <button
                 type="button"
                 class="security-eye-btn"
-                onclick="toggleVisibilidadeValores()"
-                title="Ocultar/Exibir informações"
-                aria-label="Ocultar ou exibir patrimônio e conta"
+                onclick="togglePatrimonio()"
+                title="Ocultar/Exibir Patrimônio"
+                aria-label="Ocultar ou exibir Patrimônio"
             >
-                <span id="icon-eye-open">👁️</span>
-                <span id="icon-eye-closed" style="display: none;">🙈</span>
+                <span id="icon-eye-patrimonio-open">👁️</span>
+                <span id="icon-eye-patrimonio-closed" style="display: none;">🙈</span>
             </button>
         </div>
 
@@ -171,12 +172,24 @@
     <div class="stat-card security-stat-card">
         <div class="stat-header">
             <label>Conta / Cliente</label>
+
+            <button
+                type="button"
+                class="security-eye-btn"
+                onclick="toggleContaCliente()"
+                title="Ocultar/Exibir Conta"
+                aria-label="Ocultar ou exibir Conta / Cliente"
+            >
+                <span id="icon-eye-conta-open">👁️</span>
+                <span id="icon-eye-conta-closed" style="display: none;">🙈</span>
+            </button>
         </div>
 
         <h2 id="clientName">---</h2>
     </div>
 
 </div>
+
 
         <div class="visual-row">
             <div class="card chart-card">

@@ -238,12 +238,19 @@ function buscarContaEPreencherAlvos(contaExtraida) {
         document.querySelector('.target-input[data-cat="Caixa"]').value = alvo["Caixa"] || 0;
         
        realClientName = "Conta: " + contaExtraida;
-        if (clientNameEl) clientNameEl.innerText = valoresOcultos ? "••••••••" : realClientName;
+if (clientNameEl) {
+    clientNameEl.innerText = contaClienteOculta ? "••••••••" : realClientName;
+}
         return true;
     } else {
         document.querySelectorAll('.target-input').forEach(input => input.value = 0);
-        realClientName = contaExtraida ? "Conta: " + contaExtraida + " (S/ Alvo)" : "Conta Não Identificada";
-        if (clientNameEl) clientNameEl.innerText = valoresOcultos ? "••••••••" : realClientName;
+       realClientName = contaExtraida
+    ? "Conta: " + contaExtraida + " (S/ Alvo)"
+    : "Conta Não Identificada";
+
+if (clientNameEl) {
+    clientNameEl.innerText = contaClienteOculta ? "••••••••" : realClientName;
+}
         return false;
     }
 }
@@ -475,10 +482,11 @@ function analisarCarteira(matrix, glossary) {
 function renderDashboard(estrategia, subclasses, detalhe) {
     const valorAporte = parseFloat(document.getElementById('valorAporte').value) || 0;
     const totalFuturo = totalPatrimonio + valorAporte;
-    realTxtTotal = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-if (document.getElementById('txtTotal')) {
-    document.getElementById('txtTotal').innerText = valoresOcultos ? "••••••••" : realTxtTotal;
-}
+  realTxtTotal = `R$ ${totalPatrimonio.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2
+})}`;
+
+aplicarMascaraVisibilidade();
 
     const labels1 = Object.keys(estrategia).filter(k => estrategia[k] > 0);
     const data1 = labels1.map(k => ((estrategia[k] / (totalPatrimonio || 1)) * 100).toFixed(1));
@@ -2041,15 +2049,15 @@ function renderizarAbaRF(cat, dadosCat, tabEl) {
             <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
                 <div>
                     <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção CDI (% a.a.)</label><br>
-                    <input type="number" id="projCDI" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                    <input type="number" id="projCDI" value="13" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
                 </div>
                 <div>
                     <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IPCA (% a.a.)</label><br>
-                    <input type="number" id="projIPCA" value="4.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                    <input type="number" id="projIPCA" value="5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
                 </div>
                 <div>
                     <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção Selic (% a.a.)</label><br>
-                    <input type="number" id="projSelic" value="10.5" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
+                    <input type="number" id="projSelic" value="13" step="0.1" style="width: 100px; margin-top: 5px; background: rgba(31, 41, 55, 0.5); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;" onchange="atualizarGraficosRF('${cat}')">
                 </div>
                 <div>
                     <label style="font-size:0.8rem; color:var(--text-muted); font-weight: bold;">Projeção IGPM (% a.a.)</label><br>
@@ -2058,7 +2066,7 @@ function renderizarAbaRF(cat, dadosCat, tabEl) {
                 <!-- NOVO: CAMPO DE SIMULAÇÃO DE APORTE INDEPENDENTE -->
                 <div style="border-left: 1px solid var(--border-color); padding-left: 20px; margin-left: 10px;">
                     <label style="font-size:0.8rem; color:var(--accent-primary); font-weight: bold;">Taxa Simulação Novo Aporte (% a.a.)</label><br>
-                    <input type="number" id="taxaSimulacao" value="12.0" step="0.1" style="width: 120px; margin-top: 5px; background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid var(--accent-primary); padding: 8px; border-radius: 4px; font-weight: bold;" onchange="atualizarGraficosRF('${cat}')">
+                    <input type="number" id="taxaSimulacao" value="15.0" step="0.1" style="width: 120px; margin-top: 5px; background: rgba(14, 165, 233, 0.1); color: var(--accent-primary); border: 1px solid var(--accent-primary); padding: 8px; border-radius: 4px; font-weight: bold;" onchange="atualizarGraficosRF('${cat}')">
                 </div>
                 <div>
                         <label style="font-size:0.8rem; color:var(--accent-primary); font-weight: bold;">Venc. do Aporte</label><br>
@@ -2676,39 +2684,132 @@ function editarComposicaoFII(cat, index) {
     
     document.getElementById('btnCancelarEditComp').onclick = () => document.body.removeChild(dialog);
 }
+
+
 // ==========================================
-// MÓDULO: CONTROLE DE VISIBILIDADE ("OLHINHO")
+// MÓDULO: CONTROLE DE VISIBILIDADE
+// DOIS OLHINHOS INDEPENDENTES
 // ==========================================
-let valoresOcultos = false;
+
+let patrimonioOculto = false;
+let contaClienteOculta = false;
+
 let realTxtTotal = "R$ 0,00";
 let realClientName = "---";
 
-function toggleVisibilidadeValores() {
-    valoresOcultos = !valoresOcultos;
-    
-    const iconOpen = document.getElementById('icon-eye-open');
-    const iconClosed = document.getElementById('icon-eye-closed');
-    
-    if (valoresOcultos) {
-        if (iconOpen) iconOpen.style.display = 'none';
-        if (iconClosed) iconClosed.style.display = 'inline';
+
+// ==========================================
+// OLHO DO PATRIMÔNIO
+// ==========================================
+
+function togglePatrimonio() {
+
+    patrimonioOculto = !patrimonioOculto;
+
+    const txtTotalEl = document.getElementById('txtTotal');
+
+    const iconOpen = document.getElementById('icon-eye-patrimonio-open');
+    const iconClosed = document.getElementById('icon-eye-patrimonio-closed');
+
+    if (patrimonioOculto) {
+
+        if (txtTotalEl) {
+            txtTotalEl.innerText = "••••••••";
+        }
+
+        if (iconOpen) {
+            iconOpen.style.display = 'none';
+        }
+
+        if (iconClosed) {
+            iconClosed.style.display = 'inline';
+        }
+
     } else {
-        if (iconOpen) iconOpen.style.display = 'inline';
-        if (iconClosed) iconClosed.style.display = 'none';
+
+        if (txtTotalEl) {
+            txtTotalEl.innerText = realTxtTotal;
+        }
+
+        if (iconOpen) {
+            iconOpen.style.display = 'inline';
+        }
+
+        if (iconClosed) {
+            iconClosed.style.display = 'none';
+        }
     }
-    
-    aplicarMascaraVisibilidade();
 }
 
+
+// ==========================================
+// OLHO DA CONTA / CLIENTE
+// ==========================================
+
+function toggleContaCliente() {
+
+    contaClienteOculta = !contaClienteOculta;
+
+    const clientNameEl = document.getElementById('clientName');
+
+    const iconOpen = document.getElementById('icon-eye-conta-open');
+    const iconClosed = document.getElementById('icon-eye-conta-closed');
+
+    if (contaClienteOculta) {
+
+        if (clientNameEl) {
+            clientNameEl.innerText = "••••••••";
+        }
+
+        if (iconOpen) {
+            iconOpen.style.display = 'none';
+        }
+
+        if (iconClosed) {
+            iconClosed.style.display = 'inline';
+        }
+
+    } else {
+
+        if (clientNameEl) {
+            clientNameEl.innerText = realClientName;
+        }
+
+        if (iconOpen) {
+            iconOpen.style.display = 'inline';
+        }
+
+        if (iconClosed) {
+            iconClosed.style.display = 'none';
+        }
+    }
+}
+
+
+// ==========================================
+// APLICA A VISIBILIDADE ATUAL
+// SEM ALTERAR O ESTADO DOS OLHOS
+// ==========================================
+
 function aplicarMascaraVisibilidade() {
+
     const txtTotalEl = document.getElementById('txtTotal');
     const clientNameEl = document.getElementById('clientName');
 
-    if (valoresOcultos) {
-        if (txtTotalEl) txtTotalEl.innerText = "••••••••";
-        if (clientNameEl) clientNameEl.innerText = "••••••••";
-    } else {
-        if (txtTotalEl) txtTotalEl.innerText = realTxtTotal;
-        if (clientNameEl) clientNameEl.innerText = realClientName;
+    // Patrimônio
+    if (txtTotalEl) {
+        txtTotalEl.innerText =
+            patrimonioOculto
+                ? "••••••••"
+                : realTxtTotal;
+    }
+
+    // Conta / Cliente
+    if (clientNameEl) {
+        clientNameEl.innerText =
+            contaClienteOculta
+                ? "••••••••"
+                : realClientName;
     }
 }
+
