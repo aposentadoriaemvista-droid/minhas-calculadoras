@@ -276,32 +276,47 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                     dados["parcelas"] = m_parc.group(1)
                     dados["forma_pagamento"] = m_parc.group(2).strip()
 
-        # =======================================================
+       # =======================================================
         # EXTRATOR CIRÚRGICO: ALIRO
         # =======================================================
         elif dados["seguradora"] == "Aliro":
+            # Vencimento Aliro
             m_venc = re.search(r"Vigência[\s\S]{1,80}?(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
             if m_venc: 
                 dados["vencimento"] = m_venc.group(1)
             
-            m_nome_arq = re.search(r"Proposta\s*[-–]?\s*([A-ZÀ-ÿ\s]+?)(?=\s+\d+(?:,\d+)?\s*%|\.pdf)", nome_arquivo, re.IGNORECASE)
-            if m_nome_arq:
+            # 1. SEGURADO: Pega do nome do arquivo (trata sufixos como (1), hífens, etc)
+            m_nome_arq = re.search(r"Proposta\s*[-–]?\s*([A-ZÀ-ÿ\s]+?)(?=\s*\(\d+\)|\s+\d+(?:,\d+)?\s*%|\.pdf)", nome_arquivo, re.IGNORECASE)
+            if m_nome_arq and len(m_nome_arq.group(1).strip()) > 3:
                 dados["segurado"] = m_nome_arq.group(1).strip().upper()
             else:
-                m_seg = re.search(r"Nome do\(a\) Proponente/Segurado\(a\)\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
-                if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
+                # Fallback: Na Aliro o Nome do Segurado fica sempre na linha imediatamente acima do CPF
+                m_seg = re.search(r"([A-ZÀ-ÿ\s]{3,60})\n\s*\d{3}\.\d{3}\.\d{3}-\d{2}", texto_completo)
+                if m_seg: 
+                    dados["segurado"] = m_seg.group(1).strip().upper()
 
+           # 2. MODELO DO CARRO (Estratégia Multicamada)
+            # Pass 1: Busca por padrão de veículo com combustível entre parênteses
+            m_mod = re.search(r"([A-Z0-9\s\.\-\/\(\)]+?\((?:Flex|Gasolina|Diesel|Alcool|Eletrico|Híbrido)\))", texto_completo, re.IGNORECASE)
+            if m_mod:
+                dados["modelo_carro"] = m_mod.group(1).strip()
+            
+            # Pass 2: Se não achou, busca texto após código FIPE (ex: 001177-0)
+            if not dados["modelo_carro"]:
+                m_mod_fipe = re.search(r"\d{6}-\d\s+([A-Za-z0-9\s\.\-\/\(\)]+?)(?=\s+\d{4}/\d{4}|\n|$)", texto_completo)
+                if m_mod_fipe:
+                    dados["modelo_carro"] = m_mod_fipe.group(1).strip()
+
+            # Pass 3: Fallback de marcas/modelos conhecidos
+            if not dados["modelo_carro"]:
+                m_mod_brand = re.search(r"\b(?:PALIO|COMPASS|ARGO|HB20|MARCH|ONIX|KWID|RENEGADE|COROLLA|CIVIC|HRV|FIESTA|KA|FOX|POLO|JETTA|GOL|SAVEIRO|STRADA|TORO|TERRITORY|TRACKER|CRONOS|MOBI|CRETA|T-CROSS|NIVUS)\b[^\n]+", texto_completo, re.IGNORECASE)
+                if m_mod_brand:
+                    dados["modelo_carro"] = m_mod_brand.group(0).strip()
+
+            # Celular Aliro
             m_tel_aliro = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
             if m_tel_aliro:
                 dados["telefone"] = re.sub(r"[^\d]", "", m_tel_aliro.group(0))
-
-            m_mod = re.search(r"\d{6}-\d\s+([A-Za-zÀ-ÿ0-9\s\.\-\(\)]+?)\s+\d{4}/\d{4}", texto_completo)
-            if m_mod:
-                dados["modelo_carro"] = m_mod.group(1).strip()
-            else:
-                m_mod_fallback = re.search(r"(?:HB20|MARCH|ONIX|KWID|COMPASS|RENEGADE|COROLLA|CIVIC|HRV|FIESTA|KA|FOX|POLO|JETTA|GOL|SAVEIRO|STRADA|TORO|TERRITORY)[^\n|]*", texto_completo, re.IGNORECASE)
-                if m_mod_fallback:
-                    dados["modelo_carro"] = m_mod_fallback.group(0).strip()
 
             m_demo = re.search(r"Juros\(%\)([\s\S]*?)(?=FORMA DE PAGAMENTO)", texto_completo, re.IGNORECASE)
             if m_demo:
@@ -316,6 +331,7 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                     dados["premio_liquido"] = valores[0]
                     dados["premio_total"] = valores[3] 
 
+            # Parcelas e Forma de Pagamento
             m_parc_soma = re.search(r"(\d{1,2})\+(\d{1,2})\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
             if m_parc_soma:
                 dados["parcelas"] = str(int(m_parc_soma.group(1)) + int(m_parc_soma.group(2)))

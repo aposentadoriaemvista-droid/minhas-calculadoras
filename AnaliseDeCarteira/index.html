@@ -143,16 +143,53 @@
     </nav>
 
     <div id="aba-geral" class="tab-content active">
-        <div class="top-stats">
-            <div class="stat-card">
-                <label>Patrimônio Total</label>
-                <h2 id="txtTotal">R$ 0,00</h2>
-            </div>
-            <div class="stat-card">
-                <label>Conta / Cliente</label>
-                <h2 id="clientName">---</h2>
-            </div>
+    
+
+<div class="top-stats">
+
+    <!-- PATRIMÔNIO TOTAL -->
+    <div class="stat-card security-stat-card">
+        <div class="stat-header">
+            <label>Patrimônio Total</label>
+
+            <button
+                type="button"
+                class="security-eye-btn"
+                onclick="togglePatrimonio()"
+                title="Ocultar/Exibir Patrimônio"
+                aria-label="Ocultar ou exibir Patrimônio"
+            >
+                <span id="icon-eye-patrimonio-open">👁️</span>
+                <span id="icon-eye-patrimonio-closed" style="display: none;">🙈</span>
+            </button>
         </div>
+
+        <h2 id="txtTotal">R$ 0,00</h2>
+    </div>
+
+
+    <!-- CONTA / CLIENTE -->
+    <div class="stat-card security-stat-card">
+        <div class="stat-header">
+            <label>Conta / Cliente</label>
+
+            <button
+                type="button"
+                class="security-eye-btn"
+                onclick="toggleContaCliente()"
+                title="Ocultar/Exibir Conta"
+                aria-label="Ocultar ou exibir Conta / Cliente"
+            >
+                <span id="icon-eye-conta-open">👁️</span>
+                <span id="icon-eye-conta-closed" style="display: none;">🙈</span>
+            </button>
+        </div>
+
+        <h2 id="clientName">---</h2>
+    </div>
+
+</div>
+
 
         <div class="visual-row">
             <div class="card chart-card">
@@ -217,12 +254,18 @@
             <option value="Caixa">Caixa</option>
         </select>
 
-        <div id="camposExtraFII" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(14, 165, 233, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--accent-primary);">
+       <div id="camposExtraFII" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(14, 165, 233, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed var(--accent-primary);">
             <p style="margin: 0; font-size: 0.8rem; color: var(--accent-primary); font-weight: bold;">Campos Específicos de FII</p>
-            <input type="text" id="manFiiClasse" placeholder="Classe (ex: Tijolo, Papel)">
-            <input type="text" id="manFiiGestora" placeholder="Gestora (ex: Kinea, XP)">
-            <input type="text" id="manFiiIndexador" placeholder="Indexador (ex: IPCA, CDI)">
-
+            <input type="text" id="manFiiClasse" placeholder="Classe (ex: Tijolo, Papel, Híbrido)">
+            <input type="text" id="manFiiGestora" placeholder="Gestora (ex: Kinea, XP, BTG)">
+            
+            <p style="margin: 5px 0 -5px 0; font-size: 0.75rem; color: var(--text-muted);">Composição Interna do Fundo (%)</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <input type="number" id="manFiiIpca" placeholder="% IPCA (ex: 40)">
+                <input type="number" id="manFiiCdi" placeholder="% CDI (ex: 20)">
+                <input type="number" id="manFiiFof" placeholder="% FOF (ex: 10)">
+                <input type="number" id="manFiiEquity" placeholder="% Equity (ex: 30)">
+            </div>
         </div>
      <div id="camposExtraRV" style="display: none; flex-direction: column; gap: 10px; margin: 10px 0; background: rgba(139, 92, 246, 0.05); padding: 15px; border-radius: 6px; border: 1px dashed #8b5cf6;">
             <p style="margin: 0; font-size: 0.8rem; color: #8b5cf6; font-weight: bold;">Campos Específicos de RV</p>
@@ -257,6 +300,7 @@
             <select id="manRvCaps" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px;">
                 <option value="Não Classificado" selected>Selecione o Cap...</option>
                 <option value="Large">Large Caps</option>
+                <option value="Middle">Middle Caps</option>
                 <option value="Small">Small Caps</option>
                 <option value="Híbrido">Híbrido</option>
             </select>
