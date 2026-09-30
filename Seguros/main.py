@@ -38,12 +38,19 @@ FOLDER_ENTRADA_ID = os.environ.get("FOLDER_ENTRADA_ID", "13dEtD5RTWQiyt1INASVqPg
 FOLDER_PROCESSADOS_ID = os.environ.get("FOLDER_PROCESSADOS_ID", "1E1guR7b5jJzfiO3fnbZzoLnnaTBnjGYd")
 SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "14wh7QYAW-m60TxkWugF0Hasd3y6MptyjXE1U7rPSL4E")
 
+# Mapa de conversão de número do mês para o nome da Aba no Sheets
+MAPA_MESES = {
+    "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
+    "05": "Maio", "06": "Junho", "07": "Julho", "08": "Agosto",
+    "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro"
+}
+
 # =======================================================
 # MOTOR DE EXTRAÇÃO CIRÚRGICO
 # =======================================================
 def extrair_dados_pdf(pdf_bytes, nome_arquivo):
     dados = {
-        "vencimento": "", "numero_apolice": "", "segurado": "",
+        "vencimento": "", "mes_vencimento": "", "numero_apolice": "", "segurado": "",
         "observacoes": "", "seguradora": "Não Identificada", "premio_total": "",
         "premio_liquido": "", "comissao": "", "comissao_pct": "",
         "placa": "", "email": "", "telefone": "", "pagamento": "",
@@ -72,13 +79,6 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         elif "azul tradicional" in cabecalho_lower or ("azul" in cabecalho_lower and "operado pela" in cabecalho_lower and "porto seguro" in cabecalho_lower):
             dados["seguradora"] = "Azul"
         elif "porto seguro" in cabecalho_lower: dados["seguradora"] = "Porto Seguro"
-
-
-        nome_limpo_arq = re.sub(r"^Proposta\s*(?:de\s*)?(?:endosso\s*)?", "", nome_arquivo, flags=re.IGNORECASE)
-        nome_limpo_arq = re.sub(r"\s*(?:\(\d+\)|\d+(?:,\d+)?\s*%|\.pdf|_texto).*$", "", nome_limpo_arq, flags=re.IGNORECASE).strip()
-        
-        if len(nome_limpo_arq) > 3:
-            dados["segurado"] = nome_limpo_arq.upper()
 
         # 2. EXTRAÇÃO DA COMISSÃO (%) PELO NOME DO ARQUIVO
         m_comissao = re.search(r"(\d+(?:,\d+)?)\s*%", nome_arquivo)
@@ -649,9 +649,12 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         m_univ_venc = re.search(r"(?:vigência|início)[\s\S]{1,50}?(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
         if m_univ_venc: dados["vencimento"] = m_univ_venc.group(1)
 
-    # Limpeza do Vencimento (Apenas o Dia)
+    # 1. Extração do Mês (Para roteamento das Abas) e Limpeza do Dia
     if dados["vencimento"] and "/" in dados["vencimento"]:
-        dados["vencimento"] = dados["vencimento"].split("/")[0].strip()
+        partes_data = dados["vencimento"].split("/")
+        dados["vencimento"] = partes_data[0].strip() # Dia da coluna A
+        if len(partes_data) >= 2:
+            dados["mes_vencimento"] = partes_data[1].strip() # Mês interno
 
     # =======================================================
     # REGRA DE NEGÓCIO E DESVIO PARA ALLIANZ SEM PLACA
@@ -667,7 +670,11 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         elif dados["seguradora"] == "Allianz":
             if not dados["vencimento"]:
                 m_venc_res = re.search(r"Vigência[\s\S]{1,60}?(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
-                if m_venc_res: dados["vencimento"] = m_venc_res.group(1).split("/")[0].strip()
+                if m_venc_res: 
+                    venc = m_venc_res.group(1)
+                    dados["vencimento"] = venc.split("/")[0].strip()
+                    if len(venc.split("/")) >= 2:
+                        dados["mes_vencimento"] = venc.split("/")[1].strip()
 
             if re.search(r"Ramo:\s*14|RESIDÊNCIA|Residencial", texto_completo, re.IGNORECASE):
                 dados["observacoes"] = "Seguro Residencial"
@@ -723,8 +730,8 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
 # =======================================================
 def ordenar_planilha_por_vencimento(sheet):
     """
-    Baixa os dados da planilha, ordena as linhas pelo Dia do Vencimento (Coluna A) 
-    de forma numérica e reenvia para o Google Sheets.
+    Baixa os dados da aba recebida, ordena as linhas pelo Dia do Vencimento (Coluna A) 
+    de forma numérica e reenvia para a planilha.
     """
     todos_dados = sheet.get_all_values()
     
@@ -736,18 +743,21 @@ def ordenar_planilha_por_vencimento(sheet):
     linhas = todos_dados[1:]
 
     # Ordena com base na primeira coluna (índice 0). 
-    # Usa zfill(2) para garantir que '5' fique antes de '10'. Linhas vazias vão para o final ("99")
     linhas.sort(key=lambda x: str(x[0]).zfill(2) if len(x) > 0 and str(x[0]).strip() else "99")
 
-    # Envia os dados ordenados de volta para a planilha
+    # Envia os dados ordenados de volta para a aba
     sheet.update(range_name=f"A1:M{len(todos_dados)}", values=[cabecalho] + linhas)
-    print("Planilha ordenada com sucesso pelo Dia do Vencimento.")
+    print(f"Aba '{sheet.title}' ordenada com sucesso pelo Dia do Vencimento.")
 
 # =======================================================
 # FLUXO DE NUVEM (DRIVE -> SHEETS -> MOVE)
 # =======================================================
 def processar_fluxo():
-    sheet = gc.open_by_key(SPREADSHEET_ID).worksheet("Apolices_Lidas")
+    # Abriremos apenas o Documento Master aqui.
+    planilha_doc = gc.open_by_key(SPREADSHEET_ID)
+    
+    # Dicionário para guardar as abas que efetivamente receberam dados nessa execução
+    abas_modificadas = {}
 
     query = f"'{FOLDER_ENTRADA_ID}' in parents and mimeType='application/pdf' and trashed=false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
@@ -774,9 +784,28 @@ def processar_fluxo():
         if not dados["segurado"]:
             print(f"⚠️ Aviso: Segurado não encontrado no arquivo {file_name}. Ignorado.")
             continue
+            
+        # 2. SELEÇÃO DINÂMICA DA ABA (ROTEAMENTO)
+        mes_num = dados.get("mes_vencimento", "")
+        nome_aba_destino = MAPA_MESES.get(mes_num)
+        
+        if not nome_aba_destino:
+            print(f"⚠️ Aviso: Mês não identificado para o arquivo {file_name}. Lançando na aba 'Pendentes'.")
+            nome_aba_destino = "Pendentes" # Fallback caso a apólice não tenha data reconhecida
+            
+        # 3. Abre a aba sob demanda para poupar requisições (e guarda na memória)
+        if nome_aba_destino not in abas_modificadas:
+            try:
+                abas_modificadas[nome_aba_destino] = planilha_doc.worksheet(nome_aba_destino)
+            except gspread.exceptions.WorksheetNotFound:
+                print(f"⚠️ Erro: Aba '{nome_aba_destino}' não existe! Usando 'Apolices_Lidas' como fallback.")
+                nome_aba_destino = "Apolices_Lidas"
+                abas_modificadas[nome_aba_destino] = planilha_doc.worksheet(nome_aba_destino)
+                
+        aba_atual = abas_modificadas[nome_aba_destino]
 
         linha = [
-            dados["vencimento"],           # A
+            dados["vencimento"],           # A (Apenas o Dia)
             dados["numero_apolice"],       # B
             dados["segurado"],             # C
             dados["observacoes"],          # D
@@ -791,7 +820,7 @@ def processar_fluxo():
             dados["pagamento"]             # M
         ]
 
-        sheet.append_row(linha)
+        aba_atual.append_row(linha)
         processou_algum = True
 
         drive_service.files().update(
@@ -801,10 +830,12 @@ def processar_fluxo():
             fields="id, parents"
         ).execute()
 
-    # Só dispara a ordenação se alguma linha nova foi adicionada para poupar requisições da API
+    # 4. ORDENAÇÃO SELETIVA
+    # Só dispara a ordenação nas abas que efetivamente receberam dados hoje.
     if processou_algum:
-        print("Ordenando os dados na planilha Google Sheets...")
-        ordenar_planilha_por_vencimento(sheet)
+        for nome_aba, aba_object in abas_modificadas.items():
+            print(f"Ordenando os dados na aba {nome_aba}...")
+            ordenar_planilha_por_vencimento(aba_object)
 
 if __name__ == "__main__":
     processar_fluxo()
