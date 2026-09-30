@@ -73,6 +73,13 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             dados["seguradora"] = "Azul"
         elif "porto seguro" in cabecalho_lower: dados["seguradora"] = "Porto Seguro"
 
+
+        nome_limpo_arq = re.sub(r"^Proposta\s*(?:de\s*)?(?:endosso\s*)?", "", nome_arquivo, flags=re.IGNORECASE)
+        nome_limpo_arq = re.sub(r"\s*(?:\(\d+\)|\d+(?:,\d+)?\s*%|\.pdf|_texto).*$", "", nome_limpo_arq, flags=re.IGNORECASE).strip()
+        
+        if len(nome_limpo_arq) > 3:
+            dados["segurado"] = nome_limpo_arq.upper()
+
         # 2. EXTRAÇÃO DA COMISSÃO (%) PELO NOME DO ARQUIVO
         m_comissao = re.search(r"(\d+(?:,\d+)?)\s*%", nome_arquivo)
         if m_comissao: dados["comissao_pct"] = m_comissao.group(1) + "%"
