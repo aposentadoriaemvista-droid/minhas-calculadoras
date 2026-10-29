@@ -48,6 +48,174 @@ MAPA_MESES = {
 # =======================================================
 # MOTOR DE EXTRAÇÃO CIRÚRGICO
 # =======================================================
+
+def processar_porto_seguro(texto_completo, nome_arquivo, dados):
+    """Processa PDFs exclusivos da Porto Seguro (Modelos Novos, Antigos, Premium, Sênior e Endosso)"""
+    eh_endosso = "ENDOSSO" in nome_arquivo.upper() or "SUBSTITUICAO" in texto_completo.upper()
+    eh_modelo_novo = "Dados da cotação" in texto_completo
+
+    # 1. Apólice/Proposta
+    m_apolice_novo = re.search(r"\b([0-9A-Z]{5,6}\-\d{10}\-\d\-\d)\b", texto_completo)
+    if not m_apolice_novo: m_apolice_novo = re.search(r"\b(\d{2}\-\d{8})\b", texto_completo)
+    m_apolice_antigo = re.search(r"N[ºo]?\s*(?:da)?\s*Proposta[:\s]*([A-Z0-9\-\/\.]+)", texto_completo, re.IGNORECASE)
+    
+    if m_apolice_novo: dados["numero_apolice"] = m_apolice_novo.group(1).strip()
+    elif m_apolice_antigo: dados["numero_apolice"] = m_apolice_antigo.group(1).strip()
+
+    # 2. Vencimento
+    m_venc = re.search(r"[Dd][Aa][Ss]\s*24[Hh\s]*[OoRrAaSs]*\s*[Dd][Oo]\s*[Dd][Ii][Aa]\s*(\d{2}/\d{2}/\d{4})", texto_completo)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+
+    # 3. SEGURADO (INTACTO - Exatamente a versão que funcionou para o Aknaton)
+    m_nome_arq = re.search(r"(?:Proposta|Apólice|Endosso)\s*[-–]?\s*([A-ZÀ-ÿ\s]+?)(?=\s*\d+(?:,\d+)?\s*%|\.pdf|_)", nome_arquivo, re.IGNORECASE)
+    if m_nome_arq:
+        dados["segurado"] = m_nome_arq.group(1).strip().upper()
+    else:
+        if eh_modelo_novo:
+            m_seg = re.search(r"Segurado\(a\)[\s\|]*Nascimento[\s\|]*CPF[\r\n]+([A-ZÀ-ÿ\s]+?)\s*\|", texto_completo)
+        else:
+            m_seg = re.search(r"Proponente\s*/\s*Segurado\(a\)[\r\n\s]+([A-ZÀ-ÿ\s]+?)(?:\s+Profissão|\n)", texto_completo)
+        
+        if m_seg: 
+            nome_cand = m_seg.group(1).strip().upper()
+            if "PROPONENTE" not in nome_cand and "PESSOA" not in nome_cand:
+                dados["segurado"] = nome_cand
+
+    # 4 e 5. VEÍCULO E VALORES (Corrigidos para abraçar o modelo novo e antigo)
+    if eh_modelo_novo:
+        # Veículo (Lida com o sumiço das barras "|" no PDF da Elisete)
+        m_mod = re.search(r"(?:\d{3,6}\-)?([A-ZÀ-ÿ0-9\s\.\-]+?)\s*(?:\|)?\s*\d{4}/\d{4}", texto_completo)
+        if m_mod:
+            modelo_limpo = m_mod.group(1).strip()
+            dados["modelo_carro"] = f"Endosso - {modelo_limpo}" if eh_endosso else modelo_limpo
+        
+        # Valores e Pagamento (Isolando o bloco para evitar falhas com | invisível da Elisete)
+        bloco_pag = re.search(r"Valor total([\s\S]+?)(?:Banco|Questionário|Uso Interno)", texto_completo, re.IGNORECASE)
+        if bloco_pag:
+            texto_pag = bloco_pag.group(1)
+            
+            m_forma = re.search(r"(\d{2}\-[A-Za-zÀ-ÿ0-9\s\.\-]+)", texto_pag)
+            if m_forma: dados["forma_pagamento"] = re.sub(r"^\d{2}\-", "", m_forma.group(1)).strip()
+            
+            m_parc = re.search(r"(\d{1,2})x", texto_pag)
+            if m_parc: dados["parcelas"] = m_parc.group(1)
+            
+            valores = re.findall(r"([\d\.]+,\d{2})", texto_pag)
+            if len(valores) >= 2:
+                dados["premio_liquido"] = valores[0]
+                dados["premio_total"] = valores[-1]
+    else:
+        # Veículo (Modelo Antigo - Aknaton)
+        m_mod = re.search(r"(?:VEÍCULOS?|Veiculo)[^\n]*\n(?:[^\n]*\n)?\s*\d+\s*(?:-\s*)*([A-ZÀ-ÿ0-9\s\.\-\/\(\)]+?)(?=\s+\d{4}\s*/\s*\d{4}|\n)", texto_completo, re.IGNORECASE)
+        if not m_mod: m_mod = re.search(r"Ve.culo[\r\n\s]+(?:\d+\s+)?([^\r\n]+?)(?=\s+Placa|\s+Ano|\n)", texto_completo, re.IGNORECASE)
+        if m_mod:
+            modelo_limpo = re.sub(r"^[\-\s]+", "", m_mod.group(1)).strip()
+            dados["modelo_carro"] = f"Endosso - {modelo_limpo}" if eh_endosso else modelo_limpo
+
+        # Valores e Pagamento (Modelo Antigo - Aknaton e Endossos Zero)
+        if "SEM MOVIMENTO DE PRÊMIO" in texto_completo.upper() or "PRÊMIO TOTAL LÍQUIDO:\nR$ 0,00" in texto_completo.upper():
+            dados["forma_pagamento"] = "Sem Movimento (Endosso)"
+            dados["premio_liquido"] = "0,00"
+            dados["premio_total"] = "0,00"
+            dados["parcelas"] = "1"
+        else:
+            m_liq = re.search(r"Prêmio\s*(?:Total\s*)?Líquido[:\s\n\r\|]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+            if m_liq: dados["premio_liquido"] = m_liq.group(1)
+
+            m_tot = re.search(r"Prêmio\s*Total[:\s\n\r\|]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+            if m_tot: dados["premio_total"] = m_tot.group(1)
+
+            m_parc = re.search(r"(\d{1,2})\s*x\s*([A-ZÀ-ÿ\s0-9/-]+?)(?=\n|Prêmio|R\$)", texto_completo, re.IGNORECASE)
+            if m_parc:
+                dados["parcelas"] = m_parc.group(1)
+                dados["forma_pagamento"] = re.sub(r"TODAS|DEMAIS|BANDEIRAS", "", m_parc.group(2), flags=re.IGNORECASE).strip()
+
+    return dados
+
+
+def processar_azul(texto_completo, nome_arquivo, dados):
+    """Processa PDFs exclusivos da Azul Seguros (Modelos Novos, Antigos e Endosso)"""
+    eh_endosso = "ENDOSSO" in nome_arquivo.upper() or "SUBSTITUICAO" in texto_completo.upper()
+    eh_modelo_novo = "Dados da cotação" in texto_completo
+
+    # 1. Apólice/Proposta
+    m_apolice_novo = re.search(r"\b([0-9A-Z]{5,6}\-\d{10}\-\d\-\d)\b", texto_completo)
+    if not m_apolice_novo: m_apolice_novo = re.search(r"\b(\d{2}\-\d{8})\b", texto_completo)
+    m_apolice_antigo = re.search(r"N[ºo]?\s*(?:da)?\s*Proposta[:\s]*([A-Z0-9\-\/\.]+)", texto_completo, re.IGNORECASE)
+    
+    if m_apolice_novo: dados["numero_apolice"] = m_apolice_novo.group(1).strip()
+    elif m_apolice_antigo: dados["numero_apolice"] = m_apolice_antigo.group(1).strip()
+
+    # 2. Vencimento
+    m_venc = re.search(r"[Dd][Aa][Ss]\s*24[Hh\s]*[OoRrAaSs]*\s*[Dd][Oo]\s*[Dd][Ii][Aa]\s*(\d{2}/\d{2}/\d{4})", texto_completo)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+
+    # 3. SEGURADO (INTACTO - Exatamente a versão que funcionou para o Aknaton)
+    m_nome_arq = re.search(r"(?:Proposta|Apólice|Endosso)\s*[-–]?\s*([A-ZÀ-ÿ\s]+?)(?=\s*\d+(?:,\d+)?\s*%|\.pdf|_)", nome_arquivo, re.IGNORECASE)
+    if m_nome_arq:
+        dados["segurado"] = m_nome_arq.group(1).strip().upper()
+    else:
+        if eh_modelo_novo:
+            m_seg = re.search(r"Segurado\(a\)[\s\|]*Nascimento[\s\|]*CPF[\r\n]+([A-ZÀ-ÿ\s]+?)\s*\|", texto_completo)
+        else:
+            m_seg = re.search(r"Proponente\s*/\s*Segurado\(a\)[\r\n\s]+([A-ZÀ-ÿ\s]+?)(?:\s+Profissão|\n)", texto_completo)
+        
+        if m_seg: 
+            nome_cand = m_seg.group(1).strip().upper()
+            if "PROPONENTE" not in nome_cand and "PESSOA" not in nome_cand:
+                dados["segurado"] = nome_cand
+
+    # 4 e 5. VEÍCULO E VALORES (Corrigidos para abraçar o modelo novo e antigo)
+    if eh_modelo_novo:
+        # Veículo (Lida com o sumiço das barras "|" no PDF da Elisete)
+        m_mod = re.search(r"(?:\d{3,6}\-)?([A-ZÀ-ÿ0-9\s\.\-]+?)\s*(?:\|)?\s*\d{4}/\d{4}", texto_completo)
+        if m_mod:
+            modelo_limpo = m_mod.group(1).strip()
+            dados["modelo_carro"] = f"Endosso - {modelo_limpo}" if eh_endosso else modelo_limpo
+        
+        # Valores e Pagamento (Isolando o bloco para evitar falhas com | invisível da Elisete)
+        bloco_pag = re.search(r"Valor total([\s\S]+?)(?:Banco|Questionário|Uso Interno)", texto_completo, re.IGNORECASE)
+        if bloco_pag:
+            texto_pag = bloco_pag.group(1)
+            
+            m_forma = re.search(r"(\d{2}\-[A-Za-zÀ-ÿ0-9\s\.\-]+)", texto_pag)
+            if m_forma: dados["forma_pagamento"] = re.sub(r"^\d{2}\-", "", m_forma.group(1)).strip()
+            
+            m_parc = re.search(r"(\d{1,2})x", texto_pag)
+            if m_parc: dados["parcelas"] = m_parc.group(1)
+            
+            valores = re.findall(r"([\d\.]+,\d{2})", texto_pag)
+            if len(valores) >= 2:
+                dados["premio_liquido"] = valores[0]
+                dados["premio_total"] = valores[-1]
+    else:
+        # Veículo (Modelo Antigo - Aknaton)
+        m_mod = re.search(r"(?:VEÍCULOS?|Veiculo)[^\n]*\n(?:[^\n]*\n)?\s*\d+\s*(?:-\s*)*([A-ZÀ-ÿ0-9\s\.\-\/\(\)]+?)(?=\s+\d{4}\s*/\s*\d{4}|\n)", texto_completo, re.IGNORECASE)
+        if not m_mod: m_mod = re.search(r"Ve.culo[\r\n\s]+(?:\d+\s+)?([^\r\n]+?)(?=\s+Placa|\s+Ano|\n)", texto_completo, re.IGNORECASE)
+        if m_mod:
+            modelo_limpo = re.sub(r"^[\-\s]+", "", m_mod.group(1)).strip()
+            dados["modelo_carro"] = f"Endosso - {modelo_limpo}" if eh_endosso else modelo_limpo
+
+        # Valores e Pagamento (Modelo Antigo - Aknaton e Endossos Zero)
+        if "SEM MOVIMENTO DE PRÊMIO" in texto_completo.upper() or "PRÊMIO TOTAL LÍQUIDO:\nR$ 0,00" in texto_completo.upper():
+            dados["forma_pagamento"] = "Sem Movimento (Endosso)"
+            dados["premio_liquido"] = "0,00"
+            dados["premio_total"] = "0,00"
+            dados["parcelas"] = "1"
+        else:
+            m_liq = re.search(r"Prêmio\s*(?:Total\s*)?Líquido[:\s\n\r\|]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+            if m_liq: dados["premio_liquido"] = m_liq.group(1)
+
+            m_tot = re.search(r"Prêmio\s*Total[:\s\n\r\|]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+            if m_tot: dados["premio_total"] = m_tot.group(1)
+
+            m_parc = re.search(r"(\d{1,2})\s*x\s*([A-ZÀ-ÿ\s0-9/-]+?)(?=\n|Prêmio|R\$)", texto_completo, re.IGNORECASE)
+            if m_parc:
+                dados["parcelas"] = m_parc.group(1)
+                dados["forma_pagamento"] = re.sub(r"TODAS|DEMAIS|BANDEIRAS", "", m_parc.group(2), flags=re.IGNORECASE).strip()
+
+    return dados
+    
 def extrair_dados_pdf(pdf_bytes, nome_arquivo):
     dados = {
         "vencimento": "", "mes_vencimento": "", "numero_apolice": "", "segurado": "",
@@ -63,8 +231,13 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
     try:
         # 1. IDENTIFICAÇÃO DA SEGURADORA (Foco no Cabeçalho)
         cabecalho_lower = texto_completo[:1000].lower()
-        
-        if "suhai" in cabecalho_lower: dados["seguradora"] = "Suhai"
+
+        # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
+        if "azul seguros" in cabecalho_lower or "azul tradicional" in cabecalho_lower:
+            dados["seguradora"] = "Azul"
+        elif "porto seguro" in cabecalho_lower or "auto sênior" in cabecalho_lower or "auto premium" in cabecalho_lower:
+            dados["seguradora"] = "Porto Seguro"
+        elif "suhai" in cabecalho_lower: dados["seguradora"] = "Suhai"
         elif "zurich" in cabecalho_lower: dados["seguradora"] = "Zurich"
         elif "allianz" in cabecalho_lower: dados["seguradora"] = "Allianz"
         elif "bradesco" in cabecalho_lower: dados["seguradora"] = "Bradesco"
@@ -76,9 +249,6 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             dados["seguradora"] = "Yelum Residência"
         elif "yelum" in cabecalho_lower: dados["seguradora"] = "Yelum"
         elif "hdi" in cabecalho_lower: dados["seguradora"] = "HDI"
-        elif "azul tradicional" in cabecalho_lower or ("azul" in cabecalho_lower and "operado pela" in cabecalho_lower and "porto seguro" in cabecalho_lower):
-            dados["seguradora"] = "Azul"
-        elif "porto seguro" in cabecalho_lower: dados["seguradora"] = "Porto Seguro"
 
         # 2. EXTRAÇÃO DA COMISSÃO (%) PELO NOME DO ARQUIVO
         m_comissao = re.search(r"(\d+(?:,\d+)?)\s*%", nome_arquivo)
@@ -270,84 +440,17 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
             m_pag = re.search(r"Forma de Pagamento da Entrada:\s*([A-ZÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
             if m_pag: dados["forma_pagamento"] = m_pag.group(1).strip()
 
-        # =======================================================
-        # EXTRATOR CIRÚRGICO: AZUL SEGUROS (Proposta e Endosso)
+       # =======================================================
+        # EXTRATOR CIRÚRGICO: AZUL SEGUROS
         # =======================================================
         elif dados["seguradora"] == "Azul":
-            eh_endosso = False
-            if "SUBSTITUICAO" in texto_completo.upper() or "ENDOSSO" in nome_arquivo.upper():
-                eh_endosso = True
-
-            m_apolice = re.search(r"N[ºo]?\s*da\s*Proposta[:\s]*([A-Z0-9\-/\.]+)", texto_completo, re.IGNORECASE)
-            if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
-
-            m_venc = re.search(r"AT[ÉÉ]\s*AS\s*24\s*HORAS\s*DO\s*DIA\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
-            if m_venc: dados["vencimento"] = m_venc.group(1)
-
-            m_nome_arq = re.search(r"(?:Proposta|Endosso)\s*[-–]?\s*([A-ZÀ-ÿ\s]+?)(?=\s*\d+(?:,\d+)?\s*%|\.pdf)", nome_arquivo, re.IGNORECASE)
-            if m_nome_arq:
-                dados["segurado"] = m_nome_arq.group(1).strip().upper()
-            else:
-                m_seg = re.search(r"Proponente\s*/\s*Segurado\(a\)\s*\n([A-ZÀ-ÿ\s]{5,50})", texto_completo, re.IGNORECASE)
-                if m_seg:
-                    nome_candidato = m_seg.group(1).strip()
-                    if "PROPONENTE" not in nome_candidato.upper() and "PESSOA" not in nome_candidato.upper():
-                        dados["segurado"] = nome_candidato.upper()
-
-            m_tel = re.search(r"CELULAR[:\s]*\(?(\d{2})\)?\s*([\d\-]+)", texto_completo, re.IGNORECASE)
-            if m_tel: dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
-
-            m_mod = re.search(r"VEÍCULOS?[^\n]*\n[^\n]*\n\s*\d+\s*(?:-\s*)+([A-ZÀ-ÿ0-9\s\.\-\/\(\)]+?)(?=\s+\d{4}\s*/\s*\d{4})", texto_completo, re.IGNORECASE)
-            if not m_mod:
-                m_mod = re.search(r"(?:NIVUS|DUSTER|KAIT|SPIN|ONIX|HB20|COMPASS|RENEGADE|COROLLA|CIVIC|HRV|FIESTA|KA|FOX|POLO|JETTA|GOL|SAVEIRO|STRADA|TORO|TERRITORY|TRACKER|CRONOS|MOBI|CRETA|T-CROSS)[A-ZÀ-ÿ0-9\s\.\-\/\(\)]+", texto_completo, re.IGNORECASE)
-
-            if m_mod:
-                modelo_limpo = m_mod.group(1).strip() if m_mod.lastindex else m_mod.group(0).strip()
-                modelo_limpo = re.sub(r"^[\-\s]+", "", modelo_limpo).strip()
-                dados["modelo_carro"] = f"Endosso - {modelo_limpo}" if eh_endosso else modelo_limpo
-
-            m_liq = re.search(r"Prêmio\s*(?:Total\s*)?Líquido[:\s\n\r\|]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
-            if m_liq: dados["premio_liquido"] = m_liq.group(1)
-
-            m_tot = re.search(r"Prêmio\s*Total[:\s\n\r\|]*R?\$?\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
-            if m_tot: dados["premio_total"] = m_tot.group(1)
-
-            m_parc = re.search(r"(\d{1,2})\s*x\s*([A-ZÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
-            if m_parc: 
-                dados["parcelas"] = m_parc.group(1)
-                dados["forma_pagamento"] = m_parc.group(2).strip()
+            dados = processar_azul(texto_completo, nome_arquivo, dados)
 
         # =======================================================
         # EXTRATOR CIRÚRGICO: PORTO SEGURO
         # =======================================================
         elif dados["seguradora"] == "Porto Seguro":
-            m_apolice = re.search(r"Nº da Proposta:\s*([A-Z0-9\-]+)", texto_completo, re.IGNORECASE)
-            if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
-
-            m_venc = re.search(r"DAS\s*24\s*HORAS\s*DO\s*DIA\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
-            if m_venc: dados["vencimento"] = m_venc.group(1)
-
-            m_nome_arq = re.search(r"Proposta\s+([A-ZÀ-ÿ\s]+?)(?=\s+\d+(?:,\d+)?\s*%|\.pdf)", nome_arquivo, re.IGNORECASE)
-            if m_nome_arq: dados["segurado"] = m_nome_arq.group(1).strip().upper()
-
-            m_tel = re.search(r"CELULAR:\s*\(?(\d{2})\)?\s*([\d\-]+)", texto_completo, re.IGNORECASE)
-            if m_tel: dados["telefone"] = re.sub(r"[^\d]", "", m_tel.group(0))
-
-            m_mod = re.search(r"Veículo Ano Fabricação[^\n]*\n(.*?\d{4}\s*/\s*\d{4})", texto_completo, re.IGNORECASE)
-            if m_mod:
-                modelo_limpo = re.sub(r"^\d+\s*-\s*-\s*|^\d+\s*-\s*", "", m_mod.group(1).strip())
-                dados["modelo_carro"] = re.sub(r"\s+\d{4}\s*/\s*\d{4}.*", "", modelo_limpo).strip()
-
-            m_liq = re.search(r"Prêmio Total Líquido:[\s\S]*?R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
-            if m_liq: dados["premio_liquido"] = m_liq.group(1)
-
-            m_tot = re.search(r"Prêmio Total:[\s\S]*?R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
-            if m_tot: dados["premio_total"] = m_tot.group(1)
-
-            m_parc = re.search(r"(\d{1,2})x\s+([A-ZÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
-            if m_parc: 
-                dados["parcelas"] = m_parc.group(1)
-                dados["forma_pagamento"] = m_parc.group(2).strip()
+            dados = processar_porto_seguro(texto_completo, nome_arquivo, dados)
 
         # =======================================================
         # EXTRATOR CIRÚRGICO: YELUM (Auto e Residência)
