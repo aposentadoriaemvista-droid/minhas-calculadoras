@@ -225,7 +225,7 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         "modelo_carro": "", "parcelas": "", "forma_pagamento": ""
     }
     
-  try:
+      try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             # ... (código de leitura)
     except Exception as e:
