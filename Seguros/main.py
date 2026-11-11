@@ -224,12 +224,13 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         "placa": "", "email": "", "telefone": "", "pagamento": "",
         "modelo_carro": "", "parcelas": "", "forma_pagamento": ""
     }
-
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        texto_completo = "\n".join([page.extract_text() or "" for page in pdf.pages])
-
-    try:
-        # 1. IDENTIFICAÇÃO DA SEGURADORA (Foco no Cabeçalho)
+    
+  try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            # ... (código de leitura)
+    except Exception as e:
+        print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
+        return None
         cabecalho_lower = texto_completo[:1000].lower()
 
         # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
@@ -883,6 +884,9 @@ def processar_fluxo():
 
         pdf_bytes = fh.getvalue()
         dados = extrair_dados_pdf(pdf_bytes, file_name)
+
+        if dados is None:
+            continue
 
         if not dados["segurado"]:
             print(f"⚠️ Aviso: Segurado não encontrado no arquivo {file_name}. Ignorado.")
