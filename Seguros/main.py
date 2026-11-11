@@ -225,13 +225,16 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         "modelo_carro": "", "parcelas": "", "forma_pagamento": ""
     }
     
-      try:
+     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             # ... (código de leitura)
+            pass
     except Exception as e:
         print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
         return None
-        cabecalho_lower = texto_completo[:1000].lower()
+        
+    # Esta linha deve estar alinhada com o 'try' e o 'except'
+    cabecalho_lower = texto_completo[:1000].lower()
 
         # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
         if "azul seguros" in cabecalho_lower or "azul tradicional" in cabecalho_lower:
