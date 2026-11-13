@@ -567,7 +567,15 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                 if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
 
             # 2. MODELO DO CARRO (Estratégia Multicamada com Limpeza)
+            # 2. MODELO DO CARRO (Estratégia Multicamada com Limpeza)
             m_mod = re.search(r"([A-Z0-9\s\.\-\/\(\)]+?\((?:Flex|Gasolina|Diesel|Alcool|Eletrico|Híbrido)\))", texto_completo, re.IGNORECASE)
+            if m_mod: 
+                modelo_bruto = m_mod.group(1).strip()
+                # Corta o "o/Modelo" (e qualquer coisa antes dele) se existir
+                modelo_limpo = re.sub(r"^.*?o/Modelo[\r\n\s]*", "", modelo_bruto, flags=re.IGNORECASE | re.DOTALL)
+                # Corta o código FIPE inicial (ex: "003478-9 ")
+                modelo_limpo = re.sub(r"^\d{6}-\d[\r\n\s]*", "", modelo_limpo).strip()
+                dados["modelo_carro"] = modelo_limpo
             if m_mod: 
                 modelo_bruto = m_mod.group(1).strip()
                 # Corta o "o/Modelo" (e qualquer coisa antes dele) se existir
@@ -582,6 +590,12 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
 
             if not dados["modelo_carro"]:
                 m_mod_brand = re.search(r"\b(?:PALIO|COMPASS|ARGO|HB20|MARCH|ONIX|KWID|RENEGADE|COROLLA|CIVIC|HRV|FIESTA|KA|FOX|POLO|JETTA|GOL|SAVEIRO|STRADA|TORO|TERRITORY|TRACKER|CRONOS|MOBI|CRETA|T-CROSS|NIVUS)\b[^\n]+", texto_completo, re.IGNORECASE)
+                if m_mod_brand: 
+                    modelo_sujo = m_mod_brand.group(0).strip()
+                    # Aplica a mesma limpeza por segurança
+                    modelo_limpo = re.sub(r"^.*?o/Modelo[\r\n\s]*", "", modelo_sujo, flags=re.IGNORECASE | re.DOTALL)
+                    modelo_limpo = re.sub(r"^\d{6}-\d[\r\n\s]*", "", modelo_limpo).strip()
+                    dados["modelo_carro"] = modelo_limpo
                 if m_mod_brand: 
                     modelo_sujo = m_mod_brand.group(0).strip()
                     # Aplica a mesma limpeza por segurança
