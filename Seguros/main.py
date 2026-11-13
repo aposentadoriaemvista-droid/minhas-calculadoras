@@ -215,7 +215,8 @@ def processar_azul(texto_completo, nome_arquivo, dados):
                 dados["forma_pagamento"] = re.sub(r"TODAS|DEMAIS|BANDEIRAS", "", m_parc.group(2), flags=re.IGNORECASE).strip()
 
     return dados
-    
+
+
 def extrair_dados_pdf(pdf_bytes, nome_arquivo):
     dados = {
         "vencimento": "", "mes_vencimento": "", "numero_apolice": "", "segurado": "",
@@ -236,10 +237,8 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
         return None
 
-    # Esta linha deve estar alinhada com o 'try' e o 'except'
     cabecalho_lower = texto_completo[:1000].lower()
 
-    # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
     if "azul seguros" in cabecalho_lower or "azul tradicional" in cabecalho_lower:
         dados["seguradora"] = "Azul"
     elif "porto seguro" in cabecalho_lower or "auto sênior" in cabecalho_lower or "auto premium" in cabecalho_lower:
