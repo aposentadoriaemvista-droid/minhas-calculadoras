@@ -16,9 +16,13 @@ from googleapiclient.http import MediaIoBaseDownload
 # =======================================================
 # CONFIGURAÇÕES
 # =======================================================
+# FOLDER_ENTRADA_ID = os.environ.get("FOLDER_ENTRADA_ID", "13dEtD5RTWQiyt1INASVqPgaIt9RKudFO")
+# FOLDER_PROCESSADOS_ID = os.environ.get("FOLDER_PROCESSADOS_ID", "1E1guR7b5jJzfiO3fnbZzoLnnaTBnjGYd")
+# SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "14wh7QYAW-m60TxkWugF0Hasd3y6MptyjXE1U7rPSL4E")
+
 FOLDER_ENTRADA_ID = os.environ.get("FOLDER_ENTRADA_ID", "13dEtD5RTWQiyt1INASVqPgaIt9RKudFO")
 FOLDER_PROCESSADOS_ID = os.environ.get("FOLDER_PROCESSADOS_ID", "1E1guR7b5jJzfiO3fnbZzoLnnaTBnjGYd")
-SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "14wh7QYAW-m60TxkWugF0Hasd3y6MptyjXE1U7rPSL4E")
+SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "1j1zgXc0HLYIQAjaTplN4Jw-Az-76Fylk48HoOlY5JGs")
 
 # Chave secreta usada para transformar CPF/CNPJ em um ID de cliente.
 # Defina como Secret no GitHub (CPF_SALT) e NUNCA troque depois: trocar o valor muda todos os IDs.
