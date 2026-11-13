@@ -223,40 +223,41 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         "premio_liquido": "", "comissao": "", "comissao_pct": "",
         "placa": "", "email": "", "telefone": "", "pagamento": "",
         "modelo_carro": "", "parcelas": "", "forma_pagamento": ""
-        }
+    }
     
-        try:
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             texto_completo = ""
-                for pagina in pdf.pages:
-                    texto_pagina = pagina.extract_text()
-                    if texto_pagina:
-                        texto_completo += texto_pagina + "\n"
-        except Exception as e:
-            print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
-            return None
+            for pagina in pdf.pages:
+                texto_pagina = pagina.extract_text()
+                if texto_pagina:
+                    texto_completo += texto_pagina + "\n"
+    except Exception as e:
+        print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
+        return None
 
-        # Esta linha deve estar alinhada com o 'try' e o 'except'
-        cabecalho_lower = texto_completo[:1000].lower()
+    # Esta linha deve estar alinhada com o 'try' e o 'except'
+    cabecalho_lower = texto_completo[:1000].lower()
 
-        # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
-        if "azul seguros" in cabecalho_lower or "azul tradicional" in cabecalho_lower:
-            dados["seguradora"] = "Azul"
-        elif "porto seguro" in cabecalho_lower or "auto sênior" in cabecalho_lower or "auto premium" in cabecalho_lower:
-            dados["seguradora"] = "Porto Seguro"
-        elif "suhai" in cabecalho_lower: dados["seguradora"] = "Suhai"
-        elif "zurich" in cabecalho_lower: dados["seguradora"] = "Zurich"
-        elif "allianz" in cabecalho_lower: dados["seguradora"] = "Allianz"
-        elif "bradesco" in cabecalho_lower: dados["seguradora"] = "Bradesco"
-        elif "susep: 1091" in cabecalho_lower or "suíça seguradora" in cabecalho_lower or "suica seguradora" in cabecalho_lower: 
-            dados["seguradora"] = "Suíça"
-        elif "tokio marine" in cabecalho_lower: dados["seguradora"] = "Tokio Marine"
-        elif "aliro" in cabecalho_lower: dados["seguradora"] = "Aliro"
-        elif "yelum residencia" in texto_completo.lower() or ("yelum" in cabecalho_lower and "residencia" in texto_completo.lower()):
-            dados["seguradora"] = "Yelum Residência"
-        elif "yelum" in cabecalho_lower: dados["seguradora"] = "Yelum"
-        elif "hdi" in cabecalho_lower: dados["seguradora"] = "HDI"
+    # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
+    if "azul seguros" in cabecalho_lower or "azul tradicional" in cabecalho_lower:
+        dados["seguradora"] = "Azul"
+    elif "porto seguro" in cabecalho_lower or "auto sênior" in cabecalho_lower or "auto premium" in cabecalho_lower:
+        dados["seguradora"] = "Porto Seguro"
+    elif "suhai" in cabecalho_lower: dados["seguradora"] = "Suhai"
+    elif "zurich" in cabecalho_lower: dados["seguradora"] = "Zurich"
+    elif "allianz" in cabecalho_lower: dados["seguradora"] = "Allianz"
+    elif "bradesco" in cabecalho_lower: dados["seguradora"] = "Bradesco"
+    elif "susep: 1091" in cabecalho_lower or "suíça seguradora" in cabecalho_lower or "suica seguradora" in cabecalho_lower: 
+        dados["seguradora"] = "Suíça"
+    elif "tokio marine" in cabecalho_lower: dados["seguradora"] = "Tokio Marine"
+    elif "aliro" in cabecalho_lower: dados["seguradora"] = "Aliro"
+    elif "yelum residencia" in texto_completo.lower() or ("yelum" in cabecalho_lower and "residencia" in texto_completo.lower()):
+        dados["seguradora"] = "Yelum Residência"
+    elif "yelum" in cabecalho_lower: dados["seguradora"] = "Yelum"
+    elif "hdi" in cabecalho_lower: dados["seguradora"] = "HDI"
 
+    try:
         # 2. EXTRAÇÃO DA COMISSÃO (%) PELO NOME DO ARQUIVO
         m_comissao = re.search(r"(\d+(?:,\d+)?)\s*%", nome_arquivo)
         if m_comissao: dados["comissao_pct"] = m_comissao.group(1) + "%"
@@ -567,15 +568,7 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
                 if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
 
             # 2. MODELO DO CARRO (Estratégia Multicamada com Limpeza)
-            # 2. MODELO DO CARRO (Estratégia Multicamada com Limpeza)
             m_mod = re.search(r"([A-Z0-9\s\.\-\/\(\)]+?\((?:Flex|Gasolina|Diesel|Alcool|Eletrico|Híbrido)\))", texto_completo, re.IGNORECASE)
-            if m_mod: 
-                modelo_bruto = m_mod.group(1).strip()
-                # Corta o "o/Modelo" (e qualquer coisa antes dele) se existir
-                modelo_limpo = re.sub(r"^.*?o/Modelo[\r\n\s]*", "", modelo_bruto, flags=re.IGNORECASE | re.DOTALL)
-                # Corta o código FIPE inicial (ex: "003478-9 ")
-                modelo_limpo = re.sub(r"^\d{6}-\d[\r\n\s]*", "", modelo_limpo).strip()
-                dados["modelo_carro"] = modelo_limpo
             if m_mod: 
                 modelo_bruto = m_mod.group(1).strip()
                 # Corta o "o/Modelo" (e qualquer coisa antes dele) se existir
@@ -590,12 +583,6 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
 
             if not dados["modelo_carro"]:
                 m_mod_brand = re.search(r"\b(?:PALIO|COMPASS|ARGO|HB20|MARCH|ONIX|KWID|RENEGADE|COROLLA|CIVIC|HRV|FIESTA|KA|FOX|POLO|JETTA|GOL|SAVEIRO|STRADA|TORO|TERRITORY|TRACKER|CRONOS|MOBI|CRETA|T-CROSS|NIVUS)\b[^\n]+", texto_completo, re.IGNORECASE)
-                if m_mod_brand: 
-                    modelo_sujo = m_mod_brand.group(0).strip()
-                    # Aplica a mesma limpeza por segurança
-                    modelo_limpo = re.sub(r"^.*?o/Modelo[\r\n\s]*", "", modelo_sujo, flags=re.IGNORECASE | re.DOTALL)
-                    modelo_limpo = re.sub(r"^\d{6}-\d[\r\n\s]*", "", modelo_limpo).strip()
-                    dados["modelo_carro"] = modelo_limpo
                 if m_mod_brand: 
                     modelo_sujo = m_mod_brand.group(0).strip()
                     # Aplica a mesma limpeza por segurança
