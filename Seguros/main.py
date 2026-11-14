@@ -360,9 +360,14 @@ RE_DOCUMENTO = re.compile(
     r"(\d{3}\.?\d{3}\.?\d{3}-\d{2})"               # CPF formatado ("123.456.789-01" ou "123456789-01")
     r"|(\d{2}\.?\d{3}\.?\d{3}/\d{4}-\d{2})"        # CNPJ formatado ("12.345.678/0001-90" ou "12345678/0001-90")
     r"|CPF\s*[:\-]?\s*(\d{11})\b"                  # CPF sem pontuação, logo após o rótulo
-    r"|CNPJ\s*[:\-]?\s*(\d{14})\b",                # CNPJ sem pontuação, logo após o rótulo
+    r"|CNPJ\s*[:\-]?\s*(\d{14})\b"                 # CNPJ sem pontuação, logo após o rótulo
+    r"|(?:F[íi]sica|Jur[íi]dica)\s+(\d{11}|\d{14})\b",   # Suhai: "ROGER ... Física 12345678901"
     re.IGNORECASE,
 )
+
+# Linhas que pertencem à SEGURADORA (rodapé/cabeçalho com o CNPJ dela) — documento nessas linhas não é do cliente
+RE_LINHA_SEGURADORA = re.compile(r"segurador[ao]|seguros\s*s[./]?a|cia\.?\s*de\s*seguros|companhia\s*de\s*seguros"
+                                 r"|^\s*CNPJ:\s*\d{14}\s+Data:", re.IGNORECASE)
 
 
 def extrair_documento_segurado(texto_completo):
@@ -375,6 +380,10 @@ def extrair_documento_segurado(texto_completo):
     for m_rotulo in re.finditer(rotulos, texto_completo, re.IGNORECASE):
         janela = texto_completo[m_rotulo.start(): m_rotulo.start() + 300]
         for m in RE_DOCUMENTO.finditer(janela):
+            inicio = janela.rfind("\n", 0, m.start()) + 1
+            fim = janela.find("\n", m.end())
+            if RE_LINHA_SEGURADORA.search(janela[inicio: fim if fim != -1 else None]):
+                continue   # ex.: "Tokio Marine Seguradora S.A. - CNPJ 33.164.021/0001-00"
             doc = so_digitos(next(g for g in m.groups() if g))
             if len(doc) == 11 and cpf_valido(doc):
                 cpfs.append(doc)
@@ -1631,6 +1640,13 @@ def ordenar_planilha_por_vencimento(sheet):
     fim = gspread.utils.rowcol_to_a1(len(todos_dados), largura)
     sheet.update(range_name=f"A1:{fim}", values=[cabecalho] + linhas)
     print(f"Aba '{sheet.title}' ordenada com sucesso pelo Dia do Vencimento.")
+
+    # O filtro antigo da planilha cobria só A:M. Ordenar por ele move A:M e deixa N:T para trás,
+    # separando as colunas do mesmo registro. Por isso o filtro passa a cobrir TODAS as colunas usadas.
+    try:
+        sheet.set_basic_filter(f"A1:{fim}")
+    except Exception as e:
+        print(f"⚠️ Não foi possível ajustar o filtro da aba '{sheet.title}': {e}")
 
 
 # =======================================================
