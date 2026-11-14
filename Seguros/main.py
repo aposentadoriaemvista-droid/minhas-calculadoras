@@ -180,6 +180,7 @@ PALAVRAS_RAMO = {
     "viagem": "Viagem",
     "residencial": "Residencial", "residencia": "Residencial", "residência": "Residencial",
     "empresarial": "Empresarial", "pme": "Empresarial",
+    "vida": "Vida",
 }
 
 
@@ -255,7 +256,11 @@ def interpretar_nome_arquivo(nome_arquivo):
 # =======================================================
 def identificar_seguradora(texto_completo):
     """Retorna (seguradora, ramo_sugerido). O ramo só vem preenchido quando o próprio layout já o revela."""
-    cabecalho_lower = texto_completo[:1000].lower()
+    # Renovação de outra seguradora: o PDF cita a seguradora ANTERIOR no topo. Esses trechos são ignorados.
+    cabecalho = texto_completo[:1500]
+    cabecalho = re.sub(r"Seguradora\s+Sucursal\s+Ap[óo]lice\s+Item\s*\n[^\n]*", " ", cabecalho, flags=re.IGNORECASE)
+    cabecalho = re.sub(r"(?:Cia|Seguradora|Congênere)\s+anterior:?[^\n]*", " ", cabecalho, flags=re.IGNORECASE)
+    cabecalho_lower = cabecalho[:1000].lower()
     texto_lower = texto_completo.lower()
 
     # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
@@ -296,7 +301,8 @@ RE_RAMO_AUTO = (r"\bchassi\b|\bfipe\b|\bplaca\b[\s:/A-Z]{0,20}[A-Z]{3}-?\d[A-Z0-
                 r"|ano\s*fab|ano\s*/\s*modelo|marca\s*/\s*(?:tipo|modelo)")
 RE_RAMO_VIAGEM = r"seguro\s+viagem|assist[êe]ncia\s+(?:em\s+)?viagem|pa[ií]s\s+de\s+destino|data\s+de\s+embarque|\btravel\b"
 RE_RAMO_RESIDENCIAL = r"ramo:\s*14\b|seguro\s+resid|resid[êe]ncia\s+habitual|\bresidencial\b|\bresid[êe]ncia\b"
-RE_RAMO_EMPRESARIAL = r"ramo:\s*18\b|empresarial|empresa\s*pme|\bpme\b"
+RE_RAMO_EMPRESARIAL = r"ramo:\s*18\b|empresarial|empresa\s*pme|\bpme\b|modalidade:\s*\d+\s*-\s*novo empresa"
+RE_RAMO_VIDA = r"seguro\s+de\s+vida|vida\s+individual|acidentes\s+pessoais\s+individual"
 
 
 def identificar_ramo(texto_completo, info_arquivo, ramo_sugerido):
@@ -315,11 +321,11 @@ def identificar_ramo(texto_completo, info_arquivo, ramo_sugerido):
     # O cabeçalho é mais confiável que o texto todo: um seguro empresarial cita "residência" nas condições gerais,
     # mas o título diz "EMPRESARIAL".
     cabecalho = texto_completo[:1500]
-    for trecho, ordem in ((cabecalho, ("Viagem", "Empresarial", "Residencial")),
-                          (texto_completo, ("Viagem", "Residencial", "Empresarial"))):
+    for trecho, ordem in ((cabecalho, ("Viagem", "Vida", "Empresarial", "Residencial")),
+                          (texto_completo, ("Viagem", "Residencial", "Empresarial", "Vida"))):
         for ramo in ordem:
             padrao = {"Viagem": RE_RAMO_VIAGEM, "Residencial": RE_RAMO_RESIDENCIAL,
-                      "Empresarial": RE_RAMO_EMPRESARIAL}[ramo]
+                      "Empresarial": RE_RAMO_EMPRESARIAL, "Vida": RE_RAMO_VIDA}[ramo]
             if re.search(padrao, trecho, re.IGNORECASE):
                 return ramo
     return "Não Identificado"
@@ -351,8 +357,8 @@ def cnpj_valido(cnpj):
 
 
 RE_DOCUMENTO = re.compile(
-    r"(\d{3}\.\d{3}\.\d{3}-\d{2})"                 # CPF formatado
-    r"|(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})"          # CNPJ formatado
+    r"(\d{3}\.?\d{3}\.?\d{3}-\d{2})"               # CPF formatado ("123.456.789-01" ou "123456789-01")
+    r"|(\d{2}\.?\d{3}\.?\d{3}/\d{4}-\d{2})"        # CNPJ formatado ("12.345.678/0001-90" ou "12345678/0001-90")
     r"|CPF\s*[:\-]?\s*(\d{11})\b"                  # CPF sem pontuação, logo após o rótulo
     r"|CNPJ\s*[:\-]?\s*(\d{14})\b",                # CNPJ sem pontuação, logo após o rótulo
     re.IGNORECASE,
@@ -500,6 +506,38 @@ def _extrair_layout_porto(texto_completo, ctx, dados):
     # Endosso identificado pelo texto (ex.: SUBSTITUIÇÃO) num arquivo fora do padrão
     if eh_endosso and ctx["movimento"] == "Emissão" and not ctx["padrao_ok"]:
         ctx["tipo_documento"], ctx["movimento"] = "Endosso", "Endosso"
+    return dados
+
+
+def extrair_porto_re(texto_completo, ctx, dados):
+    """Porto Seguro Residencial e Empresarial (mesmo layout: 'DEMONSTRATIVO DE PRÊMIO GERAL')."""
+    m_ap = re.search(r"PROPOSTA DE SEGURO\s+(\d{6,})", texto_completo)
+    if m_ap: dados["numero_apolice"] = m_ap.group(1)
+    # "VIGÊNCIA DAS 00:01 DO DIA ..." e a data vem na linha de baixo
+    m_venc = re.search(r"VIG[ÊE]NCIA DAS 00:01 DO DIA[^\n]*\n[^\n]*?(\d{2}/\d{2}/\d{4})", texto_completo)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+    # Colunas: líquido coberturas | líquido cláusulas | LÍQUIDO TOTAL | custo apólice | IOF | PRÊMIO TOTAL
+    valores = valores_abaixo_do_cabecalho(texto_completo, r"DEMONSTRATIVO DE PR[ÊE]MIO GERAL\s*\n[^\n]*PR[ÊE]MIO TOTAL")
+    if len(valores) >= 3:
+        dados["premio_liquido"], dados["premio_total"] = valores[2], valores[-1]
+    m_pag = re.search(r"FORMA DE PAGAMENTO\s*\n\d+\s*-\s*(\d{1,2})\s*x\s*([^\n(]+)", texto_completo)
+    if m_pag:
+        dados["parcelas"], dados["forma_pagamento"] = m_pag.group(1), m_pag.group(2).strip()
+    return dados
+
+
+def extrair_porto_vida(texto_completo, ctx, dados):
+    """Porto Seguro Vida / Acidentes Pessoais Individual."""
+    m_ap = re.search(r"AP[ÓO]LICE N[ºo°]\s*([\d\.]+)", texto_completo)
+    if m_ap: dados["numero_apolice"] = m_ap.group(1)
+    m_venc = re.search(r"A PARTIR DAS 24 HORAS DO DIA\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+    valores = valores_abaixo_do_cabecalho(texto_completo, r"PR[ÊE]MIO LIQUIDO\s+ADICIONAL FRACIONAMENTO[^\n]*VALOR TOTAL")
+    if len(valores) >= 2:
+        dados["premio_liquido"], dados["premio_total"] = valores[0], valores[-1]
+    m_pag = re.search(r"VALOR DAS PARCELAS\s*\n(\d{1,2})\s+([A-ZÀ-Ú ]+?)\s+\d", texto_completo)
+    if m_pag:
+        dados["parcelas"], dados["forma_pagamento"] = m_pag.group(1), m_pag.group(2).strip()
     return dados
 
 
@@ -804,7 +842,7 @@ def _premio_layout_yelum(texto_completo, dados):
     'Prêmio Líquido ... Prêmio Total ... Juros(%)' traz os valores; o líquido é o 1º e o total é o
     penúltimo (o último é o Juros %).
     """
-    m_cab = re.search(r"Pr[êe]mio\s*L[íi]quido[^\n]*Juros\s*\(%\)\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
+    m_cab = re.search(r"Pr[êe]mio\s*L[íi]quido[^\n]*Juros\s*\(?%\)?\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
     if m_cab:
         # Cancelamentos usam "-" nas colunas vazias: "R$796,15 - - - R$ -796,15 -"
         tokens = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}|(?<!\S)-(?!\S)", m_cab.group(1).replace("R$", " "))
@@ -883,6 +921,17 @@ def extrair_yelum_residencial(texto_completo, ctx, dados):
         else:
             m_parc_simples = re.search(r"^(\d+)", pag_texto)
             if m_parc_simples: dados["parcelas"] = m_parc_simples.group(1)
+
+    # Layout com colunas na mesma linha do "Tipo de Cobrança": o último valor da linha de prêmios é o Juros %,
+    # então usamos a leitura por colunas (líquido = 1ª, total = 5ª) e "1+5 - Cartão de Crédito - R$81,56"
+    copia = dict(dados, premio_total="", premio_liquido="")
+    _premio_layout_yelum(texto_completo, copia)
+    if copia["premio_total"]:
+        dados["premio_liquido"], dados["premio_total"] = copia["premio_liquido"], copia["premio_total"]
+    m_soma = re.search(r"\n(\d{1,2})\+(\d{1,2})\s*-\s*([A-Za-zÀ-ÿ ]+?)\s*-", texto_completo)
+    if m_soma:
+        dados["parcelas"] = str(int(m_soma.group(1)) + int(m_soma.group(2)))
+        dados["forma_pagamento"] = m_soma.group(3).strip()
     return dados
 
 
@@ -1042,6 +1091,9 @@ def extrair_tokio_auto(texto_completo, ctx, dados):
         m_tel = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
         if m_tel: dados["telefone"] = so_digitos(m_tel.group(0))
 
+        if not dados["modelo_carro"]:   # Tokio Moto: "Fabricante Veículo" / "ZONTES T310"
+            m_fab = re.search(r"Fabricante\s+Ve[íi]culo\s*\n([^\n]+)", texto_completo)
+            if m_fab: dados["modelo_carro"] = m_fab.group(1).strip()
         m_mod = re.search(r"(?:FORD|CHEVROLET|FIAT|VOLKSWAGEN|HYUNDAI|TOYOTA|HONDA|RENAULT|NISSAN|PEUGEOT|CITROEN|JEEP|MITSUBISHI)\s+[A-Za-zÀ-ÿ0-9\s\.\-]+?(?=\n\s*(?:Gasolina|Flex|Diesel|Alcool))", texto_completo, re.IGNORECASE)
         if m_mod:
             dados["modelo_carro"] = re.sub(r"\s*(?:Combustível|Lotação|Zero KM|Código FIPE).*", "", m_mod.group(0).strip(), flags=re.IGNORECASE).strip()
@@ -1187,7 +1239,8 @@ def extrair_generico(texto_completo, ctx, dados):
 # Se o ramo do PDF não tiver função própria, usa-se a de "Auto" da seguradora (comportamento antigo)
 # e a linha sai marcada para revisão.
 EXTRATORES = {
-    "Porto Seguro": {"Auto": extrair_porto_auto},
+    "Porto Seguro": {"Auto": extrair_porto_auto, "Residencial": extrair_porto_re,
+                     "Empresarial": extrair_porto_re, "Vida": extrair_porto_vida},
     "Azul":         {"Auto": extrair_azul_auto},
     "Bradesco":     {"Auto": extrair_bradesco_auto, "Residencial": extrair_bradesco_residencial},
     "HDI":          {"Auto": extrair_hdi_auto},
@@ -1308,10 +1361,10 @@ def encontrar_telefone(texto_completo):
             seguinte = linhas[i + 1]
             if re.search(PALAVRAS_LINHA_NAO_CLIENTE, seguinte, re.IGNORECASE):
                 continue
-            for candidato in re.findall(r"\(?\d{2}\)?[\s\-]?9?\d{4}-?\d{4}", seguinte):
-                tel = normalizar_telefone(candidato)
-                if tel:
-                    return tel
+            validos = [t for t in (normalizar_telefone(c) for c in
+                                   re.findall(r"(?<!\d)\(?\d{2}\)?[\s\-]?9?\d{4}-?\d{4}", seguinte)) if t]
+            if validos:   # "RESIDENCIAL CELULAR COMERCIAL": prefere o celular (11 dígitos)
+                return next((t for t in validos if len(t) == 11), validos[0])
 
     # 3. Sem rótulo: só aceita número formatado com parênteses ou hífen (evita RG, Renavam, protocolos)
     return primeiro_valido(r"(\(\d{2}\)\s*9?\d{4}-?\d{4}|\b\d{2}\s?9\d{4}-\d{4}\b)")
@@ -1480,7 +1533,9 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
     dados["movimento"] = ctx["movimento"]
 
     if dados["tipo_seguro"] == "Auto":
-        dados["observacoes"] = dados["modelo_carro"] or "Modelo não identificado"
+        # Corta campos que vêm grudados no modelo: "... Produto: Automoveis 1211", "... Chassi: 3N1B...", "... Emissão: 30/09"
+        modelo = re.split(r"\s+(?:Produto|Emiss[ãa]o|Chassi|Data)\s*:", dados["modelo_carro"])[0].strip()
+        dados["observacoes"] = modelo or "Modelo não identificado"
     else:
         dados["placa"] = ""   # evita "placas" falsas em seguros que não são de veículo
         dados["observacoes"] = f"Seguro {dados['tipo_seguro']}" if dados["tipo_seguro"] != "Não Identificado" \
@@ -1652,6 +1707,14 @@ def processar_fluxo():
         print(f"Processando arquivo: {file_name}")
 
         try:
+            # Proteção contra duas execuções ao mesmo tempo: se outra execução já tirou o PDF da pasta
+            # de entrada, ele já foi lançado — não lança de novo.
+            pais = drive_service.files().get(fileId=file_id, fields="parents").execute().get("parents", [])
+            if FOLDER_ENTRADA_ID not in pais:
+                print(f"⏭️ Já processado por outra execução: {file_name}")
+                resumo["duplicados"] += 1
+                continue
+
             dados = extrair_dados_pdf(baixar_pdf(drive_service, file_id), file_name)
             if dados is None:
                 resumo["ignorados"] += 1

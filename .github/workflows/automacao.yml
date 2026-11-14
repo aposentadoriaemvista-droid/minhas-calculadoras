@@ -5,6 +5,12 @@ on:
     - cron: '0 */12 * * *'
   workflow_dispatch:
 
+# Nunca rodar duas execuções ao mesmo tempo (evita lançamentos duplicados).
+# Uma nova execução espera a anterior terminar, em vez de rodar junto.
+concurrency:
+  group: leitor-apolices
+  cancel-in-progress: false
+
 jobs:
   run-robot:
     runs-on: ubuntu-latest
