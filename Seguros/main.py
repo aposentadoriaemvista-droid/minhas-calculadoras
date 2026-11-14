@@ -143,6 +143,22 @@ def formatar_valor(valor):
     return ("-" if numero < 0 else "") + texto
 
 
+def valor_para_numero(valor):
+    """'1.805,91' -> 1805.91 ; '-796,15' -> -796.15 ; '24,80%' -> 24.8 ; vazio/inválido -> None"""
+    bruto = (valor or "").replace("R$", "").replace("%", "").replace(" ", "")
+    if not re.fullmatch(r"-?[\d\.]*\d(?:,\d+)?", bruto):
+        return None
+    return float(bruto.replace(".", "").replace(",", "."))
+
+
+def calcular_comissao(premio_liquido, comissao_pct):
+    """Comissão = líquido × % , no formato brasileiro ('447,85'). Se faltar algum dos dois, '0,00'."""
+    liquido, pct = valor_para_numero(premio_liquido), valor_para_numero(comissao_pct)
+    if liquido is None or pct is None:
+        return "0,00"
+    return formatar_valor(f"{liquido * pct / 100:.2f}".replace(".", ","))
+
+
 def agora_texto():
     try:
         from zoneinfo import ZoneInfo
@@ -1563,6 +1579,9 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
     elif dados["forma_pagamento"]:
         dados["pagamento"] = dados["forma_pagamento"]
 
+    # Comissão = Prêmio Líquido × Comissão % (restituição negativa gera estorno negativo); sem dado -> 0,00
+    dados["comissao"] = calcular_comissao(dados["premio_liquido"], dados["comissao_pct"])
+
     # 9. ID do cliente, conferência e chave anti-duplicidade
     dados["id_cliente"] = gerar_id_cliente(dados["cpf_cnpj"])
     dados["conferencia"] = verificar_conferencia(dados, ctx)
@@ -1788,7 +1807,7 @@ CAMPOS_TESTE = [
     ("arquivo", "Arquivo"), ("seguradora", "Seguradora"), ("tipo_seguro", "Tipo de Seguro"),
     ("tipo_documento", "Tipo Documento"), ("movimento", "Movimento"), ("segurado", "Segurado"),
     ("data_vigencia", "Vigência"), ("numero_apolice", "Nº Apólice"), ("premio_total", "Prêmio Total"),
-    ("premio_liquido", "Prêmio Líquido"), ("comissao_pct", "Comissão %"), ("placa", "Placa"),
+    ("premio_liquido", "Prêmio Líquido"), ("comissao_pct", "Comissão %"), ("comissao", "Comissão"), ("placa", "Placa"),
     ("observacoes", "Observações"), ("email", "E-mail"), ("telefone", "Telefone"),
     ("pagamento", "Pagamento"), ("cpf_encontrado", "CPF encontrado"), ("extrator", "Extrator"),
     ("conferencia", "Conferência"),
