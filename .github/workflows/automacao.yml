@@ -32,5 +32,6 @@ jobs:
           FOLDER_ENTRADA_ID: ${{ secrets.FOLDER_ENTRADA_ID }}
           FOLDER_PROCESSADOS_ID: ${{ secrets.FOLDER_PROCESSADOS_ID }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          CPF_SALT: ${{ secrets.CPF_SALT }}
         run: |
           python main.py
