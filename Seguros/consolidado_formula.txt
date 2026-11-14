@@ -1,0 +1,58 @@
+FÓRMULA DA ABA "Consolidado" — colar na célula A1 (apague antes o conteúdo antigo da aba inteira)
+===============================================================================================
+
+O que ela faz:
+- Junta as abas Janeiro..Dezembro (colunas A até S), com a coluna "Mês" na frente.
+- Só traz linhas com Segurado preenchido.
+- REMOVE DUPLICADOS pela coluna "Chave" (S): mesmo que o robô lance a mesma apólice duas vezes,
+  o Data Studio vê só uma. Linhas antigas sem chave nunca são removidas.
+- Traz as colunas novas: Pagamento, Tipo de Seguro, Tipo Documento, Movimento e ID Cliente.
+- Ordem igual à anterior: Dezembro primeiro, e dentro do mês as últimas linhas primeiro.
+- NÃO traz CPF, Conferência, Chave nem nome do arquivo (não interessam ao dashboard).
+
+
+VERSÃO PARA PLANILHA EM PORTUGUÊS (separador ";")  ← use esta se suas fórmulas usam ";"
+---------------------------------------------------------------------------------------
+=LET(
+  f; LAMBDA(aba; mes; LET(x; FILTER(aba; INDEX(aba;;3)<>""); IFERROR(HSTACK(ARRAYFORMULA(IF(SEQUENCE(ROWS(x)); mes)); x); MAKEARRAY(1; 20; LAMBDA(l; c; ""))))));
+  bruto; VSTACK(
+    f(Janeiro!A2:S; "Janeiro"); f(Fevereiro!A2:S; "Fevereiro"); f('Março'!A2:S; "Março");
+    f(Abril!A2:S; "Abril"); f(Maio!A2:S; "Maio"); f(Junho!A2:S; "Junho");
+    f(Julho!A2:S; "Julho"); f(Agosto!A2:S; "Agosto"); f(Setembro!A2:S; "Setembro");
+    f(Outubro!A2:S; "Outubro"); f(Novembro!A2:S; "Novembro"); f(Dezembro!A2:S; "Dezembro"));
+  dados; FILTER(bruto; INDEX(bruto;;4)<>"");
+  ordem; SEQUENCE(ROWS(dados));
+  chave; ARRAYFORMULA(IF(INDEX(dados;;20)=""; "LINHA-"&ordem; INDEX(dados;;20)));
+  unicos; SORTN(HSTACK(dados; ordem; chave); 9^9; 2; 22; TRUE);
+  final; SORT(unicos; 21; FALSE);
+  VSTACK(
+    SPLIT("Mês|Vencimento|Apolice|Segurado|Observações|CIA|Premio Total|Premio Liquido|Comissão|Comissão(%)|Placa|Email|Telefone|Pagamento|Tipo de Seguro|Tipo Documento|Movimento|ID Cliente|Ordem"; "|");
+    CHOOSECOLS(final; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 21)
+  )
+)
+
+
+VERSÃO PARA PLANILHA EM INGLÊS (separador ",")  ← use esta só se a de cima der erro de sintaxe
+--------------------------------------------------------------------------------------------
+=LET(
+  f, LAMBDA(aba, mes, LET(x, FILTER(aba, INDEX(aba,,3)<>""), IFERROR(HSTACK(ARRAYFORMULA(IF(SEQUENCE(ROWS(x)), mes)), x), MAKEARRAY(1, 20, LAMBDA(l, c, ""))))),
+  bruto, VSTACK(
+    f(Janeiro!A2:S, "Janeiro"), f(Fevereiro!A2:S, "Fevereiro"), f('Março'!A2:S, "Março"),
+    f(Abril!A2:S, "Abril"), f(Maio!A2:S, "Maio"), f(Junho!A2:S, "Junho"),
+    f(Julho!A2:S, "Julho"), f(Agosto!A2:S, "Agosto"), f(Setembro!A2:S, "Setembro"),
+    f(Outubro!A2:S, "Outubro"), f(Novembro!A2:S, "Novembro"), f(Dezembro!A2:S, "Dezembro")),
+  dados, FILTER(bruto, INDEX(bruto,,4)<>""),
+  ordem, SEQUENCE(ROWS(dados)),
+  chave, ARRAYFORMULA(IF(INDEX(dados,,20)="", "LINHA-"&ordem, INDEX(dados,,20))),
+  unicos, SORTN(HSTACK(dados, ordem, chave), 9^9, 2, 22, TRUE),
+  final, SORT(unicos, 21, FALSE),
+  VSTACK(
+    SPLIT("Mês|Vencimento|Apolice|Segurado|Observações|CIA|Premio Total|Premio Liquido|Comissão|Comissão(%)|Placa|Email|Telefone|Pagamento|Tipo de Seguro|Tipo Documento|Movimento|ID Cliente|Ordem", "|"),
+    CHOOSECOLS(final, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21)
+  )
+)
+
+
+Mapa das colunas internas (para manutenção):
+  1 = Mês | 2..20 = colunas A..S da aba do mês (2=Vencimento, 4=Segurado, 15=Tipo de Seguro,
+  18=ID Cliente, 19=Conferência, 20=Chave) | 21 = ordem original | 22 = chave usada para remover duplicados

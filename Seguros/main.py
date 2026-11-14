@@ -1652,6 +1652,14 @@ def processar_fluxo():
         print(f"Processando arquivo: {file_name}")
 
         try:
+            # Proteção contra duas execuções ao mesmo tempo: se outra execução já tirou o PDF da pasta
+            # de entrada, ele já foi lançado — não lança de novo.
+            pais = drive_service.files().get(fileId=file_id, fields="parents").execute().get("parents", [])
+            if FOLDER_ENTRADA_ID not in pais:
+                print(f"⏭️ Já processado por outra execução: {file_name}")
+                resumo["duplicados"] += 1
+                continue
+
             dados = extrair_dados_pdf(baixar_pdf(drive_service, file_id), file_name)
             if dados is None:
                 resumo["ignorados"] += 1
