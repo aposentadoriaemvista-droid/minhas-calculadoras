@@ -1,6 +1,8 @@
 import os
 import io
 import re
+import sys
+import csv
 import json
 import hmac
 import hashlib
@@ -9,9 +11,8 @@ from datetime import datetime
 
 import pdfplumber
 import gspread
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+# As bibliotecas do Google Drive são importadas só dentro das funções que as usam,
+# assim o modo de teste local (python main.py --local) roda sem credenciais.
 
 # =======================================================
 # CONFIGURAÇÕES
@@ -20,6 +21,7 @@ from googleapiclient.http import MediaIoBaseDownload
 # FOLDER_PROCESSADOS_ID = os.environ.get("FOLDER_PROCESSADOS_ID", "1E1guR7b5jJzfiO3fnbZzoLnnaTBnjGYd")
 # SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "14wh7QYAW-m60TxkWugF0Hasd3y6MptyjXE1U7rPSL4E")
 
+# No GitHub Actions os Secrets substituem estes valores padrão (a planilha padrão abaixo é a de TESTE)
 FOLDER_ENTRADA_ID = os.environ.get("FOLDER_ENTRADA_ID", "13dEtD5RTWQiyt1INASVqPgaIt9RKudFO")
 FOLDER_PROCESSADOS_ID = os.environ.get("FOLDER_PROCESSADOS_ID", "1E1guR7b5jJzfiO3fnbZzoLnnaTBnjGYd")
 SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "1j1zgXc0HLYIQAjaTplN4Jw-Az-76Fylk48HoOlY5JGs")
@@ -65,6 +67,9 @@ CABECALHO_MENSAL = [
     "Arquivo",           # T  (nome do PDF de origem)
 ]
 
+# Mostra no log qual extrator foi usado em cada arquivo (o modo local desliga para a saída ficar limpa)
+VERBOSO = True
+
 # Aba de controle: registra tudo que já foi lançado (é ela que impede lançamentos duplicados)
 ABA_CONTROLE = "Controle_Lancamentos"
 CABECALHO_CONTROLE = ["Chave", "Processado em", "Arquivo", "Aba", "Seguradora", "Nº Apólice", "Tipo Documento", "Situação"]
@@ -79,6 +84,9 @@ CABECALHO_CLIENTES = ["ID Cliente", "CPF/CNPJ", "Nome", "Primeiro registro", "Ar
 # =======================================================
 def conectar_google():
     """Cria os clientes do Drive e do Sheets (só é chamada quando o robô roda de verdade)."""
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
     credenciais_json = os.environ.get("GOOGLE_CREDENTIALS")
     if credenciais_json:
         creds = service_account.Credentials.from_service_account_info(json.loads(credenciais_json), scopes=SCOPES)
@@ -103,6 +111,36 @@ def remover_acentos(texto):
 
 def so_digitos(texto):
     return re.sub(r"\D", "", texto or "")
+
+
+RE_VALOR = r"-?\s?\d{1,3}(?:\.\d{3})*,\d{2}|-?\d+,\d{2}"
+
+
+def valores_abaixo_do_cabecalho(texto, padrao_cabecalho, linhas_a_procurar=3):
+    """
+    Muitos PDFs trazem os títulos numa linha e os valores na de baixo:
+        "Prêmio Líquido  Juros  IOF  Prêmio Total"
+        "-1.371,70       0,00   0,00 -1.371,70"
+    Devolve os valores (com sinal) da primeira linha com números logo abaixo do cabeçalho.
+    """
+    m = re.search(padrao_cabecalho + r"[^\n]*\n", texto, re.IGNORECASE)
+    if not m:
+        return []
+    for linha in texto[m.end():].split("\n")[:linhas_a_procurar]:
+        valores = [v.replace(" ", "") for v in re.findall(RE_VALOR, linha.replace("R$", " "))]
+        if valores:
+            return valores
+    return []
+
+
+def formatar_valor(valor):
+    """Padroniza para o formato brasileiro com sinal: '1211,50' -> '1.211,50'; '-796,15' fica igual."""
+    bruto = (valor or "").replace("R$", "").replace(" ", "")
+    if not re.fullmatch(r"-?[\d\.]+,\d{2}", bruto):
+        return valor
+    numero = float(bruto.replace(".", "").replace(",", "."))
+    texto = f"{abs(numero):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return ("-" if numero < 0 else "") + texto
 
 
 def agora_texto():
@@ -157,7 +195,9 @@ def interpretar_nome_arquivo(nome_arquivo):
     base = re.sub(r"\.pdf$", "", base, flags=re.IGNORECASE)
     base = re.sub(r"_texto$", "", base, flags=re.IGNORECASE)
     base = re.sub(r"\(\d+\)", " ", base)          # "(1)", "(2)" de cópias
-    base = re.sub(r"[_\s]+", " ", base).strip()
+    # Ao baixar do Drive o "%" costuma virar "_": "22_.pdf" significa 22%
+    base = re.sub(r"(\d+(?:[.,]\d+)?)\s*_", r"\1%", base)
+    base = re.sub(r"[_\s\[\]]+", " ", base).strip()
 
     m_pct = re.search(r"(\d+(?:[.,]\d+)?)\s*%", base)
     if m_pct:
@@ -190,6 +230,13 @@ def interpretar_nome_arquivo(nome_arquivo):
     if m_pct_resto:
         resto = resto[:m_pct_resto.start()]
 
+    # Prefixo opcional de ramo: "Proposta Seguro Viagem - NOME"
+    m_ramo_ini = re.match(r"\s*(?:seguro\s+)?(auto|autom[oó]vel|viagem|residencial|resid[eê]ncia|empresarial)\b\s*[-–:]\s*",
+                          resto, re.IGNORECASE)
+    if m_ramo_ini:
+        info["ramo"] = PALAVRAS_RAMO.get(m_ramo_ini.group(1).lower(), "")
+        resto = resto[m_ramo_ini.end():]
+
     # Sufixo opcional de ramo: "NOME - RESIDENCIAL" ou "NOME RESIDENCIAL"
     m_ramo = re.search(r"\s*[-–]?\s*\b(auto|autom[oó]vel|viagem|residencial|resid[eê]ncia|empresarial|pme)\s*[-–]?\s*$",
                        resto, re.IGNORECASE)
@@ -214,32 +261,39 @@ def identificar_seguradora(texto_completo):
     # A Azul usa o CNPJ da Porto, então a Azul DEVE ser testada primeiro
     if "azul seguros" in cabecalho_lower or "azul tradicional" in cabecalho_lower:
         return "Azul", ""
-    if "porto seguro" in cabecalho_lower or "auto sênior" in cabecalho_lower or "auto premium" in cabecalho_lower:
-        return "Porto Seguro", ""
-    if "suhai" in cabecalho_lower:
-        return "Suhai", ""
-    if "zurich" in cabecalho_lower:
-        return "Zurich", ""
-    if "allianz" in cabecalho_lower:
-        return "Allianz", ""
-    if "bradesco" in cabecalho_lower:
-        return "Bradesco", ""
-    if "susep: 1091" in cabecalho_lower or "suíça seguradora" in cabecalho_lower or "suica seguradora" in cabecalho_lower:
-        return "Suíça", ""
-    if "tokio marine" in cabecalho_lower:
-        return "Tokio Marine", ""
-    if "aliro" in cabecalho_lower:
-        return "Aliro", ""
-    if "yelum residencia" in texto_lower or ("yelum" in cabecalho_lower and "residencia" in texto_lower):
+    # Vence a seguradora cujo nome aparece PRIMEIRO no cabeçalho. Assim, "Cia anterior: PORTO SEGURO"
+    # numa proposta da Zurich não engana mais o robô.
+    assinaturas = {
+        "Porto Seguro": r"porto seguro|auto s[êe]nior|auto premium",
+        "Suhai": r"suhai",
+        "Zurich": r"zurich",
+        "Allianz": r"allianz",
+        "Bradesco": r"bradesco",
+        "Suíça": r"susep: 1091|su[íi]ça seguradora|suica seguradora",
+        "Tokio Marine": r"tokio marine",
+        "Aliro": r"aliro",
+        "Yelum": r"yelum",
+        "HDI": r"\bhdi\b",
+    }
+    posicoes = {}
+    for seguradora, padrao in assinaturas.items():
+        m = re.search(padrao, cabecalho_lower)
+        if m:
+            posicoes[seguradora] = m.start()
+    if not posicoes and "portoseguro.com.br" in texto_lower:   # ex.: endosso de Auto Frota
+        posicoes["Porto Seguro"] = 0
+    if not posicoes:
+        return "Não Identificada", ""
+
+    seguradora = min(posicoes, key=posicoes.get)
+    if seguradora == "Yelum" and ("yelum residencia" in texto_lower or "residencia" in texto_lower):
         return "Yelum", "Residencial"
-    if "yelum" in cabecalho_lower:
-        return "Yelum", ""
-    if "hdi" in cabecalho_lower:
-        return "HDI", ""
-    return "Não Identificada", ""
+    return seguradora, ""
 
 
-RE_RAMO_AUTO = r"\bchassi\b|\bfipe\b|\bplaca\b|ano\s*(?:de\s*)?fabrica|ano\s*fab|ano\s*/\s*modelo|marca\s*/\s*(?:tipo|modelo)"
+# Sinais FORTES de veículo. "placa" sozinha não vale ("Assistência de Placa Solar" aparece em seguro empresarial).
+RE_RAMO_AUTO = (r"\bchassi\b|\bfipe\b|\bplaca\b[\s:/A-Z]{0,20}[A-Z]{3}-?\d[A-Z0-9]\d{2}\b"
+                r"|ano\s*fab|ano\s*/\s*modelo|marca\s*/\s*(?:tipo|modelo)")
 RE_RAMO_VIAGEM = r"seguro\s+viagem|assist[êe]ncia\s+(?:em\s+)?viagem|pa[ií]s\s+de\s+destino|data\s+de\s+embarque|\btravel\b"
 RE_RAMO_RESIDENCIAL = r"ramo:\s*14\b|seguro\s+resid|resid[êe]ncia\s+habitual|\bresidencial\b|\bresid[êe]ncia\b"
 RE_RAMO_EMPRESARIAL = r"ramo:\s*18\b|empresarial|empresa\s*pme|\bpme\b"
@@ -258,12 +312,16 @@ def identificar_ramo(texto_completo, info_arquivo, ramo_sugerido):
         return ramo_sugerido
     if re.search(RE_RAMO_AUTO, texto_completo, re.IGNORECASE):
         return "Auto"
-    if re.search(RE_RAMO_VIAGEM, texto_completo, re.IGNORECASE):
-        return "Viagem"
-    if re.search(RE_RAMO_RESIDENCIAL, texto_completo, re.IGNORECASE):
-        return "Residencial"
-    if re.search(RE_RAMO_EMPRESARIAL, texto_completo, re.IGNORECASE):
-        return "Empresarial"
+    # O cabeçalho é mais confiável que o texto todo: um seguro empresarial cita "residência" nas condições gerais,
+    # mas o título diz "EMPRESARIAL".
+    cabecalho = texto_completo[:1500]
+    for trecho, ordem in ((cabecalho, ("Viagem", "Empresarial", "Residencial")),
+                          (texto_completo, ("Viagem", "Residencial", "Empresarial"))):
+        for ramo in ordem:
+            padrao = {"Viagem": RE_RAMO_VIAGEM, "Residencial": RE_RAMO_RESIDENCIAL,
+                      "Empresarial": RE_RAMO_EMPRESARIAL}[ramo]
+            if re.search(padrao, trecho, re.IGNORECASE):
+                return ramo
     return "Não Identificado"
 
 
@@ -307,13 +365,14 @@ def extrair_documento_segurado(texto_completo):
     ou da corretora). Prefere CPF; só usa CNPJ se não houver CPF. Todo número passa pelo dígito verificador.
     """
     cpfs, cnpjs = [], []
-    for m_rotulo in re.finditer(r"\b(?:segurad[oa](?!r)|proponente)", texto_completo, re.IGNORECASE):
+    rotulos = r"\b(?:segurad[oa](?!r)|proponente|nome\s*(?:completo)?\s*:|raz[ãa]o\s+social)"
+    for m_rotulo in re.finditer(rotulos, texto_completo, re.IGNORECASE):
         janela = texto_completo[m_rotulo.start(): m_rotulo.start() + 300]
         for m in RE_DOCUMENTO.finditer(janela):
             doc = so_digitos(next(g for g in m.groups() if g))
             if len(doc) == 11 and cpf_valido(doc):
                 cpfs.append(doc)
-            elif len(doc) == 14 and cnpj_valido(doc):
+            elif len(doc) == 14 and cnpj_valido(doc) and doc not in CNPJS_CORRETORA:
                 cnpjs.append(doc)
         if cpfs:
             return cpfs[0]
@@ -345,8 +404,28 @@ def gerar_id_cliente(documento):
 # =======================================================
 
 # ---------- PORTO SEGURO / AZUL (mesmo layout) ----------
+def _extrair_porto_frota(texto_completo, ctx, dados):
+    """Porto Seguro Auto Frota (endosso em formato de 'carta' com 'Valor líquido / Valor total')."""
+    m_venc = re.search(r"Vig[êe]ncia:\s*(\d{2}/\d{2}/\d{4})\s*AT[ÉE]", texto_completo, re.IGNORECASE)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+    liq = valores_abaixo_do_cabecalho(texto_completo, r"Valor l[íi]quido\s+Juros\s+IOF")
+    if liq: dados["premio_liquido"] = liq[0]
+    tot = valores_abaixo_do_cabecalho(texto_completo, r"Valor [àa] vista\s+Valor total")
+    if tot: dados["premio_total"] = tot[-1]
+    m_mod = re.search(r"Ve[íi]culo:\s*([^\n]+)", texto_completo, re.IGNORECASE)
+    if m_mod: dados["modelo_carro"] = m_mod.group(1).strip()
+    parcelas = re.findall(r"^(\d{1,2})\s+R\$\s*-?[\d\.]+,\d{2}\s+\d{2}/\d{2}/\d{4}", texto_completo, re.MULTILINE)
+    if parcelas: dados["parcelas"] = str(max(int(p) for p in parcelas))
+    m_forma = re.search(r"Forma de Parcelamento\s*\n(?!Parcela)([^\n]+)", texto_completo, re.IGNORECASE)
+    if m_forma: dados["forma_pagamento"] = m_forma.group(1).strip()
+    return dados
+
+
 def _extrair_layout_porto(texto_completo, ctx, dados):
     """Modelos Novos, Antigos, Premium, Sênior e Endosso da Porto e da Azul."""
+    if re.search(r"Valor l[íi]quido\s+Juros\s+IOF", texto_completo, re.IGNORECASE):
+        return _extrair_porto_frota(texto_completo, ctx, dados)
+
     eh_endosso = ctx["eh_endosso"] or "SUBSTITUICAO" in texto_completo.upper()
     eh_modelo_novo = "Dados da cotação" in texto_completo
 
@@ -374,7 +453,10 @@ def _extrair_layout_porto(texto_completo, ctx, dados):
 
     # 4 e 5. Veículo e valores
     if eh_modelo_novo:
-        m_mod = re.search(r"(?:\d{3,6}\-)?([A-ZÀ-ÿ0-9\s\.\-]+?)\s*(?:\|)?\s*\d{4}/\d{4}", texto_completo)
+        # Linha do veículo: "... 1144 - - VERSA SEDAN SL 1.6 16V FLEX 2015 / 2016"
+        m_mod = re.search(r"\b\d{3,6}\s*-\s*-\s*([^\n]+?)\s+\d{4}\s*/\s*\d{4}", texto_completo)
+        if not m_mod:
+            m_mod = re.search(r"(?:\d{3,6}\-)?([A-ZÀ-ÿ0-9\s\.\-]+?)\s*(?:\|)?\s*\d{4}/\d{4}", texto_completo)
         if m_mod:
             dados["modelo_carro"] = m_mod.group(1).strip()
 
@@ -460,8 +542,48 @@ def extrair_bradesco_auto(texto_completo, ctx, dados):
     m_parc = re.search(r"Quant\.\s*Parcelas:\s*(\d{1,2})", texto_completo, re.IGNORECASE)
     if m_parc: dados["parcelas"] = m_parc.group(1).lstrip("0")
 
-    m_pag = re.search(r"Demais Parcelas:\s*([A-ZÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
-    if m_pag: dados["forma_pagamento"] = m_pag.group(1).strip()
+    m_pag = re.search(r"Demais Parcelas:\s*(?!Valor)([A-ZÀ-ÿ ]+?)(?=\s+Valor|\n)", texto_completo, re.IGNORECASE)
+    if m_pag:
+        dados["forma_pagamento"] = m_pag.group(1).strip()
+    else:
+        # Pagamento à vista: a forma vem na linha da 1ª parcela ("... CONTA DÉBITO")
+        m_1a = re.search(r"1[ªa]\s*Parcela:\s*([^\n]+)", texto_completo, re.IGNORECASE)
+        linha = m_1a.group(1) if m_1a else ""
+        if re.search(r"conta\s*d[ée]bito|d[ée]bito\s*em\s*conta", linha, re.IGNORECASE):
+            dados["forma_pagamento"] = "Débito em Conta"
+        elif re.search(r"boleto|ficha|compensa", linha, re.IGNORECASE):
+            dados["forma_pagamento"] = "Boleto"
+        elif re.search(r"cart[ãa]o", linha, re.IGNORECASE):
+            dados["forma_pagamento"] = "Cartão de Crédito"
+
+    # Layout de APÓLICE do Bradesco: cabeçalhos numa linha e valores na linha de baixo
+    if "Sub-Total:" in texto_completo:
+        valores = valores_abaixo_do_cabecalho(texto_completo, r"Sub-Total:\s+IOF:\s+Pr[êe]mio Total:")
+        if len(valores) >= 3:
+            dados["premio_liquido"], dados["premio_total"] = valores[0], valores[-1]
+        m_mod = re.search(r"Marca/Tipo Ve[íi]culo\s+Ano de Fabrica[çc][ãa]o/Modelo\s*\n([^\n]+?)\s+\d{4}/\d{4}", texto_completo)
+        if m_mod: dados["modelo_carro"] = m_mod.group(1).strip()
+        m_forma = re.search(r"Tipo de Cobran[çc]a[^\n]*\n([A-Za-zÀ-ÿ ]+?)\s+\d", texto_completo)
+        if m_forma: dados["forma_pagamento"] = m_forma.group(1).strip()
+        m_parc = re.search(r"N[ºo°] de Presta[çc][õo]es[^\n]*\n(\d{1,2})\b", texto_completo)
+        if m_parc: dados["parcelas"] = m_parc.group(1)
+    return dados
+
+
+def extrair_bradesco_residencial(texto_completo, ctx, dados):
+    m_ap = re.search(r"Proposta\s*(?:\(cid:\d+\))?\s*N[ºo°]:\s*(\d+)", texto_completo, re.IGNORECASE)
+    if m_ap: dados["numero_apolice"] = m_ap.group(1)
+    m_venc = re.search(r"das 24 horas do dia\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+    m_liq = re.search(r"Pr[êe]mio Tarifa\s+([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+    if m_liq: dados["premio_liquido"] = m_liq.group(1)
+    m_tot = re.search(r"^Total\s+([\d\.]+,\d{2})", texto_completo, re.MULTILINE)
+    if m_tot: dados["premio_total"] = m_tot.group(1)
+    m_parc = re.search(r"Quantidade de Parcelas[^\n]*\n(\d{1,2})\s", texto_completo, re.IGNORECASE)
+    if m_parc: dados["parcelas"] = m_parc.group(1)
+    m_fp = re.search(r"Forma de Pagamento\s*\n[^\n]*?(Cart[ãa]o de Cr[ée]dito|D[ée]bito em Conta|Boleto|Carn[êe])",
+                     texto_completo, re.IGNORECASE)
+    if m_fp: dados["forma_pagamento"] = m_fp.group(1)
     return dados
 
 
@@ -496,7 +618,7 @@ def extrair_hdi_auto(texto_completo, ctx, dados):
     m_parc = re.search(r"Forma de Pagamento\s*:\s*(\d{1,2})\s*x", texto_completo, re.IGNORECASE)
     if m_parc: dados["parcelas"] = m_parc.group(1)
 
-    m_pag_forma = re.search(r"Tipo de Cobrança\s*:\s*([A-Za-zÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
+    m_pag_forma = re.search(r"Tipo de Cobrança\s*:\s*([A-Za-zÀ-ÿ ]+)", texto_completo, re.IGNORECASE)
     if m_pag_forma: dados["forma_pagamento"] = m_pag_forma.group(1).strip()
     return dados
 
@@ -524,6 +646,11 @@ def extrair_suica_auto(texto_completo, ctx, dados):
         modelo_bruto = re.sub(r"\s*/\s*(?:Carro|Moto|Caminh(?:ão|ao)).*$", "", modelo_bruto, flags=re.IGNORECASE).strip()
         modelo_bruto = re.sub(r"^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 .&'’-]*\s+-\s+", "", modelo_bruto).strip()
         dados["modelo_carro"] = modelo_bruto
+    if not dados["modelo_carro"]:
+        # Tabela: "Placa Código FIPE Modelo ..." -> "JAD4C19 023154-1 Nissan - KICKS SV 1.6 ... / Carro 2020 / 2020"
+        m_lin = re.search(r"\d{6}-\d\s+([^\n]+?)\s*/\s*(?:Carro|Moto|Caminh)", veic_text, re.IGNORECASE)
+        if m_lin:
+            dados["modelo_carro"] = re.sub(r"^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 .&'’-]*?\s+-\s+", "", m_lin.group(1)).strip()
 
     m_demo = re.search(r"DEMONSTRATIVO DE PR[ÊE]MIO([\s\S]{1,200}?)(?:Placa|FORMA DE PAGAMENTO|DADOS DO VE[ÍI]CULO)", texto_completo, re.IGNORECASE)
     if m_demo:
@@ -549,7 +676,52 @@ def extrair_suica_auto(texto_completo, ctx, dados):
 
 
 # ---------- ZURICH ----------
+MESES_POR_EXTENSO = {"janeiro": "01", "fevereiro": "02", "marco": "03", "abril": "04", "maio": "05", "junho": "06",
+                     "julho": "07", "agosto": "08", "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12"}
+
+
+def data_por_extenso(texto):
+    """'13 de Outubro de 2026' -> '13/10/2026'"""
+    m = re.search(r"(\d{1,2})\s+de\s+([A-Za-zçÇ]+)\s+de\s+(\d{4})", texto, re.IGNORECASE)
+    if not m:
+        return ""
+    mes = MESES_POR_EXTENSO.get(remover_acentos(m.group(2)).lower())
+    return f"{int(m.group(1)):02d}/{mes}/{m.group(3)}" if mes else ""
+
+
+def _extrair_zurich_apolice(texto_completo, ctx, dados):
+    """Layout 'Apólice / Endosso' da Zurich (diferente da proposta)."""
+    m_ap = re.search(r"Ap[óo]lice:\s*(\d+)", texto_completo)
+    if m_ap: dados["numero_apolice"] = m_ap.group(1)
+
+    m_venc = re.search(r"In[íi]cio:\s*24\s*hs?\s*do\s*dia\s*([^\n]+?)\s*T[ée]rmino", texto_completo, re.IGNORECASE)
+    if m_venc: dados["vencimento"] = data_por_extenso(m_venc.group(1))
+
+    m_seg = re.search(r"Nome Completo:\s*([^\n]+)", texto_completo, re.IGNORECASE)
+    if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
+
+    m_mod = re.search(r"Ve[íi]culo:\s*([^\n]+?)\s+Ano\s*/\s*Modelo", texto_completo, re.IGNORECASE)
+    if m_mod: dados["modelo_carro"] = m_mod.group(1).strip()
+
+    m_liq = re.search(r"Pr[êe]mio\s+l[íi]quido\s+R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+    if m_liq: dados["premio_liquido"] = m_liq.group(1)
+    m_tot = re.search(r"Pr[êe]mio\s+Total\s+R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+    if m_tot: dados["premio_total"] = m_tot.group(1)
+
+    m_fp = re.search(r"Forma de Pagamento:\s*([^\n+]+)", texto_completo, re.IGNORECASE)
+    if m_fp: dados["forma_pagamento"] = m_fp.group(1).strip()
+    # Tabela de parcelas em duas colunas: "01 Conforme ... 267,70 07 Conforme ... 267,63"
+    bloco = re.search(r"NP Vencimento Valor([\s\S]+?)(?:Titular|Corretor|Banco|$)", texto_completo)
+    if bloco:
+        numeros = re.findall(r"(?:^|\s)(\d{2})\s+(?:Conforme|\d{2}/\d{2}/\d{4})", bloco.group(1))
+        if numeros: dados["parcelas"] = str(max(int(n) for n in numeros))
+    return dados
+
+
 def extrair_zurich_auto(texto_completo, ctx, dados):
+    if "Apólice / Endosso" in texto_completo[:300] or "Conta do Prêmio" in texto_completo:
+        return _extrair_zurich_apolice(texto_completo, ctx, dados)
+
     m_apolice = re.search(r"Proposta:\s*(\d+)", texto_completo, re.IGNORECASE)
     if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
 
@@ -565,7 +737,7 @@ def extrair_zurich_auto(texto_completo, ctx, dados):
     m_mod = re.search(r"Veículo:\s*([^\n]+?)\s+Ano/Modelo:", texto_completo, re.IGNORECASE)
     if m_mod: dados["modelo_carro"] = m_mod.group(1).strip()
 
-    m_tot = re.search(r"Pr[êe]mio\s+Total\s*:\s*R\$\s*([\d\.,]+)", texto_completo, re.IGNORECASE)
+    m_tot = re.search(r"Pr[êe]mio\s+Total\s*:\s*R\$\s*(-?[\d\.,]+)", texto_completo, re.IGNORECASE)   # aceita restituição (negativo)
     if m_tot: dados["premio_total"] = m_tot.group(1).strip()
 
     # Prêmio líquido = total - IOF
@@ -587,8 +759,11 @@ def extrair_zurich_auto(texto_completo, ctx, dados):
     m_parc = re.search(r"Número de Parcelas:\s*(\d{1,2})", texto_completo, re.IGNORECASE)
     if m_parc: dados["parcelas"] = m_parc.group(1)
 
-    m_pag = re.search(r"Forma de Pagamento da Entrada:\s*([A-ZÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
+    m_pag = re.search(r"Forma de Pagamento da Entrada:\s*([A-ZÀ-ÿ ]+?)(?=\s+Valor|\n|$)", texto_completo, re.IGNORECASE)
     if m_pag: dados["forma_pagamento"] = m_pag.group(1).strip()
+    if not dados["forma_pagamento"]:   # endosso de restituição: "Forma pagamento demais parcelas: Transferencia Bancaria"
+        m_dem = re.search(r"Forma pagamento demais parcelas:\s*([^\n]+)", texto_completo, re.IGNORECASE)
+        if m_dem: dados["forma_pagamento"] = m_dem.group(1).strip()
     return dados
 
 
@@ -618,29 +793,57 @@ def extrair_yelum_auto(texto_completo, ctx, dados):
         modelo_bruto = m_mod.group(1).strip() if m_mod.lastindex else m_mod.group(0).strip()
         dados["modelo_carro"] = re.sub(r"\s+\d{4}/\d{4}.*", "", modelo_bruto).strip()
 
-    m_demo = re.search(r"DEMONSTRATIVO DE PRÊMIO[\s\S]*?Prêmio Líquido.*?Juros\(%\)([\s\S]*?)(?=FORMA DE PAGAMENTO)", texto_completo, re.IGNORECASE)
-    if m_demo:
-        valores_linha = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})", m_demo.group(1))
-        if len(valores_linha) >= 2:
-            dados["premio_liquido"] = valores_linha[0]
-            dados["premio_total"] = valores_linha[-1]
+    _premio_layout_yelum(texto_completo, dados)
+    _pagamento_layout_yelum(texto_completo, dados)
+    return dados
 
-    if not dados["premio_total"]:
+
+def _premio_layout_yelum(texto_completo, dados):
+    """
+    Yelum e Aliro (proposta e apólice): a linha logo abaixo do cabeçalho
+    'Prêmio Líquido ... Prêmio Total ... Juros(%)' traz os valores; o líquido é o 1º e o total é o
+    penúltimo (o último é o Juros %).
+    """
+    m_cab = re.search(r"Pr[êe]mio\s*L[íi]quido[^\n]*Juros\s*\(%\)\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
+    if m_cab:
+        # Cancelamentos usam "-" nas colunas vazias: "R$796,15 - - - R$ -796,15 -"
+        tokens = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}|(?<!\S)-(?!\S)", m_cab.group(1).replace("R$", " "))
+        valores = [t for t in tokens if t != "-"]
+        if len(tokens) == 6:            # todas as colunas presentes: líquido é a 1ª e total é a 5ª
+            dados["premio_liquido"], dados["premio_total"] = tokens[0], tokens[4]
+            return
+        if len(valores) >= 3:           # alguma coluna faltando: total é o penúltimo (o último é o Juros %)
+            dados["premio_liquido"], dados["premio_total"] = valores[0], valores[-2]
+            return
+    if not dados["premio_total"]:   # último recurso (posição no texto — frágil)
         valores_gerais = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})", texto_completo)
         if len(valores_gerais) >= 5:
             dados["premio_liquido"] = valores_gerais[0]
             dados["premio_total"] = valores_gerais[3]
 
-    m_parc_soma = re.search(r"(\d{1,2})\+(\d{1,2})\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ\s]+?)(?=\n|\s\d)", texto_completo, re.IGNORECASE)
+
+def _pagamento_layout_yelum(texto_completo, dados):
+    m_parc_soma = re.search(r"(\d{1,2})\+(\d{1,2})\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ ]+?)(?=\n|\s\d)", texto_completo, re.IGNORECASE)
+    m_parc = re.search(r"(\d{1,2})\s*x\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ ]+?)(?=\n|\s\d)", texto_completo, re.IGNORECASE)
+    m_vista = re.search(r"A\s*VISTA\s*\w*\s*-\s*([A-Za-zÀ-ÿ ]+?)(?=\s+-?[\d\.]+,\d{2}|\n)", texto_completo, re.IGNORECASE)
     if m_parc_soma:
         dados["parcelas"] = str(int(m_parc_soma.group(1)) + int(m_parc_soma.group(2)))
         dados["forma_pagamento"] = m_parc_soma.group(3).strip()
+    elif m_parc:
+        dados["parcelas"] = m_parc.group(1)
+        dados["forma_pagamento"] = m_parc.group(2).strip()
+    elif m_vista:   # "AVISTA FB - CARNÊ"
+        dados["parcelas"] = "1"
+        dados["forma_pagamento"] = m_vista.group(1).strip()
     else:
-        m_parc = re.search(r"(\d{1,2})\s*x\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ\s]+?)(?=\n|\s\d)", texto_completo, re.IGNORECASE)
-        if m_parc:
-            dados["parcelas"] = m_parc.group(1)
-            dados["forma_pagamento"] = m_parc.group(2).strip()
-    return dados
+        # Apólice: "Tipo de Cobrança ..." / "CARTAO DE CREDITO" / "Nº Parcelas ... 12"
+        # "CARTAO DE CREDITO" pode vir sozinho na linha ou seguido da 1ª parcela ("CARTAO DE CREDITO 0001 13/09/2026")
+        m_forma = re.search(r"Tipo de Cobran[çc]a[^\n]*\n(?:[^\n]*\n)?([A-ZÀ-Ú][A-ZÀ-Ú ]{5,}?)(?=\s+\d{4}\s|\n)", texto_completo)
+        if m_forma and "ATEN" not in m_forma.group(1):
+            dados["forma_pagamento"] = m_forma.group(1).strip()
+        m_qtd = (re.search(r"N[ºo°]\s*Parcelas[^\n]*\n(\d{1,2})\s+\d{4}\s", texto_completo, re.IGNORECASE)
+                 or re.search(r"N[ºo°]\s*Parcelas[\s\S]{0,120}?\n(\d{1,2})\n", texto_completo, re.IGNORECASE))
+        if m_qtd: dados["parcelas"] = m_qtd.group(1)
 
 
 def extrair_yelum_residencial(texto_completo, ctx, dados):
@@ -696,8 +899,13 @@ def extrair_aliro_auto(texto_completo, ctx, dados):
     m_seg = re.search(r"([A-ZÀ-ÿ\s]{3,60})\n\s*\d{3}\.\d{3}\.\d{3}-\d{2}", texto_completo)
     if m_seg: dados["segurado"] = m_seg.group(1).strip().upper()
 
-    # Modelo do carro (estratégia multicamada)
-    m_mod = re.search(r"([A-Z0-9\s\.\-\/\(\)]+?\((?:Flex|Gasolina|Diesel|Alcool|Eletrico|Híbrido)\))", texto_completo, re.IGNORECASE)
+    # Modelo do carro (estratégia multicamada). 1º: linha da tabela "015156-4 HB20 UNIQUE 1.0 12V MEC.(FLEX) 2018/2019"
+    m_lin = re.search(r"^\d{6}-\d\s+([^\n]+?)\s+\d{4}\s*/\s*\d{4}", texto_completo, re.MULTILINE)
+    if m_lin:
+        dados["modelo_carro"] = m_lin.group(1).strip()
+
+    m_mod = None if dados["modelo_carro"] else re.search(
+        r"([A-Z0-9\s\.\-\/\(\)]+?\((?:Flex|Gasolina|Diesel|Alcool|Eletrico|Híbrido)\))", texto_completo, re.IGNORECASE)
     if m_mod:
         dados["modelo_carro"] = _limpar_modelo_aliro(m_mod.group(1).strip())
 
@@ -713,28 +921,9 @@ def extrair_aliro_auto(texto_completo, ctx, dados):
     m_tel = re.search(r"\(?(\d{2})\)?\s*(9\d{4}[-\s]?\d{4})", texto_completo)
     if m_tel: dados["telefone"] = so_digitos(m_tel.group(0))
 
-    m_demo = re.search(r"Juros\(%\)([\s\S]*?)(?=FORMA DE PAGAMENTO)", texto_completo, re.IGNORECASE)
-    if m_demo:
-        valores_linha = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})", m_demo.group(1))
-        if len(valores_linha) >= 4:
-            dados["premio_liquido"] = valores_linha[0]
-            dados["premio_total"] = valores_linha[-2]
-
-    if not dados["premio_total"]:
-        valores = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})", texto_completo)
-        if len(valores) >= 5:
-            dados["premio_liquido"] = valores[0]
-            dados["premio_total"] = valores[3]
-
-    m_parc_soma = re.search(r"(\d{1,2})\+(\d{1,2})\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
-    if m_parc_soma:
-        dados["parcelas"] = str(int(m_parc_soma.group(1)) + int(m_parc_soma.group(2)))
-        dados["forma_pagamento"] = m_parc_soma.group(3).strip()
-    else:
-        m_parc = re.search(r"(\d{1,2})\s*x\s*\([A-Z]+\)\s*-\s*([A-Za-zÀ-ÿ\s]+)", texto_completo, re.IGNORECASE)
-        if m_parc:
-            dados["parcelas"] = m_parc.group(1)
-            dados["forma_pagamento"] = m_parc.group(2).strip()
+    # Aliro usa o mesmo layout de prêmio/pagamento da Yelum
+    _premio_layout_yelum(texto_completo, dados)
+    _pagamento_layout_yelum(texto_completo, dados)
     return dados
 
 
@@ -772,12 +961,40 @@ def extrair_suhai_auto(texto_completo, ctx, dados):
         if m_forma: dados["forma_pagamento"] = re.sub(r"[\r\n\s]+", " ", m_forma.group(1)).strip()
         m_parc = re.search(r"Parcelas[^\d]+(\d+)", block, re.IGNORECASE)
         if m_parc: dados["parcelas"] = m_parc.group(1)
+
+    # Proposta: "Forma de Pagamento Nº Parcelas ..." e na linha de baixo "Parcelado Cartão Recorrente 3 848,31 2.544,94"
+    m_linha_pag = re.search(r"Forma de Pagamento\s+N[ºo°]\s*Parcelas[^\n]*\n([A-Za-zÀ-ÿ ]+?)\s+(\d{1,2})\s+[\d\.]+,\d{2}",
+                            texto_completo, re.IGNORECASE)
+    if m_linha_pag:
+        dados["forma_pagamento"] = m_linha_pag.group(1).strip()
+        dados["parcelas"] = m_linha_pag.group(2)
+
+    # Layout de APÓLICE da Suhai (diferente da proposta)
+    if not dados["premio_total"]:
+        m_tot = re.search(r"Pr[êe]mio Total:\s*R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+        if m_tot: dados["premio_total"] = m_tot.group(1)
+    if not dados["premio_liquido"]:
+        m_liq = re.search(r"Pr[êe]mio\s*L[íi]quido\s*Total\s*R\$\s*([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+        if m_liq: dados["premio_liquido"] = m_liq.group(1)
+    if not dados["modelo_carro"]:
+        m_mod = re.search(r"Ano de Fabrica[çc][ãa]o/Modelo:\s*([^\n]+?)\s*0\s*km:", texto_completo, re.IGNORECASE)
+        if m_mod:
+            # "Mercedes-Benz -2019 - 2020/CLA-250 2.0 16V TB Aut." -> "Mercedes-Benz CLA-250 2.0 16V TB Aut."
+            dados["modelo_carro"] = re.sub(r"\s*-\s*\d{4}\s*-\s*\d{4}\s*/\s*", " ", m_mod.group(1)).strip()
+    if not dados["parcelas"]:
+        m_parc = re.search(r"N[°ºo]\s*de\s*parcelas:\s*(\d{1,2})", texto_completo, re.IGNORECASE)
+        if m_parc: dados["parcelas"] = m_parc.group(1)
+    if not dados["forma_pagamento"]:
+        m_fp = re.search(r"Forma de Pagamento:\s*([^\n]+)", texto_completo, re.IGNORECASE)
+        if m_fp: dados["forma_pagamento"] = m_fp.group(1).strip()
     return dados
 
 
 # ---------- TOKIO MARINE ----------
 def extrair_tokio_auto(texto_completo, ctx, dados):
-    if ctx["eh_endosso"]:
+    # Endosso e APÓLICE da Tokio usam o mesmo layout ("Prêmio Líquido Total: R$ ... Cobrança: ...")
+    layout_apolice = bool(re.search(r"Pr[êe]mio L[íi]quido Total:\s*R\$", texto_completo))
+    if ctx["eh_endosso"] or layout_apolice:
         m_apolice = re.search(r"Apólice:\s*(\d+)", texto_completo, re.IGNORECASE)
         if not m_apolice: m_apolice = re.search(r"Negócio:\s*(\d+)", texto_completo, re.IGNORECASE)
         if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
@@ -804,7 +1021,14 @@ def extrair_tokio_auto(texto_completo, ctx, dados):
         if m_pag: dados["forma_pagamento"] = m_pag.group(1).strip()
 
         parcelas_endosso = len(re.findall(r"Endosso\s*\|\s*\d{2}\s*\|", texto_completo, re.IGNORECASE))
-        dados["parcelas"] = str(parcelas_endosso) if parcelas_endosso > 0 else "1"
+        # Apólice: tabela "01 211,53 11/09/2026 Cartão de Crédito"
+        parcelas_apolice = re.findall(r"^(\d{2})\s+[\d\.]+,\d{2}\s+\d{2}/\d{2}/\d{4}", texto_completo, re.MULTILINE)
+        if parcelas_endosso > 0:
+            dados["parcelas"] = str(parcelas_endosso)
+        elif parcelas_apolice:
+            dados["parcelas"] = str(max(int(p) for p in parcelas_apolice))
+        else:
+            dados["parcelas"] = "1"
     else:
         m_apolice = re.search(r"Nº\s*Proposta/Negócio:\s*(\d+)", texto_completo, re.IGNORECASE)
         if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
@@ -828,6 +1052,50 @@ def extrair_tokio_auto(texto_completo, ctx, dados):
             dados["premio_total"] = m_pag.group(2)
             dados["forma_pagamento"] = m_pag.group(3).strip()
             dados["parcelas"] = m_pag.group(4)
+    return dados
+
+
+def extrair_tokio_empresarial(texto_completo, ctx, dados):
+    """Proposta de seguro Empresarial (Patrimonial Compreensivo) da Tokio Marine."""
+    m_ap = re.search(r"N[ºo°]\s*(?:da\s*)?Proposta[^\d\n]{0,15}(\d{5,})", texto_completo, re.IGNORECASE)
+    if m_ap: dados["numero_apolice"] = m_ap.group(1)
+    m_venc = re.search(r"Das\s*24h\d{0,2}\s*do\s*dia\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+    valores = valores_abaixo_do_cabecalho(texto_completo, r"Pr[êe]mio L[íi]quido R\$[^\n]*Pr[êe]mio Total R\$")
+    if len(valores) >= 2:
+        dados["premio_liquido"], dados["premio_total"] = valores[0], valores[-1]
+    # "Boleto (X) 1 + 11 435,61 ..." -> 12 parcelas no boleto
+    m_pag = re.search(r"\n([A-Za-zÀ-ÿ ]+?)\s*\(X\)\s*(\d{1,2})(?:\s*\+\s*(\d{1,2}))?", texto_completo)
+    if m_pag:
+        dados["forma_pagamento"] = m_pag.group(1).strip()
+        dados["parcelas"] = str(int(m_pag.group(2)) + int(m_pag.group(3) or 0))
+    return dados
+
+
+def extrair_tokio_viagem(texto_completo, ctx, dados):
+    """Proposta de Seguro Viagem da Tokio Marine."""
+    m_ap = re.search(r"N[ºo°]\s*Proposta:\s*(\d+)", texto_completo, re.IGNORECASE)
+    if m_ap: dados["numero_apolice"] = m_ap.group(1)
+
+    m_seg = re.search(r"Proponente\s+Nome Social\s+CPF[^\n]*\n([A-ZÀ-Ú ]+?)\s+\d{3}\.\d{3}\.\d{3}-\d{2}", texto_completo)
+    if m_seg: dados["segurado"] = m_seg.group(1).strip()
+
+    # "00h01 de09/10/2026 às 23h59 de19/10/2026" -> início da viagem
+    m_venc = re.search(r"Vig[êe]ncia Seguro Viagem[^\n]*\n[^\n]*?(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
+    if m_venc: dados["vencimento"] = m_venc.group(1)
+
+    m_val = re.search(r"Pr[êe]mio L[íi]quido \(R\$\)\s+Pr[êe]mio total \(R\$\)[^\n]*\n\s*([\d\.]+,\d{2})\s+([\d\.]+,\d{2})",
+                      texto_completo, re.IGNORECASE)
+    if m_val:
+        dados["premio_liquido"], dados["premio_total"] = m_val.group(1), m_val.group(2)
+
+    m_parc = re.search(r"N[ºo°]\s*Parcelas[^\n]*\n[^\n]*?\d{3}\.\d{3}\.\d{3}-\d{2}\s+(\d{1,2})\s", texto_completo, re.IGNORECASE)
+    if m_parc: dados["parcelas"] = m_parc.group(1)
+    if re.search(r"cart[ãa]o de cr[ée]dito|\*{6,}\d{4}", texto_completo, re.IGNORECASE):
+        dados["forma_pagamento"] = "Cartão de Crédito"
+
+    m_dest = re.search(r"Destino da Viagem:\s*([^\n]+)", texto_completo, re.IGNORECASE)
+    if m_dest: dados["detalhe"] = m_dest.group(1).strip()
     return dados
 
 
@@ -921,14 +1189,15 @@ def extrair_generico(texto_completo, ctx, dados):
 EXTRATORES = {
     "Porto Seguro": {"Auto": extrair_porto_auto},
     "Azul":         {"Auto": extrair_azul_auto},
-    "Bradesco":     {"Auto": extrair_bradesco_auto},
+    "Bradesco":     {"Auto": extrair_bradesco_auto, "Residencial": extrair_bradesco_residencial},
     "HDI":          {"Auto": extrair_hdi_auto},
     "Suíça":        {"Auto": extrair_suica_auto},
     "Zurich":       {"Auto": extrair_zurich_auto},
     "Yelum":        {"Auto": extrair_yelum_auto, "Residencial": extrair_yelum_residencial},
     "Aliro":        {"Auto": extrair_aliro_auto},
     "Suhai":        {"Auto": extrair_suhai_auto},
-    "Tokio Marine": {"Auto": extrair_tokio_auto},
+    "Tokio Marine": {"Auto": extrair_tokio_auto, "Viagem": extrair_tokio_viagem,
+                     "Empresarial": extrair_tokio_empresarial},
     "Allianz":      {"Auto": extrair_allianz_auto,
                      "Residencial": extrair_allianz_residencial,
                      "Empresarial": extrair_allianz_empresarial},
@@ -937,28 +1206,115 @@ EXTRATORES = {
 
 
 def escolher_extrator(seguradora, ramo):
-    """Retorna (função, rótulo_para_log, é_específico)."""
+    """Retorna (função, rótulo_para_log, é_específico, motivo_para_conferência)."""
     por_ramo = EXTRATORES.get(seguradora)
     if not por_ramo:
-        return extrair_generico, "genérico", False
+        return extrair_generico, "genérico", False, "seguradora sem extrator (genérico)"
     if ramo in por_ramo:
-        return por_ramo[ramo], f"{seguradora}/{ramo}", True
+        return por_ramo[ramo], f"{seguradora}/{ramo}", True, ""
     if "Auto" in por_ramo:
-        return por_ramo["Auto"], f"{seguradora}/Auto (sem extrator para {ramo})", False
-    return extrair_generico, "genérico", False
+        return (por_ramo["Auto"], f"{seguradora}/Auto (sem extrator para {ramo})", False,
+                f"{seguradora} sem extrator para {ramo} (usado o de Auto)")
+    return extrair_generico, "genérico", False, f"{seguradora} sem extrator para {ramo} (genérico)"
 
 
 # =======================================================
 # 5. ORQUESTRAÇÃO DA EXTRAÇÃO
 # =======================================================
+def _texto_parece_colado(texto):
+    """Detecta PDFs em que as palavras vêm grudadas ("CARTÃODECRÉDITO"), comum em Yelum/Aliro."""
+    palavras = texto.split()
+    if not palavras:
+        return False
+    longas = sum(1 for p in palavras if len(p) > 22 and not re.fullmatch(r"[\d\.\-/,]+", p))
+    return longas / len(palavras) > 0.03
+
+
 def ler_texto_pdf(pdf_bytes):
-    texto = ""
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for pagina in pdf.pages:
-            texto_pagina = pagina.extract_text()
-            if texto_pagina:
-                texto += texto_pagina + "\n"
+    def extrair(**opcoes):
+        texto = ""
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for pagina in pdf.pages:
+                texto_pagina = pagina.extract_text(**opcoes)
+                if texto_pagina:
+                    texto += texto_pagina + "\n"
+        return texto
+
+    texto = extrair()
+    # Só relê com tolerância menor quando o texto veio colado, para não mudar a leitura dos demais PDFs
+    if _texto_parece_colado(texto):
+        texto = extrair(x_tolerance=1.5)
     return texto
+
+
+def pdf_sem_texto(texto):
+    """PDF que é só imagem/print (ex.: 'Salvar como PDF' do navegador): não há o que ler sem OCR."""
+    util = "\n".join(l for l in texto.splitlines() if "chrome-extension" not in l and "Documento.pdf" not in l)
+    return len(re.sub(r"\s", "", util)) < 400
+
+
+# Dados da própria corretora que aparecem nos PDFs e NÃO podem ser confundidos com os do cliente
+TELEFONES_CORRETORA = {"51997588855", "5197588855", "51994447479", "5133529012"}   # celulares e fixo da Capse
+CNPJS_CORRETORA = {"44392817000128"}
+DDDS_VALIDOS = {11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28, 31, 32, 33, 34, 35, 37, 38,
+                41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+                71, 73, 74, 75, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99}
+PALAVRAS_LINHA_NAO_CLIENTE = r"capse|corretor|susep|222132731|sac\b|0800|ouvidoria|sucursal|atendimento|assist[êe]ncia"
+
+
+def normalizar_telefone(valor):
+    """Devolve DDD + número (10 ou 11 dígitos) ou "" se não for um telefone brasileiro plausível."""
+    d = so_digitos(valor).lstrip("0")
+    if len(d) in (12, 13) and d.startswith("55"):
+        d = d[2:]
+    if len(d) == 10 and d[2] in "6789":       # celular antigo sem o 9 na frente
+        d = d[:2] + "9" + d[2:]
+    if len(d) not in (10, 11) or int(d[:2]) not in DDDS_VALIDOS or len(set(d)) <= 2:
+        return ""
+    if len(d) == 11 and d[2] != "9":
+        return ""
+    if d in TELEFONES_CORRETORA:
+        return ""
+    return d
+
+
+def encontrar_telefone(texto_completo):
+    """Procura primeiro nos rótulos (Celular/Telefone/Fone), ignorando linhas da corretora/seguradora."""
+    def linha_de(pos_ini, pos_fim):
+        inicio = texto_completo.rfind("\n", 0, pos_ini) + 1
+        fim = texto_completo.find("\n", pos_fim)
+        return texto_completo[inicio: fim if fim != -1 else None]
+
+    def primeiro_valido(padrao):
+        for m in re.finditer(padrao, texto_completo, re.IGNORECASE):
+            if re.search(PALAVRAS_LINHA_NAO_CLIENTE, linha_de(m.start(), m.end()), re.IGNORECASE):
+                continue
+            tel = normalizar_telefone(m.group(1))
+            if tel:
+                return tel
+        return ""
+
+    # (?<!\d): o número não pode começar no meio de outro (ex.: final do código SUSEP "...31 99050177")
+    numero = r"(?<!\d)(\(?\+?\d{2}\)?[\s\-]*\(?\d{2}\)?[\s\-]*9?\d{3,5}[\s\-]?\d{4}|\(?\d{2}\)?[\s\-]*9?\d{4}[\s\-]?\d{4})"
+    # 1. Rótulo e número na mesma linha: "Celular: (51) 99999-9999"
+    tel = primeiro_valido(r"\b(?:celular|telefone|fone|tel\.?)[^\d\n]{0,25}" + numero)
+    if tel:
+        return tel
+
+    # 2. "Telefone" como título de coluna e o número na linha de baixo
+    linhas = texto_completo.splitlines()
+    for i, l in enumerate(linhas[:-1]):
+        if re.search(r"\b(?:celular|telefone)\b", l, re.IGNORECASE) and not re.search(r"\d{8,}", l):
+            seguinte = linhas[i + 1]
+            if re.search(PALAVRAS_LINHA_NAO_CLIENTE, seguinte, re.IGNORECASE):
+                continue
+            for candidato in re.findall(r"\(?\d{2}\)?[\s\-]?9?\d{4}-?\d{4}", seguinte):
+                tel = normalizar_telefone(candidato)
+                if tel:
+                    return tel
+
+    # 3. Sem rótulo: só aceita número formatado com parênteses ou hífen (evita RG, Renavam, protocolos)
+    return primeiro_valido(r"(\(\d{2}\)\s*9?\d{4}-?\d{4}|\b\d{2}\s?9\d{4}-\d{4}\b)")
 
 
 def extrair_contatos_universais(texto_completo, dados):
@@ -966,8 +1322,7 @@ def extrair_contatos_universais(texto_completo, dados):
     m_placa = re.search(r"\b([A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}-?\d{4})\b", texto_completo)
     if m_placa: dados["placa"] = m_placa.group(1).replace("-", "").upper()
 
-    m_tel = re.search(r"\b\(?\d{2}\)?\s*(?:9\d{4}|\d{4})-?\d{4}\b", texto_completo)
-    if m_tel: dados["telefone"] = so_digitos(m_tel.group(0))
+    dados["telefone"] = encontrar_telefone(texto_completo)
 
     for e in re.findall(r"[\w\.-]+@[\w\.-]+\.\w+", texto_completo):
         if "capse" not in e.lower():
@@ -977,15 +1332,16 @@ def extrair_contatos_universais(texto_completo, dados):
 
 def verificar_conferencia(dados, ctx):
     """Monta o texto da coluna Conferência: 'OK' ou o que precisa ser revisado manualmente."""
+    # Obs.: o nº da apólice NÃO é cobrado aqui (decisão da corretora: dado opcional).
     pendencias = []
     if not ctx["padrao_ok"]:
         pendencias.append("nome de arquivo fora do padrão")
     if not ctx["extrator_especifico"]:
-        pendencias.append("lido pelo extrator genérico")
+        pendencias.append(ctx.get("motivo_extrator", "sem extrator específico"))
     if dados["tipo_seguro"] == "Não Identificado":
         pendencias.append("tipo de seguro")
-    for campo, rotulo in (("numero_apolice", "nº apólice"), ("data_vigencia", "vigência"),
-                          ("premio_total", "prêmio total"), ("premio_liquido", "prêmio líquido")):
+    for campo, rotulo in (("data_vigencia", "vigência"), ("premio_total", "prêmio total"),
+                          ("premio_liquido", "prêmio líquido"), ("comissao_pct", "comissão %")):
         if not dados[campo]:
             pendencias.append(rotulo)
     if dados["tipo_seguro"] == "Auto" and not dados["placa"] and not dados["modelo_carro"]:
@@ -998,15 +1354,15 @@ def verificar_conferencia(dados, ctx):
 def gerar_chave(dados):
     """
     Chave anti-duplicidade. NÃO usa só o nome: o mesmo cliente pode ter vários carros/seguros.
-    Combina seguradora + tipo de documento + nº apólice + placa + data de vigência + prêmio total.
-    Sem nº de apólice, usa o nome do segurado no lugar.
+    Combina seguradora + tipo de documento + nº apólice + segurado + placa + data de vigência + prêmio total.
+    O segurado entra porque uma mesma proposta pode ter vários segurados (ex.: viajantes do Seguro Viagem).
     """
     numero = re.sub(r"[^0-9A-Z]", "", dados["numero_apolice"].upper())
-    identificador = numero or remover_acentos(dados["segurado"]).upper().replace(" ", "")
     partes = [
         remover_acentos(dados["seguradora"]).upper(),
         remover_acentos(dados["tipo_documento"]).upper(),
-        identificador,
+        numero,
+        re.sub(r"[^A-Z]", "", remover_acentos(dados["segurado"]).upper()),
         dados["placa"],
         dados["data_vigencia"],
         so_digitos(dados["premio_total"]),
@@ -1014,7 +1370,8 @@ def gerar_chave(dados):
     return "|".join(partes)
 
 
-def extrair_dados_pdf(pdf_bytes, nome_arquivo):
+def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
+    """texto_pronto: permite reaproveitar um texto já lido (usado no modo de teste local)."""
     dados = {
         "vencimento": "", "mes_vencimento": "", "data_vigencia": "", "numero_apolice": "", "segurado": "",
         "observacoes": "", "seguradora": "Não Identificada", "premio_total": "",
@@ -1024,16 +1381,20 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         # Novos campos
         "tipo_seguro": "", "tipo_documento": "", "movimento": "",
         "cpf_cnpj": "", "id_cliente": "", "conferencia": "", "chave": "", "arquivo": nome_arquivo,
+        "extrator": "", "detalhe": "",
     }
 
-    try:
-        texto_completo = ler_texto_pdf(pdf_bytes)
-    except Exception:
-        print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
-        return None
+    if texto_pronto is not None:
+        texto_completo = texto_pronto
+    else:
+        try:
+            texto_completo = ler_texto_pdf(pdf_bytes)
+        except Exception:
+            print(f"⚠️ ARQUIVO IGNORADO (Protegido por Senha ou Corrompido): {nome_arquivo}")
+            return None
 
-    if not texto_completo.strip():
-        print(f"⚠️ ARQUIVO IGNORADO (PDF sem texto — provavelmente escaneado/imagem): {nome_arquivo}")
+    if pdf_sem_texto(texto_completo):
+        print(f"⚠️ ARQUIVO IGNORADO (PDF sem texto — é imagem/print de tela; precisa do PDF original): {nome_arquivo}")
         return None
 
     # 1. Nome do arquivo, seguradora e ramo
@@ -1056,28 +1417,54 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
     dados["cpf_cnpj"] = extrair_documento_segurado(texto_completo)
 
     # 3. Extrator específico da seguradora / ramo
-    funcao, rotulo, especifico = escolher_extrator(dados["seguradora"], ctx["ramo"])
-    ctx["extrator_especifico"] = especifico
-    print(f"   ↳ Extrator: {rotulo} | Documento: {ctx['tipo_documento']}")
+    funcao, rotulo, especifico, motivo = escolher_extrator(dados["seguradora"], ctx["ramo"])
+    ctx["extrator_especifico"], ctx["motivo_extrator"] = especifico, motivo
+    dados["extrator"] = rotulo
+    if VERBOSO:
+        print(f"   ↳ Extrator: {rotulo} | Documento: {ctx['tipo_documento']}")
     try:
         dados = funcao(texto_completo, ctx, dados)
     except Exception as e:
         print(f"Erro ao aplicar Regex no arquivo {nome_arquivo}: {e}")
-        ctx["extrator_especifico"] = False
+        ctx["extrator_especifico"], ctx["motivo_extrator"] = False, f"erro no extrator: {e}"
 
     # 4. Nome do arquivo padronizado tem prioridade sobre o nome lido no PDF
     if info_arquivo["nome"]:
         dados["segurado"] = info_arquivo["nome"]
 
-    # 5. Fallbacks universais
+    # 5. Endosso/Cancelamento: a data que vale é a do ENDOSSO (decisão da corretora), não o início da apólice.
+    #    A maioria dos extratores já lê a data do endosso; aqui corrigimos os layouts que trazem as duas datas.
+    if ctx["movimento"] in ("Endosso", "Cancelamento"):
+        for padrao in (r"a partir de\s*(\d{2}/\d{2}/\d{4}),?\s*procede-se",   # Yelum/Aliro: "a partir de 12/08/2026, procede-se..."
+                       r"Das\s*24:00\s*hs\s*de\s*(\d{2}/\d{2}/\d{4})",         # Yelum/Aliro: vigência do endosso
+                       r"Vig[êe]ncia do item:\s*(\d{2}/\d{2}/\d{4})"):        # Porto Auto Frota
+            m_end = re.search(padrao, texto_completo, re.IGNORECASE)
+            if m_end:
+                dados["vencimento"] = m_end.group(1)
+                break
+
+    # 6. Fallbacks universais
     if not dados["vencimento"]:
         m_univ_venc = re.search(r"(?:vigência|início)[\s\S]{1,50}?(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
         if m_univ_venc: dados["vencimento"] = m_univ_venc.group(1)
 
-    if ctx["eh_cancelamento"] and not dados["premio_total"]:
-        # Preparado para cancelamentos: valor a restituir/devolver
-        m_rest = re.search(r"(?:restitui|devolu)[\s\S]{0,60}?([\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
-        if m_rest: dados["premio_total"] = m_rest.group(1)
+    # Reserva universal para prêmios (inclui valores NEGATIVOS de restituição em endossos/cancelamentos)
+    if not dados["premio_total"] or not dados["premio_liquido"]:
+        valores = valores_abaixo_do_cabecalho(texto_completo, r"Pr[êe]mio\s*L[íi]quido[^\n]*Pr[êe]mio\s*Total")
+        if len(valores) >= 2:
+            dados["premio_liquido"] = dados["premio_liquido"] or valores[0]
+            dados["premio_total"] = dados["premio_total"] or valores[-1]
+    if not dados["premio_total"]:
+        m_tot = re.search(r"Pr[êe]mio\s*Total(?!\s*L[íi]quido)\s*(?:\(R\$\))?\s*:?\s*R?\$?\s*(-?[\d\.]+,\d{2})",
+                          texto_completo, re.IGNORECASE)
+        if m_tot: dados["premio_total"] = m_tot.group(1)
+
+    for campo in ("premio_total", "premio_liquido"):
+        dados[campo] = formatar_valor(dados[campo])
+    # Restituição: se o total é negativo, o líquido também é (alguns PDFs mostram o líquido sem sinal)
+    if dados["premio_total"].startswith("-") and dados["premio_liquido"] and \
+            not dados["premio_liquido"].startswith("-") and so_digitos(dados["premio_liquido"]).strip("0"):
+        dados["premio_liquido"] = "-" + dados["premio_liquido"]
 
     # 6. Dia (coluna A) e mês (roteamento das abas); a data completa fica guardada para a chave
     if dados["vencimento"] and "/" in dados["vencimento"]:
@@ -1098,8 +1485,13 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo):
         dados["placa"] = ""   # evita "placas" falsas em seguros que não são de veículo
         dados["observacoes"] = f"Seguro {dados['tipo_seguro']}" if dados["tipo_seguro"] != "Não Identificado" \
             else "Tipo de seguro não identificado"
+        if dados["detalhe"]:   # ex.: destino da viagem
+            dados["observacoes"] += f" - {dados['detalhe']}"
 
-    # 8. Pagamento
+    # 8. Telefone e pagamento (padronização)
+    dados["telefone"] = normalizar_telefone(dados["telefone"]) or encontrar_telefone(texto_completo)
+    dados["parcelas"] = dados["parcelas"].lstrip("0")   # "05" -> "5"; "00" (cancelamento sem parcelas) -> ""
+    dados["forma_pagamento"] = re.sub(r"\s+", " ", dados["forma_pagamento"]).strip(" -")
     if dados["parcelas"] and dados["forma_pagamento"]:
         dados["pagamento"] = f"{dados['parcelas']} Parcelas - {dados['forma_pagamento']}"
     elif dados["parcelas"]:
@@ -1202,6 +1594,7 @@ def listar_pdfs_entrada(drive_service):
 
 
 def baixar_pdf(drive_service, file_id):
+    from googleapiclient.http import MediaIoBaseDownload
     request = drive_service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -1307,5 +1700,194 @@ def processar_fluxo():
     print(f"Resumo: {resumo}")
 
 
+# =======================================================
+# 8. MODO DE TESTE LOCAL (não acessa o Google)
+#    python main.py --local            -> lê os PDFs de Seguros/amostras
+#    python main.py --local <pasta>    -> lê os PDFs de outra pasta
+# =======================================================
+CAMPOS_TESTE = [
+    ("arquivo", "Arquivo"), ("seguradora", "Seguradora"), ("tipo_seguro", "Tipo de Seguro"),
+    ("tipo_documento", "Tipo Documento"), ("movimento", "Movimento"), ("segurado", "Segurado"),
+    ("data_vigencia", "Vigência"), ("numero_apolice", "Nº Apólice"), ("premio_total", "Prêmio Total"),
+    ("premio_liquido", "Prêmio Líquido"), ("comissao_pct", "Comissão %"), ("placa", "Placa"),
+    ("observacoes", "Observações"), ("email", "E-mail"), ("telefone", "Telefone"),
+    ("pagamento", "Pagamento"), ("cpf_encontrado", "CPF encontrado"), ("extrator", "Extrator"),
+    ("conferencia", "Conferência"),
+]
+# Campos que não fazem sentido comparar com o gabarito
+CAMPOS_NAO_COMPARADOS = {"arquivo", "extrator", "conferencia"}
+CAMPOS_VALOR = {"premio_total", "premio_liquido"}
+CAMPOS_DIGITOS = {"telefone"}
+
+
+def _normalizar_para_comparar(campo, valor):
+    valor = re.sub(r"\s+", " ", remover_acentos(str(valor or ""))).strip().upper()
+    if campo in CAMPOS_VALOR and valor:
+        # Aceita "2.150,00", "2150,00" e "2150" (o Excel costuma reformatar os números)
+        bruto = valor.replace("R$", "").strip()
+        bruto = bruto.replace(".", "").replace(",", ".") if "," in bruto else bruto
+        try:
+            return f"{float(bruto):.2f}"
+        except ValueError:
+            return valor
+    if campo in CAMPOS_DIGITOS:
+        return so_digitos(valor)
+    return valor
+
+
+def _ler_csv_flexivel(caminho):
+    """Lê CSV salvo pelo Excel/Sheets: aceita UTF-8 ou ANSI, separador ; ou ,"""
+    for codificacao in ("utf-8-sig", "cp1252"):
+        try:
+            with open(caminho, encoding=codificacao, newline="") as f:
+                conteudo = f.read()
+            break
+        except UnicodeDecodeError:
+            continue
+    separador = ";" if conteudo.split("\n", 1)[0].count(";") >= conteudo.split("\n", 1)[0].count(",") else ","
+    return list(csv.DictReader(io.StringIO(conteudo), delimiter=separador))
+
+
+def comparar_com_gabarito(resultados, caminho_gabarito, pasta):
+    rotulo_para_campo = {rotulo: campo for campo, rotulo in CAMPOS_TESTE}
+    gabarito = {}
+    for linha in _ler_csv_flexivel(caminho_gabarito):
+        nome = (linha.get("Arquivo") or "").strip()
+        if nome:
+            gabarito[nome] = {rotulo_para_campo[r]: v for r, v in linha.items() if r in rotulo_para_campo}
+
+    acertos, totais, divergencias = {}, {}, []
+    for r in resultados:
+        esperado = gabarito.get(r["arquivo"])
+        if not esperado:
+            continue
+        for campo, valor_esperado in esperado.items():
+            if campo in CAMPOS_NAO_COMPARADOS:
+                continue
+            totais[campo] = totais.get(campo, 0) + 1
+            obtido = r.get(campo, "")
+            if _normalizar_para_comparar(campo, valor_esperado) == _normalizar_para_comparar(campo, obtido):
+                acertos[campo] = acertos.get(campo, 0) + 1
+            else:
+                divergencias.append([r["arquivo"], dict(CAMPOS_TESTE)[campo], valor_esperado, obtido])
+
+    if not totais:
+        print("\n⚠️ Nenhum arquivo do gabarito.csv bate com os PDFs da pasta (confira a coluna 'Arquivo').")
+        return
+
+    print("\n================ COMPARAÇÃO COM O GABARITO ================")
+    for campo, rotulo in CAMPOS_TESTE:
+        if campo in totais:
+            ok, tot = acertos.get(campo, 0), totais[campo]
+            barra = "✅" if ok == tot else "⚠️"
+            print(f"  {barra} {rotulo:16} {ok:3}/{tot:<3} ({ok / tot:.0%})")
+    total_ok, total = sum(acertos.values()), sum(totais.values())
+    print(f"  PRECISÃO GERAL: {total_ok}/{total} campos ({total_ok / total:.1%})")
+
+    caminho_div = os.path.join(pasta, "divergencias.csv")
+    with open(caminho_div, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow(["Arquivo", "Campo", "Esperado (gabarito)", "Obtido (robô)"])
+        w.writerows(divergencias)
+    if divergencias:
+        print(f"\n  {len(divergencias)} divergência(s). Primeiras:")
+        for arq, campo, esp, obt in divergencias[:15]:
+            print(f"   - {arq[:45]:45} | {campo:14} | esperado: {esp!r} | obtido: {obt!r}")
+        print(f"  Lista completa em: {caminho_div}")
+
+
+def testar_local(pasta):
+    global VERBOSO
+    VERBOSO = False
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+    if not os.path.isdir(pasta):
+        print(f"Pasta não encontrada: {pasta}\nCrie a pasta e coloque os PDFs de teste dentro dela.")
+        return
+    pdfs = sorted(f for f in os.listdir(pasta) if f.lower().endswith(".pdf"))
+    if not pdfs:
+        print(f"Nenhum PDF encontrado em {pasta}")
+        return
+
+    pasta_textos = os.path.join(pasta, "_textos")
+    os.makedirs(pasta_textos, exist_ok=True)
+
+    resultados = []
+    for nome in pdfs:
+        try:
+            with open(os.path.join(pasta, nome), "rb") as f:
+                texto = ler_texto_pdf(f.read())
+        except Exception as e:
+            motivo = "protegido por SENHA" if "Password" in repr(e) else f"não abriu o PDF ({e!r})"
+            resultados.append({"arquivo": nome, "conferencia": f"ERRO: {motivo}"})
+            continue
+
+        # Guarda o texto extraído: é com ele que ajustamos as regras de leitura
+        with open(os.path.join(pasta_textos, nome[:-4] + ".txt"), "w", encoding="utf-8") as f:
+            f.write(texto)
+
+        dados = extrair_dados_pdf(None, nome, texto_pronto=texto)
+        if dados is None:
+            resultados.append({"arquivo": nome, "conferencia": "IGNORADO: PDF sem texto (escaneado?)"})
+            continue
+        linha = {campo: dados.get(campo, "") for campo, _ in CAMPOS_TESTE}
+        linha["cpf_encontrado"] = "sim" if dados["cpf_cnpj"] else "não"
+        resultados.append(linha)
+
+    caminho_csv = os.path.join(pasta, "resultado_teste.csv")
+    with open(caminho_csv, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow([rotulo for _, rotulo in CAMPOS_TESTE])
+        for r in resultados:
+            w.writerow([r.get(campo, "") for campo, _ in CAMPOS_TESTE])
+
+    # Resumo no terminal
+    print(f"\n================ RESULTADO ({len(resultados)} PDFs) ================")
+    for r in resultados:
+        conf = r.get("conferencia", "")
+        icone = "✅" if conf == "OK" else ("❌" if conf.startswith(("ERRO", "IGNORADO")) else "⚠️")
+        print(f"{icone} {r.get('seguradora', ''):13} {r.get('tipo_seguro', ''):12} {r.get('tipo_documento', ''):22} "
+              f"{r.get('segurado', '')[:26]:26} {conf}")
+
+    ok = sum(1 for r in resultados if r.get("conferencia") == "OK")
+    print(f"\nPLACAR: {ok}/{len(resultados)} sem pendências ({ok / len(resultados):.0%})")
+
+    por_seguradora = {}
+    for r in resultados:
+        s = r.get("seguradora") or "?"
+        tot, oks = por_seguradora.get(s, (0, 0))
+        por_seguradora[s] = (tot + 1, oks + (r.get("conferencia") == "OK"))
+    for s, (tot, oks) in sorted(por_seguradora.items()):
+        print(f"  {s:16} {oks}/{tot} OK")
+
+    pendencias = {}
+    for r in resultados:
+        conf = r.get("conferencia", "")
+        if conf.startswith("Revisar: "):
+            for p in conf[len("Revisar: "):].split(", "):
+                pendencias[p] = pendencias.get(p, 0) + 1
+    if pendencias:
+        print("\nPendências mais comuns:")
+        for p, n in sorted(pendencias.items(), key=lambda x: -x[1])[:10]:
+            print(f"  {n:3}x {p}")
+
+    print(f"\nTabela completa: {caminho_csv}")
+    print(f"Textos extraídos dos PDFs: {pasta_textos}")
+
+    caminho_gabarito = os.path.join(pasta, "gabarito.csv")
+    if os.path.exists(caminho_gabarito):
+        comparar_com_gabarito(resultados, caminho_gabarito, pasta)
+    else:
+        print("\nDica: copie resultado_teste.csv para gabarito.csv, corrija as células erradas "
+              "e rode de novo para medir a precisão campo a campo.")
+
+
 if __name__ == "__main__":
-    processar_fluxo()
+    if len(sys.argv) > 1 and sys.argv[1] == "--local":
+        pasta_padrao = os.path.join(os.path.dirname(os.path.abspath(__file__)), "amostras")
+        testar_local(sys.argv[2] if len(sys.argv) > 2 else pasta_padrao)
+    else:
+        processar_fluxo()
