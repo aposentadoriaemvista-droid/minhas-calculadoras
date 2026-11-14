@@ -1,8 +1,8 @@
 FÓRMULA DA ABA "Consolidado" — colar na célula A1 (apague antes o conteúdo antigo da aba inteira)
 ===============================================================================================
+Versão para planilha em PORTUGUÊS (separador ";"), em uma linha só. Copie a linha inteira abaixo.
 
-Usa só as funções que a fórmula antiga já usava (LET, VSTACK, HSTACK, ARRAYFORMULA, SEQUENCE)
-mais SORTN, FILTER, INDEX, CHOOSECOLS e SPLIT. Separador "," (o mesmo da sua planilha).
+=LET(dados; VSTACK(HSTACK(ARRAYFORMULA(IF(Janeiro!C2:C1000<>""; "Janeiro"; "")); Janeiro!A2:S1000); HSTACK(ARRAYFORMULA(IF(Fevereiro!C2:C1000<>""; "Fevereiro"; "")); Fevereiro!A2:S1000); HSTACK(ARRAYFORMULA(IF('Março'!C2:C1000<>""; "Março"; "")); 'Março'!A2:S1000); HSTACK(ARRAYFORMULA(IF(Abril!C2:C1000<>""; "Abril"; "")); Abril!A2:S1000); HSTACK(ARRAYFORMULA(IF(Maio!C2:C1000<>""; "Maio"; "")); Maio!A2:S1000); HSTACK(ARRAYFORMULA(IF(Junho!C2:C1000<>""; "Junho"; "")); Junho!A2:S1000); HSTACK(ARRAYFORMULA(IF(Julho!C2:C1000<>""; "Julho"; "")); Julho!A2:S1000); HSTACK(ARRAYFORMULA(IF(Agosto!C2:C1000<>""; "Agosto"; "")); Agosto!A2:S1000); HSTACK(ARRAYFORMULA(IF(Setembro!C2:C1000<>""; "Setembro"; "")); Setembro!A2:S1000); HSTACK(ARRAYFORMULA(IF(Outubro!C2:C1000<>""; "Outubro"; "")); Outubro!A2:S1000); HSTACK(ARRAYFORMULA(IF(Novembro!C2:C1000<>""; "Novembro"; "")); Novembro!A2:S1000); HSTACK(ARRAYFORMULA(IF(Dezembro!C2:C1000<>""; "Dezembro"; "")); Dezembro!A2:S1000)); numerado; HSTACK(SEQUENCE(ROWS(dados); 1; 1; 1); dados); preenchidos; FILTER(numerado; INDEX(numerado; 0; 5)<>""); chave; ARRAYFORMULA(IF(INDEX(preenchidos; 0; 21)=""; "LINHA-"&INDEX(preenchidos; 0; 1); INDEX(preenchidos; 0; 21))); unicos; SORTN(HSTACK(preenchidos; chave); 9^9; 2; 22; 1); ordenados; SORT(unicos; 1; 0); VSTACK(SPLIT("Mês|Vencimento|Apolice|Segurado|Observações|CIA|Premio Total|Premio Liquido|Comissão|Comissão(%)|Placa|Email|Telefone|Pagamento|Tipo de Seguro|Tipo Documento|Movimento|ID Cliente|Ordem"; "|"); CHOOSECOLS(ordenados; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19; 1)))
 
 O que ela faz:
 - Junta as abas Janeiro..Dezembro (colunas A até S), com a coluna "Mês" na frente.
@@ -13,36 +13,7 @@ O que ela faz:
 - Ordem igual à anterior: Dezembro primeiro e, dentro do mês, as últimas linhas primeiro.
 - NÃO traz CPF, Conferência, Chave nem nome do arquivo.
 
-=LET(
-  dados, VSTACK(
-    HSTACK(ARRAYFORMULA(IF(Janeiro!C2:C1000<>"", "Janeiro", "")), Janeiro!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Fevereiro!C2:C1000<>"", "Fevereiro", "")), Fevereiro!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF('Março'!C2:C1000<>"", "Março", "")), 'Março'!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Abril!C2:C1000<>"", "Abril", "")), Abril!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Maio!C2:C1000<>"", "Maio", "")), Maio!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Junho!C2:C1000<>"", "Junho", "")), Junho!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Julho!C2:C1000<>"", "Julho", "")), Julho!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Agosto!C2:C1000<>"", "Agosto", "")), Agosto!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Setembro!C2:C1000<>"", "Setembro", "")), Setembro!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Outubro!C2:C1000<>"", "Outubro", "")), Outubro!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Novembro!C2:C1000<>"", "Novembro", "")), Novembro!A2:S1000),
-    HSTACK(ARRAYFORMULA(IF(Dezembro!C2:C1000<>"", "Dezembro", "")), Dezembro!A2:S1000)
-  ),
-  numerado, HSTACK(SEQUENCE(ROWS(dados), 1, 1, 1), dados),
-  preenchidos, FILTER(numerado, INDEX(numerado, 0, 5)<>""),
-  chave, ARRAYFORMULA(IF(INDEX(preenchidos, 0, 21)="", "LINHA-"&INDEX(preenchidos, 0, 1), INDEX(preenchidos, 0, 21))),
-  unicos, SORTN(HSTACK(preenchidos, chave), 9^9, 2, 22, TRUE),
-  ordenados, SORT(unicos, 1, FALSE),
-  VSTACK(
-    SPLIT("Mês|Vencimento|Apolice|Segurado|Observações|CIA|Premio Total|Premio Liquido|Comissão|Comissão(%)|Placa|Email|Telefone|Pagamento|Tipo de Seguro|Tipo Documento|Movimento|ID Cliente|Ordem", "|"),
-    CHOOSECOLS(ordenados, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 1)
-  )
-)
-
-
 Mapa das colunas internas (para manutenção):
   1 = ordem original | 2 = Mês | 3..21 = colunas A..S da aba do mês
   (3=Vencimento, 5=Segurado, 15=Pagamento, 16=Tipo de Seguro, 19=ID Cliente, 21=Chave)
   22 = chave usada para remover duplicados
-
-Se der erro, passe o mouse sobre a célula A1 e me envie a mensagem exata que aparece.

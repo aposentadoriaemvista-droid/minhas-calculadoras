@@ -143,6 +143,22 @@ def formatar_valor(valor):
     return ("-" if numero < 0 else "") + texto
 
 
+def valor_para_numero(valor):
+    """'1.805,91' -> 1805.91 ; '-796,15' -> -796.15 ; '24,80%' -> 24.8 ; vazio/inválido -> None"""
+    bruto = (valor or "").replace("R$", "").replace("%", "").replace(" ", "")
+    if not re.fullmatch(r"-?[\d\.]*\d(?:,\d+)?", bruto):
+        return None
+    return float(bruto.replace(".", "").replace(",", "."))
+
+
+def calcular_comissao(premio_liquido, comissao_pct):
+    """Comissão = líquido × % , no formato brasileiro ('447,85'). Se faltar algum dos dois, '0,00'."""
+    liquido, pct = valor_para_numero(premio_liquido), valor_para_numero(comissao_pct)
+    if liquido is None or pct is None:
+        return "0,00"
+    return formatar_valor(f"{liquido * pct / 100:.2f}".replace(".", ","))
+
+
 def agora_texto():
     try:
         from zoneinfo import ZoneInfo
@@ -360,9 +376,14 @@ RE_DOCUMENTO = re.compile(
     r"(\d{3}\.?\d{3}\.?\d{3}-\d{2})"               # CPF formatado ("123.456.789-01" ou "123456789-01")
     r"|(\d{2}\.?\d{3}\.?\d{3}/\d{4}-\d{2})"        # CNPJ formatado ("12.345.678/0001-90" ou "12345678/0001-90")
     r"|CPF\s*[:\-]?\s*(\d{11})\b"                  # CPF sem pontuação, logo após o rótulo
-    r"|CNPJ\s*[:\-]?\s*(\d{14})\b",                # CNPJ sem pontuação, logo após o rótulo
+    r"|CNPJ\s*[:\-]?\s*(\d{14})\b"                 # CNPJ sem pontuação, logo após o rótulo
+    r"|(?:F[íi]sica|Jur[íi]dica)\s+(\d{11}|\d{14})\b",   # Suhai: "ROGER ... Física 12345678901"
     re.IGNORECASE,
 )
+
+# Linhas que pertencem à SEGURADORA (rodapé/cabeçalho com o CNPJ dela) — documento nessas linhas não é do cliente
+RE_LINHA_SEGURADORA = re.compile(r"segurador[ao]|seguros\s*s[./]?a|cia\.?\s*de\s*seguros|companhia\s*de\s*seguros"
+                                 r"|^\s*CNPJ:\s*\d{14}\s+Data:", re.IGNORECASE)
 
 
 def extrair_documento_segurado(texto_completo):
@@ -375,6 +396,10 @@ def extrair_documento_segurado(texto_completo):
     for m_rotulo in re.finditer(rotulos, texto_completo, re.IGNORECASE):
         janela = texto_completo[m_rotulo.start(): m_rotulo.start() + 300]
         for m in RE_DOCUMENTO.finditer(janela):
+            inicio = janela.rfind("\n", 0, m.start()) + 1
+            fim = janela.find("\n", m.end())
+            if RE_LINHA_SEGURADORA.search(janela[inicio: fim if fim != -1 else None]):
+                continue   # ex.: "Tokio Marine Seguradora S.A. - CNPJ 33.164.021/0001-00"
             doc = so_digitos(next(g for g in m.groups() if g))
             if len(doc) == 11 and cpf_valido(doc):
                 cpfs.append(doc)
@@ -1554,6 +1579,9 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
     elif dados["forma_pagamento"]:
         dados["pagamento"] = dados["forma_pagamento"]
 
+    # Comissão = Prêmio Líquido × Comissão % (restituição negativa gera estorno negativo); sem dado -> 0,00
+    dados["comissao"] = calcular_comissao(dados["premio_liquido"], dados["comissao_pct"])
+
     # 9. ID do cliente, conferência e chave anti-duplicidade
     dados["id_cliente"] = gerar_id_cliente(dados["cpf_cnpj"])
     dados["conferencia"] = verificar_conferencia(dados, ctx)
@@ -1631,6 +1659,13 @@ def ordenar_planilha_por_vencimento(sheet):
     fim = gspread.utils.rowcol_to_a1(len(todos_dados), largura)
     sheet.update(range_name=f"A1:{fim}", values=[cabecalho] + linhas)
     print(f"Aba '{sheet.title}' ordenada com sucesso pelo Dia do Vencimento.")
+
+    # O filtro antigo da planilha cobria só A:M. Ordenar por ele move A:M e deixa N:T para trás,
+    # separando as colunas do mesmo registro. Por isso o filtro passa a cobrir TODAS as colunas usadas.
+    try:
+        sheet.set_basic_filter(f"A1:{fim}")
+    except Exception as e:
+        print(f"⚠️ Não foi possível ajustar o filtro da aba '{sheet.title}': {e}")
 
 
 # =======================================================
@@ -1772,7 +1807,7 @@ CAMPOS_TESTE = [
     ("arquivo", "Arquivo"), ("seguradora", "Seguradora"), ("tipo_seguro", "Tipo de Seguro"),
     ("tipo_documento", "Tipo Documento"), ("movimento", "Movimento"), ("segurado", "Segurado"),
     ("data_vigencia", "Vigência"), ("numero_apolice", "Nº Apólice"), ("premio_total", "Prêmio Total"),
-    ("premio_liquido", "Prêmio Líquido"), ("comissao_pct", "Comissão %"), ("placa", "Placa"),
+    ("premio_liquido", "Prêmio Líquido"), ("comissao_pct", "Comissão %"), ("comissao", "Comissão"), ("placa", "Placa"),
     ("observacoes", "Observações"), ("email", "E-mail"), ("telefone", "Telefone"),
     ("pagamento", "Pagamento"), ("cpf_encontrado", "CPF encontrado"), ("extrator", "Extrator"),
     ("conferencia", "Conferência"),
