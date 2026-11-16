@@ -2,7 +2,10 @@ name: Executar Leitor de Apólices
 
 on:
   schedule:
-    - cron: '0 */12 * * *'
+    # Horário em UTC (Brasília = UTC-3): de hora em hora das 8h às 19h em dias úteis,
+    # e uma vez ao meio-dia nos fins de semana. Mantém o dashboard da TV sempre atualizado.
+    - cron: '0 11-22 * * 1-5'
+    - cron: '0 15 * * 0,6'
   workflow_dispatch:
 
 # Nunca rodar duas execuções ao mesmo tempo (evita lançamentos duplicados).
@@ -41,3 +44,24 @@ jobs:
           CPF_SALT: ${{ secrets.CPF_SALT }}
         run: |
           python main.py
+
+      - name: Ler Orçamentos
+        if: always()
+        working-directory: ./Seguros
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          CPF_SALT: ${{ secrets.CPF_SALT }}
+        run: |
+          python orcamentos.py
+
+      # Roda mesmo se um dos passos anteriores falhar: o painel de renovações nunca fica parado
+      - name: Montar Renovações
+        if: always()
+        working-directory: ./Seguros
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          CPF_SALT: ${{ secrets.CPF_SALT }}
+        run: |
+          python renovacoes.py
