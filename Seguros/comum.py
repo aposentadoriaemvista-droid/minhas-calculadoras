@@ -159,11 +159,24 @@ def formatar_valor(valor):
 
 
 def valor_para_numero(valor):
-    """'1.805,91' -> 1805.91 ; '-796,15' -> -796.15 ; '24,80%' -> 24.8 ; vazio/inválido -> None"""
-    bruto = (valor or "").replace("R$", "").replace("%", "").replace(" ", "")
+    """'1.805,91' -> 1805.91 ; '-796,15' -> -796.15 ; '24,80%' -> 24.8 ; vazio/inválido -> None
+    Também aceita o que o Sheets/Excel devolve quando a célula virou número: 2218.42 (float) ou '2218.42'."""
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    bruto = str(valor or "").replace("R$", "").replace("%", "").replace(" ", "").replace(" ", "")
+    if re.fullmatch(r"-?\d+\.\d{1,2}", bruto):        # ponto decimal: "2218.42" (não é milhar, que tem 3 dígitos)
+        return float(bruto)
     if not re.fullmatch(r"-?[\d\.]*\d(?:,\d+)?", bruto):
         return None
     return float(bruto.replace(".", "").replace(",", "."))
+
+
+def normalizar_valor(valor):
+    """Qualquer representação de dinheiro -> '1.234,56' (ou '' se não for número)."""
+    numero = valor_para_numero(valor)
+    if numero is None:
+        return ""
+    return formatar_valor(f"{numero:.2f}".replace(".", ","))
 
 
 def calcular_comissao(premio_liquido, comissao_pct):
@@ -192,6 +205,8 @@ TIPOS_DOCUMENTO = [
     ("Endosso Cancelamento",          r"endosso\s+(?:de\s+)?cancelamento"),
     ("Proposta Endosso",              r"proposta\s+(?:de\s+)?endosso"),
     ("Endosso",                       r"endosso"),
+    # "Apólice endossada - NOME" e "Apólice - Endosso NOME" são endossos, não apólices novas
+    ("Endosso",                       r"ap[oó]lice\s*(?:[-–]\s*)?endoss(?:ad[ao]|o)"),
     ("Apólice",                       r"ap[oó]lice"),
     ("Proposta",                      r"proposta"),
     ("Orçamento",                     r"or[cç]amento"),   # lido pelo orcamentos.py, não pelo main.py

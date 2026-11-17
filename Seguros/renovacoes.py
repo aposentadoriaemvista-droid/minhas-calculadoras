@@ -68,7 +68,7 @@ def registro_de_apolice(linha):
         "placa": _celula(linha, "Placa").replace("-", "").upper() if ramo == "Auto" else "",
         "detalhe": _celula(linha, "Observações"),
         "seguradora": _celula(linha, "Seguradora"),
-        "premio": _celula(linha, "Prêmio Total"),
+        "premio": normalizar_valor(_celula(linha, "Prêmio Total")),
         "movimento": _celula(linha, "Movimento") or "Emissão",
         "tipo_doc": _celula(linha, "Tipo Documento"),
         "telefone": _celula(linha, "Telefone"),
@@ -91,7 +91,7 @@ def registro_de_orcamento(item):
         "ramo": ramo,
         "placa": str(item.get("Placa") or "").replace("-", "").upper().strip() if ramo == "Auto" else "",
         "seguradora": str(item.get("Seguradora") or "").strip(),
-        "premio": str(item.get("Prêmio Total") or "").strip(),
+        "premio": normalizar_valor(item.get("Prêmio Total")),
     }
 
 
