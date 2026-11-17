@@ -74,7 +74,8 @@ ABA_ORCAMENTOS = "Orçamentos"
 CABECALHO_ORCAMENTOS = [
     "Data Orçamento", "Segurado", "Seguradora", "Tipo de Seguro", "Placa", "Observações",
     "Prêmio Total", "Prêmio Líquido", "Comissão %", "Franquia", "Pagamento",
-    "ID Cliente", "Telefone", "E-mail", "Conferência", "Chave", "Arquivo", "Processado em",
+    "ID Cliente", "Telefone", "E-mail", "Início Vigência", "Corretora", "Conferência", "Chave", "Arquivo",
+    "Processado em",
 ]
 
 # Aba de renovações (montada inteira pelo renovacoes.py a cada execução)
@@ -85,7 +86,8 @@ CABECALHO_RENOVACOES = [
     "Data Renovação", "Status", "Segurado", "Tipo de Seguro", "Placa", "Veículo / Detalhe",
     "Seguradora Atual", "Prêmio Atual", "Início Vigência", "Qtd Orçamentos", "Melhor Orçamento",
     "Seguradora Melhor Orçamento", "Último Orçamento em", "Renovado com", "Telefone", "E-mail",
-    "ID Cliente", *COLUNAS_MANUAIS_RENOVACAO, "Chave Renovação", "Atualizado em",
+    "ID Cliente", "Documentos", "Pendência Documento",
+    *COLUNAS_MANUAIS_RENOVACAO, "Chave Renovação", "Atualizado em",
 ]
 
 ABA_CLIENTES = "Base_Clientes"
@@ -479,12 +481,14 @@ def pdf_sem_texto(texto):
 
 
 # Dados da própria corretora que aparecem nos PDFs e NÃO podem ser confundidos com os do cliente
-TELEFONES_CORRETORA = {"51997588855", "5197588855", "51994447479", "5133529012"}   # celulares e fixo da Capse
+TELEFONES_CORRETORA = {"51997588855", "5197588855", "51994447479", "5133529012",   # celulares e fixo da Capse
+                       "51992572895"}                                               # celular da AEV
 CNPJS_CORRETORA = {"44392817000128"}
+DOMINIOS_CORRETORA = ("capse", "aevseguros")   # e-mails da corretora (Capse e AEV) nunca são do cliente
 DDDS_VALIDOS = {11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28, 31, 32, 33, 34, 35, 37, 38,
                 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55, 61, 62, 63, 64, 65, 66, 67, 68, 69,
                 71, 73, 74, 75, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99}
-PALAVRAS_LINHA_NAO_CLIENTE = r"capse|corretor|susep|222132731|sac\b|0800|ouvidoria|sucursal|atendimento|assist[êe]ncia"
+PALAVRAS_LINHA_NAO_CLIENTE = r"capse|\baev\b|corretor|susep|222132731|sac\b|0800|ouvidoria|sucursal|atendimento|assist[êe]ncia"
 
 
 def normalizar_telefone(valor):
@@ -550,7 +554,7 @@ def extrair_contatos_universais(texto_completo, dados):
     dados["telefone"] = encontrar_telefone(texto_completo)
 
     for e in re.findall(r"[\w\.-]+@[\w\.-]+\.\w+", texto_completo):
-        if "capse" not in e.lower():
+        if not any(c in e.lower() for c in DOMINIOS_CORRETORA):
             dados["email"] = e.lower()
             break
 

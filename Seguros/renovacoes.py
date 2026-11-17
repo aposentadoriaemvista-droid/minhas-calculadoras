@@ -32,6 +32,7 @@ JANELA_RENOVACAO_ANTES = 60      # proposta nova até 60 dias antes do venciment
 JANELA_RENOVACAO_DEPOIS = 30     # ...e até 30 dias depois
 AGRUPAR_MESMA_VIGENCIA = 60      # proposta + apólice + endossos a menos de 60 dias = mesmo seguro
 RAMOS_SEM_RENOVACAO = {"Viagem"}
+DIAS_ESPERA_APOLICE = 15         # proposta sem apólice há mais de 15 dias = "Falta apólice"
 
 # Posição das colunas nas abas mensais (pela ordem do CABECALHO_MENSAL, não pelo título,
 # porque os títulos A..M da planilha podem ter sido escritos à mão)
@@ -69,6 +70,7 @@ def registro_de_apolice(linha):
         "seguradora": _celula(linha, "Seguradora"),
         "premio": _celula(linha, "Prêmio Total"),
         "movimento": _celula(linha, "Movimento") or "Emissão",
+        "tipo_doc": _celula(linha, "Tipo Documento"),
         "telefone": _celula(linha, "Telefone"),
         "email": _celula(linha, "E-mail"),
     }
@@ -77,7 +79,8 @@ def registro_de_apolice(linha):
 def registro_de_orcamento(item):
     """item = dict {título da coluna: valor} da aba Orçamentos."""
     segurado = str(item.get("Segurado") or "").strip()
-    data = ler_data(item.get("Data Orçamento")) or ler_data(item.get("Processado em"))
+    # O início de vigência da cotação é a melhor data para casar com a renovação; senão, a data do orçamento
+    data = ler_data(item.get("Início Vigência")) or ler_data(item.get("Data Orçamento")) or ler_data(item.get("Processado em"))
     if not segurado or not data:
         return None
     ramo = str(item.get("Tipo de Seguro") or "").strip()
@@ -98,9 +101,12 @@ def mesmo_cliente(a, b):
     return bool(a["id"] and a["id"] == b["id"]) or a["nome"] == b["nome"]
 
 
-def mesmo_bem(a, b, exigir_placa=True):
-    """Mesmo cliente + mesmo ramo; no Auto, também a mesma placa (cliente com mais de um carro)."""
-    if not mesmo_cliente(a, b) or a["ramo"] != b["ramo"]:
+def mesmo_bem(a, b, exigir_placa=True, ramo_flexivel=False):
+    """Mesmo cliente + mesmo ramo; no Auto, também a mesma placa (cliente com mais de um carro).
+    ramo_flexivel: orçamento sem ramo identificado (ex.: PDF que é imagem) casa com qualquer ramo do cliente."""
+    if not mesmo_cliente(a, b):
+        return False
+    if a["ramo"] != b["ramo"] and not (ramo_flexivel and "Não Identificado" in (a["ramo"], b["ramo"])):
         return False
     if a["ramo"] == "Auto" and exigir_placa and a["placa"] and b["placa"]:
         return a["placa"] == b["placa"]
@@ -130,9 +136,10 @@ def agrupar_vigencias(apolices):
                 # a Apólice costuma ter prêmio/seguradora mais confiáveis que a Proposta: guarda os dados mais recentes
                 for campo in ("seguradora", "premio", "telefone", "email", "id", "detalhe"):
                     v["principal"][campo] = e[campo] or v["principal"][campo]
+                v["documentos"].add(e["tipo_doc"])
                 break
         else:
-            vigencias.append({"principal": dict(e)})
+            vigencias.append({"principal": dict(e), "documentos": {e["tipo_doc"]}})
 
     for v in vigencias:
         p = v["principal"]
@@ -140,6 +147,20 @@ def agrupar_vigencias(apolices):
         v["cancelado"] = any(a["movimento"] == "Cancelamento" and mesmo_bem(p, a)
                              and p["data"] <= a["data"] < p["renovacao"] for a in apolices)
     return vigencias
+
+
+def situacao_documentos(v, data_hoje):
+    """Proposta x Apólice do mesmo seguro: ('Proposta + Apólice' | 'Só Proposta' | 'Só Apólice', pendência)."""
+    docs = v["documentos"]
+    tem_proposta, tem_apolice = "Proposta" in docs, "Apólice" in docs
+    if tem_proposta and tem_apolice:
+        return "Proposta + Apólice", ""
+    if tem_proposta:
+        dias = (data_hoje - v["principal"]["data"]).days
+        return "Só Proposta", ("Falta apólice" if dias > DIAS_ESPERA_APOLICE else "Aguardando apólice")
+    if tem_apolice:
+        return "Só Apólice", "Falta proposta"
+    return "", ""      # linhas antigas, sem a coluna Tipo Documento
 
 
 def proxima_vigencia(v, vigencias):
@@ -159,7 +180,7 @@ def orcamentos_da_vigencia(v, orcamentos):
     p = v["principal"]
     inicio = p["renovacao"] - timedelta(days=JANELA_ORCAMENTO_ANTES)
     fim = p["renovacao"] + timedelta(days=JANELA_ORCAMENTO_DEPOIS)
-    return [o for o in orcamentos if inicio <= o["data"] <= fim and mesmo_bem(p, o)]
+    return [o for o in orcamentos if inicio <= o["data"] <= fim and mesmo_bem(p, o, ramo_flexivel=True)]
 
 
 def chave_renovacao(p):
@@ -216,6 +237,7 @@ def calcular_renovacoes(apolices, orcamentos, manuais, data_hoje):
             p["telefone"],
             p["email"],
             p["id"],
+            *situacao_documentos(v, data_hoje),
             *[manual.get(c, "") for c in COLUNAS_MANUAIS_RENOVACAO],
             chave,
             agora_texto(),
@@ -328,6 +350,12 @@ def testar_local(caminho_xlsx):
     contagem = {}
     for l in linhas:
         contagem[l[1]] = contagem.get(l[1], 0) + 1
+    i_pend = CABECALHO_RENOVACOES.index("Pendência Documento")
+    pend = {}
+    for l in linhas:
+        if l[i_pend]:
+            pend[l[i_pend]] = pend.get(l[i_pend], 0) + 1
+    print(f"Pendências de documento: {pend}")
     print(f"Hoje = {data_hoje:%d/%m/%Y} | {len(apolices)} linhas lidas | {sem_data} sem data completa")
     print(f"{len(linhas)} seguros: {contagem}")
     print("\nPróximos 10 a renovar:")
