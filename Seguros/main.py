@@ -446,6 +446,8 @@ def extrair_yelum_auto(texto_completo, ctx, dados):
     if m_apolice: dados["numero_apolice"] = m_apolice.group(1).strip()
 
     m_venc = re.search(r"Vigência\s*[:\s]*(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
+    # Apólice: "Das 24:00hs de 21/12/2025 às 24:00hs de 21/12/2026"
+    if not m_venc: m_venc = re.search(r"Das\s*24:00\s*hs\s*de\s*(\d{2}/\d{2}/\d{4})\s*[àa]s", texto_completo, re.IGNORECASE)
     if not m_venc: m_venc = re.search(r"(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", texto_completo, re.IGNORECASE)
     if m_venc: dados["vencimento"] = m_venc.group(1)
 
@@ -479,7 +481,8 @@ def _premio_layout_yelum(texto_completo, dados):
     m_cab = re.search(r"Pr[êe]mio\s*L[íi]quido[^\n]*Juros\s*\(?%\)?\s*\n([^\n]+)", texto_completo, re.IGNORECASE)
     if m_cab:
         # Cancelamentos usam "-" nas colunas vazias: "R$796,15 - - - R$ -796,15 -"
-        tokens = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}|(?<!\S)-(?!\S)", m_cab.group(1).replace("R$", " "))
+        # ",\d{1,2}": o Juros(%) da apólice vem com uma casa só ("0,0") e também é uma coluna
+        tokens = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{1,2}(?!\d)|(?<!\S)-(?!\S)", m_cab.group(1).replace("R$", " "))
         valores = [t for t in tokens if t != "-"]
         if len(tokens) == 6:            # todas as colunas presentes: líquido é a 1ª e total é a 5ª
             dados["premio_liquido"], dados["premio_total"] = tokens[0], tokens[4]
@@ -884,7 +887,8 @@ EXTRATORES = {
     "Aliro":        {"Auto": extrair_aliro_auto},
     "Suhai":        {"Auto": extrair_suhai_auto},
     "Tokio Marine": {"Auto": extrair_tokio_auto, "Viagem": extrair_tokio_viagem,
-                     "Empresarial": extrair_tokio_empresarial},
+                     "Empresarial": extrair_tokio_empresarial,
+                     "Condomínio": extrair_tokio_auto},   # a apólice Condomínio usa o mesmo "Prêmio Líquido Total:"
     "Allianz":      {"Auto": extrair_allianz_auto,
                      "Residencial": extrair_allianz_residencial,
                      "Empresarial": extrair_allianz_empresarial},
@@ -978,6 +982,10 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
 
     # 1. Nome do arquivo, seguradora e ramo
     info_arquivo = interpretar_nome_arquivo(nome_arquivo)
+    # Arquivo chamado "Apólice ..." mas o PDF é um ENDOSSO ("Endosso - Ramo 31 ..."): vale o que o PDF diz
+    if info_arquivo["tipo_documento"] == "Apólice" and \
+            re.search(r"^\s*Endosso\s*-\s*Ramo\b", texto_completo[:3000], re.IGNORECASE | re.MULTILINE):
+        info_arquivo["tipo_documento"] = "Endosso"
     dados["seguradora"], ramo_sugerido = identificar_seguradora(texto_completo)
     dados["comissao_pct"] = info_arquivo["comissao_pct"]
 
@@ -1010,6 +1018,8 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
     # 4. Nome do arquivo padronizado tem prioridade sobre o nome lido no PDF
     if info_arquivo["nome"]:
         dados["segurado"] = info_arquivo["nome"]
+    if info_arquivo["placa"]:      # frota: a placa escrita no nome do arquivo identifica o veículo
+        dados["placa"] = info_arquivo["placa"]
 
     # 5. Endosso/Cancelamento: a data que vale é a do ENDOSSO (decisão da corretora), não o início da apólice.
     #    A maioria dos extratores já lê a data do endosso; aqui corrigimos os layouts que trazem as duas datas.
@@ -1033,6 +1043,13 @@ def extrair_dados_pdf(pdf_bytes, nome_arquivo, texto_pronto=None):
         if len(valores) >= 2:
             dados["premio_liquido"] = dados["premio_liquido"] or valores[0]
             dados["premio_total"] = dados["premio_total"] or valores[-1]
+    # Porto Frota: "Prêmio Líquido do Seguro: R$ 785,49" / "Prêmio Final do Seguro: R$ 843,46"
+    if not dados["premio_liquido"]:
+        m_liq = re.search(r"Pr[êe]mio\s*L[íi]quido\s*do\s*Seguro\s*:\s*R?\$?\s*(-?[\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+        if m_liq: dados["premio_liquido"] = m_liq.group(1)
+    if not dados["premio_total"]:
+        m_fin = re.search(r"Pr[êe]mio\s*Final\s*do\s*Seguro\s*:\s*R?\$?\s*(-?[\d\.]+,\d{2})", texto_completo, re.IGNORECASE)
+        if m_fin: dados["premio_total"] = m_fin.group(1)
     if not dados["premio_total"]:
         m_tot = re.search(r"Pr[êe]mio\s*Total(?!\s*L[íi]quido)\s*(?:\(R\$\))?\s*:?\s*R?\$?\s*(-?[\d\.]+,\d{2})",
                           texto_completo, re.IGNORECASE)
@@ -1159,6 +1176,32 @@ def ordenar_planilha_por_vencimento(sheet):
 # =======================================================
 # 7. FLUXO DE NUVEM (DRIVE -> SHEETS -> MOVE)
 # =======================================================
+def localizar_lancamento(linhas_aba, dados):
+    """
+    Procura na aba a linha do MESMO lançamento: mesmo cliente (ID ou nome), mesmo tipo de documento,
+    mesmo tipo de seguro, mesma data de vigência e, no Auto, a mesma placa.
+    Devolve o índice na lista (0 = 1ª linha depois do cabeçalho) ou None.
+    Data diferente = outro lançamento (renovação, endosso, cancelamento...): nunca substitui.
+    """
+    data = ler_data(dados["data_vigencia"])
+    if not data:
+        return None
+    nome = chave_nome(dados["segurado"])
+    for i, linha in enumerate(linhas_aba):
+        l = list(linha) + [""] * (len(CABECALHO_MENSAL) - len(linha))
+        if (ler_data(l[20]) or ler_data(l[18])) != data:          # U = Data Vigência; S = Chave (linhas antigas)
+            continue
+        if l[14] != dados["tipo_documento"] or l[13] != dados["tipo_seguro"]:
+            continue
+        if not ((dados["id_cliente"] and l[16] == dados["id_cliente"]) or chave_nome(l[2]) == nome):
+            continue
+        placa_linha = str(l[9]).replace("-", "").upper()
+        if dados["tipo_seguro"] == "Auto" and dados["placa"] and placa_linha and placa_linha != dados["placa"]:
+            continue
+        return i
+    return None
+
+
 def obter_aba_mes(planilha_doc, abas_modificadas, dados, file_name):
     nome_aba = MAPA_MESES.get(dados.get("mes_vencimento", ""))
     if not nome_aba:
@@ -1188,10 +1231,12 @@ def processar_fluxo():
     chaves_lancadas = set(aba_controle.col_values(1)[1:])
 
     aba_clientes = abrir_ou_criar_aba(planilha_doc, ABA_CLIENTES, CABECALHO_CLIENTES, oculta=True)
-    documentos_cadastrados = set(aba_clientes.col_values(2)[1:])
+    nomes_por_documento = carregar_nomes_por_documento(aba_clientes)
+    documentos_cadastrados = set(nomes_por_documento)
 
     abas_modificadas = {}
-    resumo = {"lançados": 0, "duplicados": 0, "ignorados": 0, "erros": 0}
+    linhas_por_aba = {}    # conteúdo atual de cada aba de mês (para achar o lançamento a substituir)
+    resumo = {"lançados": 0, "atualizados": 0, "duplicados": 0, "ignorados": 0, "erros": 0}
 
     pastas_clientes = {}   # cache das pastas "ficha do cliente" já encontradas/criadas nesta execução
 
@@ -1222,32 +1267,42 @@ def processar_fluxo():
                 resumo["ignorados"] += 1
                 continue
 
-            # Anti-duplicidade: mesmo documento já lançado -> não lança de novo, só tira da entrada
-            if dados["chave"] in chaves_lancadas:
-                print(f"⏭️ Duplicado (já lançado antes): {file_name}")
-                aba_controle.append_row([dados["chave"], agora_texto(), file_name, "", dados["seguradora"],
-                                         dados["numero_apolice"], dados["tipo_documento"], "Duplicado - ignorado"])
-                mover_para_ficha_do_cliente(drive_service, file_id, FOLDER_ENTRADA_ID, FOLDER_PROCESSADOS_ID,
-                                            dados["segurado"], pastas_clientes)
-                resumo["duplicados"] += 1
-                continue
-
             nome_aba, aba_atual = obter_aba_mes(planilha_doc, abas_modificadas, dados, file_name)
-            aba_atual.append_row(montar_linha(dados))
+            if nome_aba not in linhas_por_aba:
+                linhas_por_aba[nome_aba] = aba_atual.get_all_values()[1:]
+            linhas = linhas_por_aba[nome_aba]
+            linha = montar_linha(dados)
+
+            # Mesmo cliente + mesmo documento + mesma vigência já lançado: SUBSTITUI a linha (ex.: apólice
+            # reemitida com outro valor). Outra data = outro lançamento (renovação, endosso, cancelamento).
+            indice = localizar_lancamento(linhas, dados)
+            if indice is not None:
+                fim = gspread.utils.rowcol_to_a1(indice + 2, len(linha))
+                aba_atual.update(range_name=f"A{indice + 2}:{fim}", values=[linha])
+                linhas[indice] = linha
+                situacao = "Atualizado (substituiu o lançamento da mesma vigência)"
+                resumo["atualizados"] += 1
+            else:
+                aba_atual.append_row(linha)
+                linhas.append(linha)
+                situacao = "Lançado"
+                resumo["lançados"] += 1
 
             chaves_lancadas.add(dados["chave"])
             aba_controle.append_row([dados["chave"], agora_texto(), file_name, nome_aba, dados["seguradora"],
-                                     dados["numero_apolice"], dados["tipo_documento"], "Lançado"])
+                                     dados["numero_apolice"], dados["tipo_documento"], situacao])
 
             if dados["cpf_cnpj"] and dados["cpf_cnpj"] not in documentos_cadastrados:
                 aba_clientes.append_row([dados["id_cliente"], dados["cpf_cnpj"], dados["segurado"],
                                          agora_texto(), file_name])
                 documentos_cadastrados.add(dados["cpf_cnpj"])
+                nomes_por_documento[dados["cpf_cnpj"]] = dados["segurado"]
 
+            # Mesmo CPF -> mesma pasta (usa o nome do 1º registro do cliente)
+            nome_pasta = nomes_por_documento.get(dados["cpf_cnpj"]) or dados["segurado"]
             mover_para_ficha_do_cliente(drive_service, file_id, FOLDER_ENTRADA_ID, FOLDER_PROCESSADOS_ID,
-                                            dados["segurado"], pastas_clientes)
-            resumo["lançados"] += 1
-            print(f"✅ Lançado em '{nome_aba}' | {dados['tipo_seguro']} | {dados['movimento']} | {dados['conferencia']}")
+                                        nome_pasta, pastas_clientes)
+            print(f"✅ {situacao} em '{nome_aba}' | {dados['tipo_seguro']} | {dados['movimento']} | {dados['conferencia']}")
 
         except Exception as e:
             # Um arquivo com problema não derruba o robô; ele fica na entrada para a próxima execução

@@ -188,17 +188,38 @@ def montar_linha_orcamento(d):
     ]
 
 
+def localizar_orcamento(linhas_aba, dados):
+    """Mesmo orçamento = mesmo cliente + seguradora + ramo + placa + início de vigência (ou data, se não houver)."""
+    col = {c: i for i, c in enumerate(CABECALHO_ORCAMENTOS)}
+    data = ler_data(dados["inicio_vigencia"]) or ler_data(dados["data_orcamento"])
+    nome = chave_nome(dados["segurado"])
+    for i, linha in enumerate(linhas_aba):
+        l = list(linha) + [""] * (len(CABECALHO_ORCAMENTOS) - len(linha))
+        data_linha = ler_data(l[col["Início Vigência"]]) or ler_data(l[col["Data Orçamento"]])
+        if data_linha != data or l[col["Seguradora"]] != dados["seguradora"] or l[col["Tipo de Seguro"]] != dados["tipo_seguro"]:
+            continue
+        if not ((dados["id_cliente"] and l[col["ID Cliente"]] == dados["id_cliente"]) or chave_nome(l[col["Segurado"]]) == nome):
+            continue
+        placa_linha = str(l[col["Placa"]]).replace("-", "").upper()
+        if dados["placa"] and placa_linha and placa_linha != dados["placa"]:
+            continue
+        return i
+    return None
+
+
 def processar_orcamentos():
     drive_service, gc = conectar_google()
     planilha_doc = gc.open_by_key(SPREADSHEET_ID)
     aba = abrir_ou_criar_aba(planilha_doc, ABA_ORCAMENTOS, CABECALHO_ORCAMENTOS)
     i_chave = CABECALHO_ORCAMENTOS.index("Chave") + 1
     chaves = set(aba.col_values(i_chave)[1:])
+    linhas = aba.get_all_values()[1:]
     aba_clientes = abrir_ou_criar_aba(planilha_doc, ABA_CLIENTES, CABECALHO_CLIENTES, oculta=True)
-    documentos_cadastrados = set(aba_clientes.col_values(2)[1:])
+    nomes_por_documento = carregar_nomes_por_documento(aba_clientes)
+    documentos_cadastrados = set(nomes_por_documento)
 
     pastas_clientes = {}
-    resumo = {"lançados": 0, "duplicados": 0, "ignorados": 0, "erros": 0}
+    resumo = {"lançados": 0, "atualizados": 0, "duplicados": 0, "ignorados": 0, "erros": 0}
     for arq in listar_pdfs(drive_service, FOLDER_ORCAMENTOS_ID):
         file_id, file_name = arq["id"], arq["name"]
         print(f"Processando orçamento: {file_name}")
@@ -211,21 +232,31 @@ def processar_orcamentos():
                 resumo["ignorados"] += 1
                 continue
 
-            if dados["chave"] in chaves:
-                print(f"⏭️ Orçamento duplicado (já lançado antes): {file_name}")
-                resumo["duplicados"] += 1
+            linha = montar_linha_orcamento(dados)
+            indice = localizar_orcamento(linhas, dados)
+            if indice is not None:
+                # Mesmo orçamento recalculado (outro valor, mesma vigência): substitui a linha
+                fim = gspread.utils.rowcol_to_a1(indice + 2, len(linha))
+                aba.update(range_name=f"A{indice + 2}:{fim}", values=[linha])
+                linhas[indice] = linha
+                resumo["atualizados"] += 1
+                situacao = "Atualizado"
             else:
-                aba.append_row(montar_linha_orcamento(dados))
-                chaves.add(dados["chave"])
-                if dados["cpf_cnpj"] and dados["cpf_cnpj"] not in documentos_cadastrados:
-                    aba_clientes.append_row([dados["id_cliente"], dados["cpf_cnpj"], dados["segurado"],
-                                             agora_texto(), file_name])
-                    documentos_cadastrados.add(dados["cpf_cnpj"])
+                aba.append_row(linha)
+                linhas.append(linha)
                 resumo["lançados"] += 1
-                print(f"✅ {dados['seguradora']} | {dados['tipo_seguro']} | {dados['premio_total']} | {dados['conferencia']}")
+                situacao = "Lançado"
+            chaves.add(dados["chave"])
+            if dados["cpf_cnpj"] and dados["cpf_cnpj"] not in documentos_cadastrados:
+                aba_clientes.append_row([dados["id_cliente"], dados["cpf_cnpj"], dados["segurado"],
+                                         agora_texto(), file_name])
+                documentos_cadastrados.add(dados["cpf_cnpj"])
+                nomes_por_documento[dados["cpf_cnpj"]] = dados["segurado"]
+            print(f"✅ {situacao} | {dados['seguradora']} | {dados['tipo_seguro']} | {dados['premio_total']} | {dados['conferencia']}")
 
+            nome_pasta = nomes_por_documento.get(dados["cpf_cnpj"]) or dados["segurado"]
             mover_para_ficha_do_cliente(drive_service, file_id, FOLDER_ORCAMENTOS_ID,
-                                        FOLDER_ORCAMENTOS_PROCESSADOS_ID, dados["segurado"], pastas_clientes)
+                                        FOLDER_ORCAMENTOS_PROCESSADOS_ID, nome_pasta, pastas_clientes)
         except Exception as e:
             print(f"❌ Erro ao processar {file_name}: {e}")
             resumo["erros"] += 1

@@ -229,7 +229,10 @@ PALAVRAS_RAMO = {
     "residencial": "Residencial", "residencia": "Residencial", "residência": "Residencial",
     "empresarial": "Empresarial", "pme": "Empresarial",
     "vida": "Vida",
+    "condominio": "Condomínio", "condomínio": "Condomínio",
 }
+
+RE_PLACA = r"[A-Z]{3}-?\d[A-Z0-9]\d{2}"
 
 
 def interpretar_nome_arquivo(nome_arquivo):
@@ -238,7 +241,8 @@ def interpretar_nome_arquivo(nome_arquivo):
     Ex.: "Proposta Endosso Cancelamento JOÃO DA SILVA 15%.pdf"
          "Proposta MARIA SOUZA - RESIDENCIAL 20%.pdf"
     """
-    info = {"tipo_documento": "Não Identificado", "nome": "", "comissao_pct": "", "ramo": "", "padrao_ok": False}
+    info = {"tipo_documento": "Não Identificado", "nome": "", "comissao_pct": "", "ramo": "", "placa": "",
+            "padrao_ok": False}
 
     base = unicodedata.normalize("NFC", nome_arquivo)
     base = re.sub(r"\.pdf$", "", base, flags=re.IGNORECASE)
@@ -287,6 +291,12 @@ def interpretar_nome_arquivo(nome_arquivo):
     if m_ramo_ini:
         info["ramo"] = PALAVRAS_RAMO.get(m_ramo_ini.group(1).lower(), "")
         resto = resto[m_ramo_ini.end():]
+
+    # Placa no nome (frota): "CFCJC - Placa JBM6E11" ou "Cfc Jc JCG5I34"
+    m_placa = re.search(rf"\s*[-–]?\s*(?:placa\s*:?\s*)?\b({RE_PLACA})\s*$", resto, re.IGNORECASE)
+    if m_placa and (re.search(r"placa", m_placa.group(0), re.IGNORECASE) or re.search(r"\d", m_placa.group(1))):
+        info["placa"] = m_placa.group(1).replace("-", "").upper()
+        resto = resto[:m_placa.start()]
 
     # Sufixo opcional de ramo: "NOME - RESIDENCIAL" ou "NOME RESIDENCIAL"
     m_ramo = re.search(r"\s*[-–]?\s*\b(auto|autom[oó]vel|viagem|residencial|resid[eê]ncia|empresarial|pme)\s*[-–]?\s*$",
@@ -337,6 +347,9 @@ def identificar_seguradora(texto_completo):
             posicoes[seguradora] = m.start()
     if not posicoes and "portoseguro.com.br" in texto_lower:   # ex.: endosso de Auto Frota
         posicoes["Porto Seguro"] = 0
+    # Apólice Yelum "Ramo 31 Automovel - Casco": o nome da seguradora só aparece depois do cabeçalho
+    if not posicoes and re.search(r"yelum segurad|yelum seguros|yelum auto", texto_lower):
+        posicoes["Yelum"] = 0
     if not posicoes:
         return "Não Identificada", ""
 
@@ -353,6 +366,7 @@ RE_RAMO_VIAGEM = r"seguro\s+viagem|assist[êe]ncia\s+(?:em\s+)?viagem|pa[ií]s\s
 RE_RAMO_RESIDENCIAL = r"ramo:\s*14\b|seguro\s+resid|resid[êe]ncia\s+habitual|\bresidencial\b|\bresid[êe]ncia\b"
 RE_RAMO_EMPRESARIAL = r"ramo:\s*18\b|empresarial|empresa\s*pme|\bpme\b|modalidade:\s*\d+\s*-\s*novo empresa"
 RE_RAMO_VIDA = r"seguro\s+de\s+vida|vida\s+individual|acidentes\s+pessoais\s+individual"
+RE_RAMO_CONDOMINIO = r"seguro\s+condom[íi]nio|marine\s+condom[íi]nio|^\s*condom[íi]nio\s*$|ap[óo]lice\s+\d+\s*-\s*condom[íi]nio"
 
 
 def identificar_ramo(texto_completo, info_arquivo, ramo_sugerido):
@@ -371,12 +385,13 @@ def identificar_ramo(texto_completo, info_arquivo, ramo_sugerido):
     # O cabeçalho é mais confiável que o texto todo: um seguro empresarial cita "residência" nas condições gerais,
     # mas o título diz "EMPRESARIAL".
     cabecalho = texto_completo[:1500]
-    for trecho, ordem in ((cabecalho, ("Viagem", "Vida", "Empresarial", "Residencial")),
+    for trecho, ordem in ((cabecalho, ("Viagem", "Vida", "Condomínio", "Empresarial", "Residencial")),
                           (texto_completo, ("Viagem", "Residencial", "Empresarial", "Vida"))):
         for ramo in ordem:
             padrao = {"Viagem": RE_RAMO_VIAGEM, "Residencial": RE_RAMO_RESIDENCIAL,
-                      "Empresarial": RE_RAMO_EMPRESARIAL, "Vida": RE_RAMO_VIDA}[ramo]
-            if re.search(padrao, trecho, re.IGNORECASE):
+                      "Empresarial": RE_RAMO_EMPRESARIAL, "Vida": RE_RAMO_VIDA,
+                      "Condomínio": RE_RAMO_CONDOMINIO}[ramo]
+            if re.search(padrao, trecho, re.IGNORECASE | re.MULTILINE):
                 return ramo
     return "Não Identificado"
 
@@ -653,6 +668,16 @@ def pasta_do_cliente(drive_service, pasta_pai_id, nome_cliente, cache):
 def mover_arquivo(drive_service, file_id, de_pasta_id, para_pasta_id):
     drive_service.files().update(fileId=file_id, addParents=para_pasta_id, removeParents=de_pasta_id,
                                  fields="id, parents").execute()
+
+
+def carregar_nomes_por_documento(aba_clientes):
+    """{CPF/CNPJ: nome do 1º registro} da Base_Clientes. Mesmo CPF -> sempre a MESMA pasta do cliente,
+    mesmo que o nome venha escrito diferente em outro arquivo."""
+    nomes = {}
+    for linha in aba_clientes.get_all_values()[1:]:
+        if len(linha) >= 3 and linha[1] and linha[2]:
+            nomes.setdefault(so_digitos(linha[1]), linha[2])
+    return nomes
 
 
 def mover_para_ficha_do_cliente(drive_service, file_id, de_pasta_id, pasta_processados_id, nome_cliente, cache):
