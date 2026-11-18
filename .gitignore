@@ -4,3 +4,7 @@ node_modules/
 .idea/
 .wix/
 jsconfig.json
+
+# Robôs e CRM da corretora: mudaram para o repositório privado Projeto-CRM.
+# A pasta fica só no computador (tem PDFs e dados de clientes).
+Seguros/

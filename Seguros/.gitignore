@@ -1,9 +1,0 @@
-# PDFs e resultados de teste contêm dados de clientes: nunca enviar ao GitHub
-amostras/
-
-# Credenciais locais
-credentials.json
-
-# Cache do Python
-__pycache__/
-*.pyc
